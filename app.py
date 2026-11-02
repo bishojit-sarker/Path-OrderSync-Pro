@@ -4,14 +4,86 @@ import json
 import re
 import subprocess
 import threading
+import ctypes
 import urllib.request
 import webbrowser
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 
 CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
-CURRENT_VERSION = "v1.2.0"
+HISTORY_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "history.json")
+CURRENT_VERSION = "v1.3.0"
 GITHUB_REPO = "bishojit-sarker/Smart-Dropbox-QC-Batch-Loader"
+
+# Windows Cloud Filter Attributes
+FILE_ATTRIBUTE_PINNED = 0x80000
+FILE_ATTRIBUTE_UNPINNED = 0x100000
+FILE_ATTRIBUTE_REPARSE_POINT = 0x400
+
+def load_history():
+    if os.path.exists(HISTORY_FILE):
+        try:
+            with open(HISTORY_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {}
+
+def save_history(hist):
+    try:
+        with open(HISTORY_FILE, "w", encoding="utf-8") as f:
+            json.dump(hist, f, indent=2)
+    except Exception:
+        pass
+
+def mark_order_history(order_id, vendor, folder_path, status, file_count=0):
+    hist = load_history()
+    key = f"{order_id}_{vendor}" if vendor and vendor != "-" else str(order_id)
+    hist[key] = {
+        "order_id": str(order_id),
+        "vendor": vendor,
+        "path": folder_path,
+        "status": status,  # "local" or "online"
+        "files": file_count
+    }
+    save_history(hist)
+
+def get_tracked_local_orders():
+    hist = load_history()
+    local_orders = []
+    for key, item in hist.items():
+        if item.get("status") == "local":
+            p = item.get("path")
+            if p and os.path.isdir(p):
+                local_orders.append(item)
+    return local_orders
+
+def is_folder_local_on_disk(folder_path):
+    """
+    Checks if a folder contains hydrated/pinned files taking physical space on disk.
+    """
+    if not os.path.isdir(folder_path):
+        return False, 0
+    kernel32 = ctypes.windll.kernel32 if hasattr(ctypes, "windll") else None
+    if not kernel32:
+        return False, 0
+
+    has_local = False
+    file_count = 0
+    for root, _, files in os.walk(folder_path):
+        for f in files:
+            file_count += 1
+            fp = os.path.join(root, f)
+            try:
+                attrs = kernel32.GetFileAttributesW(fp)
+                if attrs != -1 and (attrs & FILE_ATTRIBUTE_PINNED):
+                    has_local = True
+                    break
+            except Exception:
+                pass
+        if has_local:
+            break
+    return has_local, file_count
 
 def cleanup_old_executable():
     try:
@@ -160,7 +232,7 @@ def save_config(cfg):
 class QCBatchLoaderApp(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("⚡ Smart Dropbox QC Batch Loader v1.2")
+        self.title(f"⚡ Smart Dropbox QC Batch Loader {CURRENT_VERSION}")
         self.geometry("900x750")
         self.minsize(780, 600)
 
@@ -179,6 +251,7 @@ class QCBatchLoaderApp(tk.Tk):
         self._setup_style()
         self._create_widgets()
         self._update_order_count()
+        self._update_leftover_badge()
 
         # Check for updates in background 2.5s after launch
         self.after(2500, lambda: check_for_updates(self, silent=True))
@@ -274,6 +347,22 @@ class QCBatchLoaderApp(tk.Tk):
             pady=2
         )
         update_btn.pack(side="right")
+
+        self.leftover_btn = tk.Button(
+            top_frame,
+            text="🕒 Leftover: 0",
+            command=self._show_tracked_leftovers,
+            bg="#252538",
+            fg=self.text_muted,
+            activebackground="#d97706",
+            activeforeground="white",
+            relief="flat",
+            font=("Segoe UI", 8, "bold"),
+            cursor="hand2",
+            padx=8,
+            pady=2
+        )
+        self.leftover_btn.pack(side="right", padx=(0, 6))
 
         # 2. Dropbox Path Bar
         path_card = tk.Frame(self, bg=self.card_bg, bd=1, relief="solid")
@@ -424,7 +513,23 @@ class QCBatchLoaderApp(tk.Tk):
             padx=8,
             pady=2
         )
-        free_single_btn.pack(side="right")
+        free_single_btn.pack(side="right", padx=(4, 0))
+
+        self.find_local_btn = tk.Button(
+            right_header,
+            text="🔍 Find All Local Orders",
+            command=self._start_deep_scan_local,
+            bg="#059669",
+            fg="white",
+            activebackground="#047857",
+            activeforeground="white",
+            relief="flat",
+            font=("Segoe UI", 8, "bold"),
+            cursor="hand2",
+            padx=8,
+            pady=2
+        )
+        self.find_local_btn.pack(side="right")
 
         tree_frame = tk.Frame(right_frame, bg="#181825")
         tree_frame.pack(fill="both", expand=True, padx=10, pady=4)
@@ -754,6 +859,8 @@ class QCBatchLoaderApp(tk.Tk):
             status_text = "☁️ Online-Only"
             self.tree.item(item_id, values=(f"#{order_id}", vendor, status_text, str(file_count)))
             info["status"] = status_text
+            mark_order_history(order_id, vendor, folder_path, "online", file_count)
+            self._update_leftover_badge()
             self.status_var.set(f"☁️ Order #{order_id} ({vendor}) is now Online-Only. Disk space freed!")
         except Exception as e:
             messagebox.showerror("Error", f"Failed to free space:\n{e}")
@@ -801,9 +908,237 @@ class QCBatchLoaderApp(tk.Tk):
             status_text = "✅ Local (Ready)"
             self.tree.item(item_id, values=(f"#{order_id}", vendor, status_text, str(file_count)))
             info["status"] = status_text
+            mark_order_history(order_id, vendor, folder_path, "local", file_count)
+            self._update_leftover_badge()
             self.status_var.set(f"✅ Order #{order_id} ({vendor}) is now Local and ready for QC.")
         except Exception as e:
             messagebox.showerror("Error", f"Failed to make local:\n{e}")
+
+    def _update_leftover_badge(self):
+        try:
+            tracked = get_tracked_local_orders()
+            count = len(tracked)
+            if hasattr(self, "leftover_btn"):
+                if count > 0:
+                    self.leftover_btn.config(
+                        text=f"🕒 Leftover: {count}",
+                        bg="#f59e0b",
+                        fg="#111827",
+                        activebackground="#d97706",
+                        activeforeground="#ffffff"
+                    )
+                else:
+                    self.leftover_btn.config(
+                        text="🕒 Leftover: 0",
+                        bg="#252538",
+                        fg=self.text_muted,
+                        activebackground="#3b82f6",
+                        activeforeground="#ffffff"
+                    )
+        except Exception:
+            pass
+
+    def _show_tracked_leftovers(self):
+        tracked = get_tracked_local_orders()
+        if not tracked:
+            messagebox.showinfo(
+                "History Tracker",
+                "🎉 Clean Drive!\n\nNo leftover local orders found in session history.\nAll previously processed orders have been made Online-Only."
+            )
+            return
+
+        order_list_str = "\n".join([f"• #{it['order_id']} ({it.get('vendor', '-')}) - {it.get('files', 0)} files" for it in tracked[:15]])
+        if len(tracked) > 15:
+            order_list_str += f"\n... and {len(tracked) - 15} more orders"
+
+        msg = (
+            f"Found {len(tracked)} order(s) currently marked as LOCAL in history:\n\n"
+            f"{order_list_str}\n\n"
+            "Would you like to load these orders into the table now?\n"
+            "(You can then review them or click '2. Free Up Space' / right-click to make them Online-Only)"
+        )
+        ans = messagebox.askyesno("Tracked Leftover Orders", msg)
+        if ans:
+            self._load_orders_into_table(tracked)
+
+    def _load_orders_into_table(self, order_items):
+        self.tree.delete(*self.tree.get_children())
+        self.resolved_orders = {}
+
+        oids = []
+        for it in order_items:
+            oid = it["order_id"]
+            vendor = it.get("vendor", "-")
+            path = it.get("path")
+            files = it.get("files", 0)
+            status = "✅ Local (Tracked)"
+
+            item_key = f"{oid}_{vendor}" if vendor and vendor != "-" else oid
+            self.tree.insert("", "end", iid=item_key, values=(f"#{oid}", vendor, status, str(files)))
+
+            info = {
+                "order_id": oid,
+                "vendor": vendor,
+                "path": path,
+                "status": status,
+                "files": files
+            }
+            self.resolved_orders[item_key] = info
+            self.resolved_orders[oid] = info
+            self.resolved_orders[f"#{oid}"] = info
+            if oid not in oids:
+                oids.append(oid)
+
+        formatted = "\n".join([f"#{o}" for o in oids])
+        self.input_text.delete("1.0", "end")
+        self.input_text.insert("1.0", formatted)
+        self._update_order_count()
+        self.status_var.set(f"Loaded {len(order_items)} tracked leftover orders into table.")
+
+    def _free_orders_in_background(self, order_items):
+        for it in order_items:
+            folder_path = it.get("path")
+            oid = it.get("order_id")
+            vendor = it.get("vendor", "-")
+            files = it.get("files", 0)
+            if folder_path and os.path.isdir(folder_path):
+                try:
+                    cmd_files = f'attrib -P +U "{folder_path}\\*.*" /s'
+                    subprocess.run(cmd_files, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    cmd_folder = f'attrib -P +U "{folder_path}" /d'
+                    subprocess.run(cmd_folder, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                except Exception:
+                    pass
+            mark_order_history(oid, vendor, folder_path, "online", files)
+        self._update_leftover_badge()
+
+    def _start_deep_scan_local(self):
+        if self.is_running:
+            messagebox.showinfo("Busy", "Another process is currently running. Please wait or stop it first.")
+            return
+
+        base_path = self.path_var.get()
+        if not base_path or not os.path.isdir(base_path):
+            messagebox.showerror("Error", f"Dropbox path is invalid:\n{base_path}")
+            return
+
+        confirm = messagebox.askyesno(
+            "Deep Disk Scanner",
+            f"Scan Dropbox folder for ANY order folders that are taking up space locally?\n\n"
+            f"Location: {base_path}\n\n"
+            "This will inspect vendor folders and detect orders containing hydrated/offline files."
+        )
+        if not confirm:
+            return
+
+        self._set_controls_running(True)
+        threading.Thread(target=self._process_deep_scan_local, args=(base_path,), daemon=True).start()
+
+    def _process_deep_scan_local(self, base_path):
+        self.status_var.set("🔍 Deep Scanning Dropbox vendors for local orders...")
+        self.tree.delete(*self.tree.get_children())
+        self.resolved_orders = {}
+
+        self.total_lbl.config(text="Deep Scanning Dropbox Vendors...")
+        self.single_lbl.config(text="Analyzing folder attributes...")
+        self.total_progress["value"] = 0
+        self.single_progress["value"] = 0
+
+        found_locals = []
+
+        try:
+            vendors = [d for d in os.listdir(base_path) if os.path.isdir(os.path.join(base_path, d))]
+        except Exception as e:
+            self.status_var.set(f"Error reading Dropbox: {e}")
+            self._set_controls_running(False)
+            return
+
+        total_v = len(vendors)
+        self.total_progress["maximum"] = max(total_v, 1)
+
+        for v_idx, vendor in enumerate(vendors):
+            if self.stop_requested:
+                break
+            self.pause_event.wait()
+            if self.stop_requested:
+                break
+
+            self.total_lbl.config(text=f"Scanning Vendor ({v_idx + 1}/{total_v}): {vendor}")
+            self.total_progress["value"] = v_idx + 1
+            v_dir = os.path.join(base_path, vendor)
+
+            try:
+                subdirs = [d for d in os.listdir(v_dir) if os.path.isdir(os.path.join(v_dir, d))]
+            except Exception:
+                continue
+
+            for sub in subdirs:
+                if self.stop_requested:
+                    break
+                self.pause_event.wait()
+                if self.stop_requested:
+                    break
+
+                clean_id = re.sub(r"^#\s*", "", sub)
+                clean_id = re.split(r"[-_]", clean_id)[0].strip()
+
+                order_dir = os.path.join(v_dir, sub)
+                completed_dir = None
+                for c_cand in ["Completed", "Complete", "completed", "complete"]:
+                    cd = os.path.join(order_dir, c_cand)
+                    if os.path.isdir(cd):
+                        completed_dir = cd
+                        break
+                target_check = completed_dir if completed_dir else order_dir
+
+                is_local, file_count = is_folder_local_on_disk(target_check)
+                if is_local:
+                    found_locals.append({
+                        "order_id": clean_id,
+                        "vendor": vendor,
+                        "path": target_check,
+                        "status": "✅ Local (Discovered)",
+                        "files": file_count
+                    })
+                    mark_order_history(clean_id, vendor, target_check, "local", file_count)
+
+                    item_key = f"{clean_id}_{vendor}"
+                    self.tree.insert("", "end", iid=item_key, values=(f"#{clean_id}", vendor, "✅ Local (Discovered)", str(file_count)))
+                    self.tree.see(item_key)
+                    self.resolved_orders[item_key] = {
+                        "order_id": clean_id,
+                        "vendor": vendor,
+                        "path": target_check,
+                        "status": "✅ Local (Discovered)",
+                        "files": file_count
+                    }
+                    self.resolved_orders[clean_id] = self.resolved_orders[item_key]
+                    self.resolved_orders[f"#{clean_id}"] = self.resolved_orders[item_key]
+
+        if found_locals:
+            unique_ids = list(dict.fromkeys([it["order_id"] for it in found_locals]))
+            formatted = "\n".join([f"#{oid}" for oid in unique_ids])
+            self.input_text.delete("1.0", "end")
+            self.input_text.insert("1.0", formatted)
+            self._update_order_count()
+
+        self._update_leftover_badge()
+
+        if self.stop_requested:
+            self.status_var.set("⏹️ Deep Scan stopped by user.")
+            messagebox.showwarning("Stopped", "Deep Scan was stopped by user.")
+        else:
+            self.total_lbl.config(text=f"Scan Complete: {len(found_locals)} local orders found")
+            self.total_progress["value"] = self.total_progress["maximum"]
+            self.status_var.set(f"Deep scan complete! Found {len(found_locals)} orders taking up space locally.")
+            messagebox.showinfo(
+                "Deep Scan Complete",
+                f"Found {len(found_locals)} order(s) stored locally on your hard disk!\n\n"
+                "They have been populated in the table and input box.\n"
+                "You can now click '2. Free Up Space' or right-click any order to make it Online-Only."
+            )
+
+        self._set_controls_running(False)
 
     def _set_controls_running(self, running):
         self.is_running = running
@@ -816,6 +1151,10 @@ class QCBatchLoaderApp(tk.Tk):
 
         self.btn_make_local.config(state=state_actions)
         self.btn_make_online.config(state=state_actions)
+        if hasattr(self, "find_local_btn"):
+            self.find_local_btn.config(state=state_actions)
+        if hasattr(self, "leftover_btn"):
+            self.leftover_btn.config(state=state_actions)
         self.btn_pause.config(state=state_controls, text="⏸️ Pause", bg=self.accent_orange)
         self.btn_stop.config(state=state_controls)
 
@@ -851,6 +1190,32 @@ class QCBatchLoaderApp(tk.Tk):
         if not orders:
             messagebox.showwarning("No Orders", "Please paste or enter at least one Order ID.")
             return
+
+        # Storage Shield Layer 3: Auto-Prompt Guard
+        tracked_local = get_tracked_local_orders()
+        prev_local = [it for it in tracked_local if it.get("order_id") not in orders]
+
+        if prev_local:
+            count = len(prev_local)
+            sample_ids = ", ".join([f"#{it.get('order_id')}" for it in prev_local[:5]])
+            if count > 5:
+                sample_ids += f" and {count - 5} more"
+
+            msg = (
+                f"⚠️ Storage Guard Alert:\n\n"
+                f"You have {count} previous order(s) still saved locally on disk:\n"
+                f"({sample_ids})\n\n"
+                "Would you like to make previous orders Online-Only first to free up disk space?\n\n"
+                "• Click [Yes] to free previous orders and proceed with current batch.\n"
+                "• Click [No] to keep previous orders local and proceed.\n"
+                "• Click [Cancel] to abort."
+            )
+            ans = messagebox.askyesnocancel("Storage Guard", msg)
+            if ans is None:
+                return
+            if ans is True:
+                self.status_var.set(f"Freeing {count} previous local orders...")
+                self._free_orders_in_background(prev_local)
 
         self._set_controls_running(True)
         threading.Thread(target=self._process_make_local, args=(orders,), daemon=True).start()
@@ -939,6 +1304,7 @@ class QCBatchLoaderApp(tk.Tk):
 
                         status_text = "✅ Local (Ready)"
                         success_count += 1
+                        mark_order_history(order_id, vendor, folder_path, "local", total_files)
                     except Exception as e:
                         status_text = f"⚠️ Error: {str(e)[:15]}"
 
@@ -971,6 +1337,7 @@ class QCBatchLoaderApp(tk.Tk):
             )
 
         self._set_controls_running(False)
+        self.after(0, self._update_leftover_badge)
 
     def _start_make_online(self):
         if self.is_running:
@@ -1055,6 +1422,7 @@ class QCBatchLoaderApp(tk.Tk):
 
                         status_text = "☁️ Online-Only"
                         freed_count += 1
+                        mark_order_history(order_id, vendor, folder_path, "online", total_files)
                     except Exception as e:
                         status_text = f"⚠️ Error: {str(e)[:15]}"
 
@@ -1086,6 +1454,7 @@ class QCBatchLoaderApp(tk.Tk):
             )
 
         self._set_controls_running(False)
+        self.after(0, self._update_leftover_badge)
 
 if __name__ == "__main__":
     cleanup_old_executable()

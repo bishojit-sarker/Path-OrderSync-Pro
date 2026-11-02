@@ -4,6 +4,22 @@ All notable changes, bug fixes, and feature additions to **Smart Dropbox QC Batc
 
 ---
 
+## [v1.3.0] - 2026-11-02
+### 🛡️ 3-Layer Storage Shield & Leftover Order Recovery:
+- **🔍 Deep Disk Scanner (`[ 🔍 Find All Local Orders ]`):**
+  - Directly scans all vendor directories in Dropbox for any leftover orders that are still hydrated or taking up physical disk space.
+  - Automatically loads discovered local orders into the table and input box for immediate 1-click cleanup or inspection.
+- **🕒 Persistent History Tracker & Live Badge (`[ 🕒 Leftover: X ]`):**
+  - Tracks the sync state (local vs online) of every processed order in a local `history.json`.
+  - Header badge displays the exact count of leftover local orders; highlights in amber/orange if forgotten orders exist.
+  - Clicking the badge allows 1-click loading of all tracked leftover orders into the table for instant review or space release.
+- **⚠️ Auto-Prompt Guard on New Batch Launch:**
+  - When starting a new `Make Local` batch, the application detects if previous orders were left local on disk.
+  - Prompts the user: *"Would you like to make previous orders Online-Only first to free up disk space?"*
+  - Automatically frees previous orders in the background before downloading the new batch, eliminating storage bottlenecks.
+
+---
+
 ## [v1.2.0] - 2026-11-02
 ### 🌟 New Features & Enhancements:
 - **Single Order / Selected Order Online-Only (Individual Space Cleanup):**

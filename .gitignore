@@ -13,8 +13,9 @@ __pycache__/
 *.py[cod]
 *$py.class
 
-# Local user configuration (stores machine-specific paths)
+# Local user configuration & history (stores machine-specific paths & session tracking)
 config.json
+history.json
 
 # Temporary files & logs
 *.log

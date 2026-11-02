@@ -1,6 +1,6 @@
 # ⚡ Smart Dropbox QC Batch Loader
 
-[![Release](https://img.shields.io/badge/version-1.2.0-blue.svg)](https://github.com/bishojit-sarker/Smart-Dropbox-QC-Batch-Loader/releases)
+[![Release](https://img.shields.io/badge/version-1.3.0-blue.svg)](https://github.com/bishojit-sarker/Smart-Dropbox-QC-Batch-Loader/releases)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078d7.svg)](https://www.microsoft.com/windows)
 [![GitHub](https://img.shields.io/badge/GitHub-Repository-black?logo=github)](https://github.com/bishojit-sarker/Smart-Dropbox-QC-Batch-Loader)
 
@@ -48,6 +48,10 @@
    - অন্য যেকোনো কম্পিউটারে এই অ্যাপ চালু করলে নিজে থেকেই সেই পিসির ড্রপবক্স পাথ খুঁজে নেয়; ব্যবহারকারীকে কোনো পাথ ম্যানুয়ালি বসাতে হয় না।
 9. **ইন-অ্যাপ অটো-আপডেট ইঞ্জিন (In-App Auto-Updater):**
    - গিটহাবে নতুন কোনো সংস্করণ প্রকাশ হলে অ্যাপ নিজে থেকেই নোটিফিকেশন দেবে এবং ১-ক্লিকে স্বয়ংক্রিয়ভাবে আপডেট হয়ে রিস্টার্ট নেবে।
+10. **৩-স্তরবিশিষ্ট স্টোরেজ সুরক্ষা শিল্ড ও ভুলে যাওয়া অর্ডার রিকভারি (3-Layer Storage Shield):**
+    - **ডিপ ডিস্ক স্ক্যানার (`[ 🔍 Find All Local Orders ]`):** কাজ শেষে কোনো কারণে যদি মেক অনলাইন না করে পিসি বন্ধ করে দেন, তবে ড্রপবক্সের শত শত ফোল্ডার ম্যানুয়ালি খোঁজার দরকার নেই। এই বোতামে চাপ দিলে ড্রপবক্সের সমস্ত ভেন্ডর ফোল্ডার স্ক্যান করে হার্ডডিস্কে জায়গা দখল করে থাকা সমস্ত ভুলে যাওয়া লোকাল অর্ডার খুঁজে টেবিলে সাজিয়ে দেবে।
+    - **হিস্ট্রি ট্র্যাকার ও রিয়েলটাইম ব্যাজ (`[ 🕒 Leftover: X ]`):** কতটি অর্ডার পিসিতে লোকাল অবস্থায় মেমরি ধরে রেখেছে, তা হেডারে লাইভ ব্যাজ আকারে দেখায়। কোনো অর্ডার বাকি থাকলে ব্যাজটি কমলা রঙে সতর্কবার্তা দেবে এবং ব্যাজে ক্লিক করে ১-ক্লিকেই টেবিলে লোড করা যাবে।
+    - **অটো-প্রম্পট গার্ড (Auto-Prompt Guard):** নতুন ব্যাচের কাজ শুরু করার সময় (`Make Local` চাপলে) পূর্বে লোকাল থাকা কোনো অর্ডার পেন্ডিং থাকলে অ্যাপ নিজে থেকেই আপনাকে স্মরণ করিয়ে দেবে এবং ১-ক্লিকে পুরনো অর্ডারগুলোকে অনলাইন করিয়ে ডিস্ক খালি করে নতুন ব্যাচ ডাউনলোড শুরু করবে।
 
 ---
 
@@ -305,6 +309,10 @@ This application eliminates web downloads and manual unzipping entirely. Utilizi
    - Automatically detects the user's Dropbox location on any computer via official Dropbox configuration (`info.json`) with zero manual setup.
 9. **In-App Auto-Updater:**
    - Automatically checks GitHub Releases on startup and provides 1-click self-updating without manual file transfers.
+10. **3-Layer Storage Shield & Leftover Order Recovery:**
+    - **Deep Disk Scanner (`[ 🔍 Find All Local Orders ]`):** Direct low-level disk audit across all vendor folders to detect forgotten hydrated/local orders consuming SSD storage, instantly loading them into the table for 1-click space recovery.
+    - **Persistent History Tracker & Live Badge (`[ 🕒 Leftover: X ]`):** Remembers the sync state across sessions; top header badge highlights pending local orders in amber and lets you reload them into the view with a single click.
+    - **Auto-Prompt Storage Guard:** Automatically intercepts new batch downloads if leftover orders from past sessions exist, prompting you to free old disk space before starting new downloads.
 
 ---
 
