@@ -9,6 +9,7 @@ import urllib.request
 import webbrowser
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
+from datetime import datetime
 
 CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
 HISTORY_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "history.json")
@@ -39,36 +40,32 @@ def save_history(hist):
 def mark_order_history(order_id, vendor, folder_path, status, file_count=0):
     hist = load_history()
     key = f"{order_id}_{vendor}" if vendor and vendor != "-" else str(order_id)
-    hist[key] = {
+    entry = hist.get(key, {})
+    now_str = datetime.now().strftime("%Y-%m-%d %I:%M %p")
+    entry.update({
         "order_id": str(order_id),
         "vendor": vendor,
         "path": folder_path,
         "status": status,  # "local" or "online"
-        "files": file_count
-    }
+        "files": file_count,
+        "last_updated": now_str
+    })
+    if status == "local" and "downloaded_at" not in entry:
+        entry["downloaded_at"] = now_str
+    elif status == "online":
+        entry["freed_at"] = now_str
+
+    hist[key] = entry
     save_history(hist)
 
 def get_tracked_local_orders():
     hist = load_history()
     local_orders = []
-    updated = False
-    for key, item in list(hist.items()):
+    for key, item in hist.items():
         if item.get("status") == "local":
             p = item.get("path")
             if p and os.path.isdir(p):
-                is_local, _ = is_folder_local_on_disk(p)
-                if is_local:
-                    local_orders.append(item)
-                else:
-                    item["status"] = "online"
-                    hist[key] = item
-                    updated = True
-            else:
-                item["status"] = "online"
-                hist[key] = item
-                updated = True
-    if updated:
-        save_history(hist)
+                local_orders.append(item)
     return local_orders
 
 def is_folder_local_on_disk(folder_path):
@@ -242,6 +239,426 @@ def save_config(cfg):
     except Exception:
         pass
 
+class HistoryTrackerDialog(tk.Toplevel):
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.parent = parent
+        self.title("📜 বকেয়া তালিকা ও হিস্ট্রি ট্র্যাকার — Persistent History Tracker")
+        self.geometry("900x580")
+        self.minsize(780, 480)
+        self.configure(bg="#1e1e2e")
+        self.transient(parent)
+        self.grab_set()
+
+        try:
+            x = parent.winfo_x() + (parent.winfo_width() // 2) - 450
+            y = parent.winfo_y() + (parent.winfo_height() // 2) - 290
+            self.geometry(f"+{max(x, 50)}+{max(y, 50)}")
+        except Exception:
+            pass
+
+        self.filter_var = tk.StringVar(value="pending")
+        self._create_widgets()
+        self._refresh_data()
+
+    def _create_widgets(self):
+        # 1. Top Header Frame
+        top_frame = tk.Frame(self, bg="#1e1e2e")
+        top_frame.pack(fill="x", padx=16, pady=(12, 6))
+
+        title_lbl = tk.Label(
+            top_frame,
+            text="📜 বকেয়া তালিকা ও হিস্ট্রি ট্র্যাকার (Persistent History)",
+            font=("Segoe UI", 13, "bold"),
+            bg="#1e1e2e",
+            fg="#60a5fa"
+        )
+        title_lbl.pack(side="left")
+
+        subtitle_lbl = tk.Label(
+            top_frame,
+            text="যেসব অর্ডার আপনি নিজে লোকাল করে কাজ করেছেন, কেবল সেগুলোর সংরক্ষিত তালিকা ও ডিস্ক স্পেস রিলিজ",
+            font=("Segoe UI", 8),
+            bg="#1e1e2e",
+            fg="#94a3b8"
+        )
+        subtitle_lbl.pack(side="left", padx=8, pady=(3, 0))
+
+        close_btn = tk.Button(
+            top_frame,
+            text="✕ Close",
+            command=self.destroy,
+            bg="#374151",
+            fg="white",
+            activebackground="#4b5563",
+            activeforeground="white",
+            relief="flat",
+            font=("Segoe UI", 8, "bold"),
+            cursor="hand2",
+            padx=8,
+            pady=2
+        )
+        close_btn.pack(side="right")
+
+        # 2. Control Bar (Filter & Summary Stats)
+        ctrl_card = tk.Frame(self, bg="#252538", bd=1, relief="solid")
+        ctrl_card.pack(fill="x", padx=16, pady=4)
+
+        # Filter Radios on Left
+        filter_box = tk.Frame(ctrl_card, bg="#252538")
+        filter_box.pack(side="left", padx=10, pady=6)
+
+        tk.Label(filter_box, text="ফিল্টার:", bg="#252538", fg="#f8fafc", font=("Segoe UI", 9, "bold")).pack(side="left", padx=(0, 6))
+
+        rb_pending = tk.Radiobutton(
+            filter_box,
+            text="🔴 শুধু বকেয়া অর্ডার (Pending Local)",
+            variable=self.filter_var,
+            value="pending",
+            command=self._refresh_data,
+            bg="#252538",
+            fg="#f8fafc",
+            activebackground="#252538",
+            activeforeground="#60a5fa",
+            selectcolor="#181825",
+            font=("Segoe UI", 9, "bold")
+        )
+        rb_pending.pack(side="left", padx=4)
+
+        rb_all = tk.Radiobutton(
+            filter_box,
+            text="📋 সমস্ত হিস্ট্রি (All History)",
+            variable=self.filter_var,
+            value="all",
+            command=self._refresh_data,
+            bg="#252538",
+            fg="#94a3b8",
+            activebackground="#252538",
+            activeforeground="#60a5fa",
+            selectcolor="#181825",
+            font=("Segoe UI", 9)
+        )
+        rb_all.pack(side="left", padx=4)
+
+        # Stats Label on Right
+        self.stats_lbl = tk.Label(
+            ctrl_card,
+            text="বকেয়া: 0 টি   |   মুক্ত: 0 টি   |   মোট: 0 টি",
+            bg="#252538",
+            fg="#93c5fd",
+            font=("Segoe UI", 9, "bold")
+        )
+        self.stats_lbl.pack(side="right", padx=12, pady=6)
+
+        # 3. Table (Treeview)
+        tree_frame = tk.Frame(self, bg="#181825")
+        tree_frame.pack(fill="both", expand=True, padx=16, pady=4)
+
+        columns = ("order_id", "vendor", "status", "files", "time")
+        self.tree = ttk.Treeview(tree_frame, columns=columns, show="headings", selectmode="extended")
+        self.tree.heading("order_id", text="Order ID")
+        self.tree.heading("vendor", text="Vendor")
+        self.tree.heading("status", text="Sync Status (ডিস্ক অবস্থা)")
+        self.tree.heading("files", text="Files")
+        self.tree.heading("time", text="ডাউনলোড / আপডেট সময়")
+
+        self.tree.column("order_id", width=120, anchor="w")
+        self.tree.column("vendor", width=140, anchor="w")
+        self.tree.column("status", width=200, anchor="center")
+        self.tree.column("files", width=70, anchor="center")
+        self.tree.column("time", width=180, anchor="center")
+
+        tree_scroll = ttk.Scrollbar(tree_frame, orient="vertical", command=self.tree.yview)
+        self.tree.configure(yscrollcommand=tree_scroll.set)
+        self.tree.pack(side="left", fill="both", expand=True)
+        tree_scroll.pack(side="right", fill="y")
+
+        self.tree.tag_configure("pending_tag", foreground="#f87171")
+        self.tree.tag_configure("online_tag", foreground="#34d399")
+
+        self.tree.bind("<Double-1>", lambda e: self._open_selected_folder())
+
+        # Context Menu
+        self.context_menu = tk.Menu(self, tearoff=0, bg="#252538", fg="white", activebackground="#3b82f6", activeforeground="white")
+        self.context_menu.add_command(label="📂 Open in File Explorer", command=self._open_selected_folder)
+        self.context_menu.add_command(label="☁️ Make this Order Online-Only", command=self._free_selected)
+        self.context_menu.add_command(label="📋 Load into Main QC Table", command=self._load_to_main_table)
+        self.tree.bind("<Button-3>", self._on_tree_right_click)
+
+        # 4. Action Buttons Bar at Bottom
+        btn_bar = tk.Frame(self, bg="#1e1e2e")
+        btn_bar.pack(fill="x", padx=16, pady=(6, 12))
+
+        # Left Action Group
+        left_btns = tk.Frame(btn_bar, bg="#1e1e2e")
+        left_btns.pack(side="left")
+
+        open_btn = tk.Button(
+            left_btns,
+            text="📂 Open Folder",
+            command=self._open_selected_folder,
+            bg="#374151",
+            fg="white",
+            relief="flat",
+            font=("Segoe UI", 9),
+            cursor="hand2",
+            padx=10,
+            pady=4
+        )
+        open_btn.pack(side="left", padx=(0, 6))
+
+        load_btn = tk.Button(
+            left_btns,
+            text="📋 Load to QC Table",
+            command=self._load_to_main_table,
+            bg="#4b5563",
+            fg="white",
+            relief="flat",
+            font=("Segoe UI", 9),
+            cursor="hand2",
+            padx=10,
+            pady=4
+        )
+        load_btn.pack(side="left", padx=(0, 6))
+
+        clear_hist_btn = tk.Button(
+            left_btns,
+            text="🗑️ Clear Completed History",
+            command=self._clear_online_history,
+            bg="#252538",
+            fg="#94a3b8",
+            activebackground="#ef4444",
+            activeforeground="white",
+            relief="flat",
+            font=("Segoe UI", 8),
+            cursor="hand2",
+            padx=8,
+            pady=4
+        )
+        clear_hist_btn.pack(side="left")
+
+        # Right Action Group (Primary Cleanup Actions)
+        right_btns = tk.Frame(btn_bar, bg="#1e1e2e")
+        right_btns.pack(side="right")
+
+        single_online_btn = tk.Button(
+            right_btns,
+            text="☁️ Make Selected Online",
+            command=self._free_selected,
+            bg="#0284c7",
+            fg="white",
+            activebackground="#0369a1",
+            activeforeground="white",
+            relief="flat",
+            font=("Segoe UI", 9, "bold"),
+            cursor="hand2",
+            padx=12,
+            pady=5
+        )
+        single_online_btn.pack(side="left", padx=(0, 6))
+
+        free_all_btn = tk.Button(
+            right_btns,
+            text="⚡ সব বকেয়া অনলাইন করুন (Make ALL Pending Online)",
+            command=self._free_all_pending,
+            bg="#10b981",
+            fg="white",
+            activebackground="#059669",
+            activeforeground="white",
+            relief="flat",
+            font=("Segoe UI", 9, "bold"),
+            cursor="hand2",
+            padx=14,
+            pady=5
+        )
+        free_all_btn.pack(side="left")
+
+    def _on_tree_right_click(self, event):
+        row_id = self.tree.identify_row(event.y)
+        if row_id:
+            self.tree.selection_set(row_id)
+            self.context_menu.post(event.x_root, event.y_root)
+
+    def _refresh_data(self):
+        self.tree.delete(*self.tree.get_children())
+        hist = load_history()
+        filter_mode = self.filter_var.get()
+
+        local_count = 0
+        online_count = 0
+
+        # Count and sync with existing paths
+        updated = False
+        for key, item in list(hist.items()):
+            p = item.get("path")
+            if item.get("status") == "local":
+                if not p or not os.path.isdir(p):
+                    item["status"] = "online"
+                    hist[key] = item
+                    updated = True
+
+            if item.get("status") == "local":
+                local_count += 1
+            else:
+                online_count += 1
+
+        if updated:
+            save_history(hist)
+
+        self.stats_lbl.config(
+            text=f"🔴 বকেয়া (Local): {local_count} টি   |   🟢 মুক্ত (Online): {online_count} টি   |   📁 মোট রেকর্ড: {len(hist)} টি"
+        )
+
+        sorted_keys = sorted(
+            hist.keys(),
+            key=lambda k: (
+                0 if hist[k].get("status") == "local" else 1,
+                hist[k].get("last_updated") or hist[k].get("downloaded_at") or ""
+            ),
+            reverse=False
+        )
+
+        for key in sorted_keys:
+            entry = hist[key]
+            status = entry.get("status", "online")
+
+            if filter_mode == "pending" and status != "local":
+                continue
+
+            status_display = "🔴 বকেয়া (লোকাল মেমোরি দখল)" if status == "local" else "🟢 মুক্ত (Online-Only 0B)"
+            tag = "pending_tag" if status == "local" else "online_tag"
+            time_display = entry.get("downloaded_at") or entry.get("last_updated") or "-"
+            files_display = str(entry.get("files", 0))
+
+            self.tree.insert(
+                "",
+                "end",
+                iid=key,
+                values=(
+                    f"#{entry.get('order_id', key)}",
+                    entry.get("vendor", "-"),
+                    status_display,
+                    files_display,
+                    time_display
+                ),
+                tags=(tag,)
+            )
+
+    def _open_selected_folder(self):
+        selected = self.tree.selection()
+        if not selected:
+            return
+        item_key = selected[0]
+        hist = load_history()
+        entry = hist.get(item_key)
+        if entry and entry.get("path") and os.path.isdir(entry["path"]):
+            try:
+                os.startfile(entry["path"])
+            except Exception as e:
+                messagebox.showerror("এরর", f"ফোল্ডার খোলা যায়নি:\n{e}", parent=self)
+        else:
+            messagebox.showwarning("ফোল্ডার অনুপস্থিত", "ফোল্ডারটি পিসিতে পাওয়া যায়নি।", parent=self)
+
+    def _free_selected(self):
+        selected = self.tree.selection()
+        if not selected:
+            messagebox.showinfo("অর্ডার নির্বাচন করুন", "দয়া করে তালিকা থেকে অন্তত একটি অর্ডার নির্বাচন করুন।", parent=self)
+            return
+
+        hist = load_history()
+        count = 0
+        for item_key in selected:
+            entry = hist.get(item_key)
+            if not entry:
+                continue
+            p = entry.get("path")
+            if p and os.path.isdir(p):
+                try:
+                    cmd_files = f'attrib -P +U "{p}\\*.*" /s'
+                    subprocess.run(cmd_files, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    cmd_folder = f'attrib -P +U "{p}" /d'
+                    subprocess.run(cmd_folder, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                except Exception:
+                    pass
+            mark_order_history(entry["order_id"], entry.get("vendor"), p, "online", entry.get("files", 0))
+            count += 1
+
+        self._refresh_data()
+        self.parent._update_leftover_badge()
+        messagebox.showinfo("অনলাইন সম্পন্ন", f"{count}টি অর্ডার সফলভাবে Online-Only করা হয়েছে!", parent=self)
+
+    def _free_all_pending(self):
+        tracked = get_tracked_local_orders()
+        if not tracked:
+            messagebox.showinfo("বকেয়া তালিকা", "🎉 চমৎকার! কোনো বকেয়া লোকাল অর্ডার নেই। আপনার হার্ডডিস্ক সম্পূর্ণ পরিষ্কার।", parent=self)
+            return
+
+        confirm = messagebox.askyesno(
+            "সব বকেয়া অনলাইন করুন",
+            f"আপনার মোট {len(tracked)}টি বকেয়া লোকাল অর্ডার রয়েছে।\n\n"
+            f"আপনি কি কেবল আপনার কাজ করা এই {len(tracked)}টি অর্ডার Online-Only করে হার্ডড্রাইভ খালি করতে চান?\n\n"
+            "(ড্রপবক্সের বাইরের কোনো অর্ডার এতে প্রভাবিত হবে না।)",
+            parent=self
+        )
+        if not confirm:
+            return
+
+        self.parent._free_orders_in_background(tracked)
+        self._refresh_data()
+        self.parent._update_leftover_badge()
+        messagebox.showinfo(
+            "ডিস্ক স্পেস মুক্ত",
+            f"সফলভাবে আপনার {len(tracked)}টি বকেয়া অর্ডার Online-Only করা হয়েছে!\nহার্ডডিস্কের জায়গা খালি হয়েছে।",
+            parent=self
+        )
+
+    def _load_to_main_table(self):
+        selected = self.tree.selection()
+        hist = load_history()
+        orders_to_load = []
+
+        if selected:
+            for s in selected:
+                if s in hist:
+                    orders_to_load.append(hist[s])
+        else:
+            for iid in self.tree.get_children():
+                if iid in hist:
+                    orders_to_load.append(hist[iid])
+
+        if not orders_to_load:
+            messagebox.showinfo("তথ্য", "লোড করার মতো কোনো অর্ডার নেই।", parent=self)
+            return
+
+        unique_ids = list(dict.fromkeys([it["order_id"] for it in orders_to_load]))
+        formatted = "\n".join([f"#{oid}" for oid in unique_ids])
+        self.parent.input_text.delete("1.0", "end")
+        self.parent.input_text.insert("1.0", formatted)
+        self.parent._update_order_count()
+        self.parent.status_var.set(f"বকেয়া তালিকা থেকে {len(unique_ids)}টি অর্ডার কিউসি বক্সে লোড করা হয়েছে।")
+        messagebox.showinfo("সফল", f"{len(unique_ids)}টি অর্ডার আইডি মূল কিউসি উইন্ডোতে লোড করা হয়েছে!", parent=self)
+        self.destroy()
+
+    def _clear_online_history(self):
+        hist = load_history()
+        cleaned_hist = {k: v for k, v in hist.items() if v.get("status") == "local"}
+        cleared_count = len(hist) - len(cleaned_hist)
+        if cleared_count == 0:
+            messagebox.showinfo("হিস্ট্রি", "মুছে ফেলার মতো কোনো পুরনো অনলাইন হিস্ট্রি নেই।", parent=self)
+            return
+
+        confirm = messagebox.askyesno(
+            "অনলাইন হিস্ট্রি ক্লিয়ার",
+            f"{cleared_count}টি সম্পন্ন হওয়া (Online) অর্ডারের হিস্ট্রি মুছে ফেলতে চান?\n\n"
+            "(বকেয়া থাকা লোকাল অর্ডারগুলো সুরক্ষিত থাকবে।)",
+            parent=self
+        )
+        if confirm:
+            save_history(cleaned_hist)
+            self._refresh_data()
+            self.parent._update_leftover_badge()
+            messagebox.showinfo("সম্পন্ন", f"{cleared_count}টি সম্পন্ন হিস্ট্রি মুছে ফেলা হয়েছে।", parent=self)
+
 class QCBatchLoaderApp(tk.Tk):
     def __init__(self):
         super().__init__()
@@ -363,16 +780,16 @@ class QCBatchLoaderApp(tk.Tk):
 
         self.leftover_btn = tk.Button(
             top_frame,
-            text="🕒 My Local Orders: 0",
-            command=self._show_tracked_leftovers,
+            text="📜 বকেয়া তালিকা: ০ (Drive Clean)",
+            command=self._open_history_tracker,
             bg="#252538",
-            fg=self.text_muted,
-            activebackground="#d97706",
+            fg="#10b981",
+            activebackground="#3b82f6",
             activeforeground="white",
             relief="flat",
-            font=("Segoe UI", 8, "bold"),
+            font=("Segoe UI", 9, "bold"),
             cursor="hand2",
-            padx=8,
+            padx=10,
             pady=2
         )
         self.leftover_btn.pack(side="right", padx=(0, 6))
@@ -918,7 +1335,7 @@ class QCBatchLoaderApp(tk.Tk):
             if hasattr(self, "leftover_btn"):
                 if count > 0:
                     self.leftover_btn.config(
-                        text=f"🧹 Free My Local Orders ({count})",
+                        text=f"⚠️ বকেয়া তালিকা: {count} টি লোকাল",
                         bg="#f59e0b",
                         fg="#111827",
                         activebackground="#d97706",
@@ -926,46 +1343,20 @@ class QCBatchLoaderApp(tk.Tk):
                     )
                 else:
                     self.leftover_btn.config(
-                        text="🕒 My Local Orders: 0",
+                        text="📜 বকেয়া তালিকা: ০ (Drive Clean)",
                         bg="#252538",
-                        fg=self.text_muted,
+                        fg="#10b981",
                         activebackground="#3b82f6",
                         activeforeground="#ffffff"
                     )
         except Exception:
             pass
 
+    def _open_history_tracker(self):
+        HistoryTrackerDialog(self)
+
     def _show_tracked_leftovers(self):
-        tracked = get_tracked_local_orders()
-        if not tracked:
-            messagebox.showinfo(
-                "My Local Orders",
-                "🎉 Disk is Clean!\n\nAll orders you previously worked on have already been made Online-Only.\nNo leftover orders from your work are taking up local disk space."
-            )
-            return
-
-        order_list_str = ", ".join([f"#{it['order_id']}" for it in tracked[:12]])
-        if len(tracked) > 12:
-            order_list_str += f" and {len(tracked) - 12} more"
-
-        msg = (
-            f"You have {len(tracked)} order(s) that you previously downloaded locally:\n\n"
-            f"Orders: {order_list_str}\n\n"
-            "Would you like to make ONLY these orders Online-Only now to free up disk space?\n\n"
-            "• Click [Yes] to free your local disk space now.\n"
-            "• Click [No] to keep them local.\n\n"
-            "(No other orders on Dropbox will be touched)."
-        )
-        ans = messagebox.askyesno("Free My Local Orders", msg)
-        if ans:
-            self.status_var.set(f"Freeing disk space for {len(tracked)} of your previous orders...")
-            self._free_orders_in_background(tracked)
-            self.status_var.set("Disk space freed successfully! All your previous orders are Online-Only.")
-            messagebox.showinfo(
-                "Disk Space Cleaned",
-                f"Successfully freed disk space for all {len(tracked)} order(s) you worked on!\n\n"
-                "Your local hard disk space is now clean."
-            )
+        self._open_history_tracker()
 
     def _free_orders_in_background(self, order_items):
         for it in order_items:

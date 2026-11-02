@@ -5,16 +5,21 @@ All notable changes, bug fixes, and feature additions to **Smart Dropbox QC Batc
 ---
 
 ## [v1.3.0] - 2026-11-02
-### 🛡️ Smart Storage Shield & User Session Space Cleaner:
-- **🎯 Strict Isolation (No Interference with Other Orders):**
-  - The application strictly tracks ONLY the orders that the user explicitly made local through this app.
-  - Never scans or touches unrelated Dropbox directories or orders worked on by other team members.
-- **🕒 Persistent Session Tracker & 1-Click Cleaner (`[ 🧹 Free My Local Orders (X) ]`):**
-  - Header badge displays the exact count of orders that the user previously made local and haven't yet been freed.
-  - Clicking the badge lets the user release disk space for all their previous orders in 1 click (`attrib -P +U`), turning them back to Online-Only.
-- **⚠️ Auto-Prompt Storage Guard on New Batch Launch:**
-  - When starting a new `Make Local` batch, if previously worked orders are still sitting locally, the app prompts: *"Would you like to make ONLY your previous orders Online-Only now to free up disk space?"*
-  - Automatically frees only the user's previous orders in the background before downloading the new batch, eliminating storage bottlenecks safely.
+### 📜 Persistent History Tracker (স্মার্ট হিস্ট্রি বা বকেয়া তালিকা):
+- **📜 Dedicated History Tracker Manager Window (`HistoryTrackerDialog`):**
+  - Clicking the header badge **`[ ⚠️ বকেয়া তালিকা: X টি লোকাল ]`** / **`[ 📜 বকেয়া তালিকা: ০ (Drive Clean) ]`** opens a full-featured management dashboard.
+  - **Live Filter**: Easily toggle between `🔴 শুধু বকেয়া অর্ডার (Pending Local)` and `📋 সমস্ত হিস্ট্রি (All History)`.
+  - **Real-time Statistics**: Displays live counts for `🔴 বকেয়া (Local)`, `🟢 মুক্ত (Online)`, and `📁 মোট রেকর্ড`.
+  - **Color-Coded Status Tags**: Pending local orders highlighted with clear red/amber badges; online orders shown in green.
+  - **Precision Timestamps**: Displays the exact date & time (`YYYY-MM-DD HH:MM AM/PM`) when each order was downloaded locally or freed.
+- **⚡ 1-Click Operations in History Window:**
+  - **`[ ⚡ সব বকেয়া অনলাইন করুন (Make ALL Pending Online) ]`**: 1-click batch online release for all pending local orders to instantly recover hard drive space.
+  - **`[ ☁️ Make Selected Online ]`**: Free only the selected order(s) from the pending list.
+  - **`[ 📋 Load to QC Table ]`**: Copies pending orders straight into the main QC input text box for immediate inspection.
+  - **`[ 📂 Open Folder ]`**: Instant jump to any order folder in File Explorer (or double-click row).
+  - **`[ 🗑️ Clear Completed History ]`**: Cleans up older finished online entries while keeping pending local orders completely safe.
+- **🎯 100% Strict User Isolation (No Interference with Other Orders):**
+  - Tracks ONLY the orders explicitly downloaded by this user through the app. Never touches or scans other Dropbox directories or orders worked on by other team members.
 
 ---
 

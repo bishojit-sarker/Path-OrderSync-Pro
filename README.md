@@ -48,10 +48,12 @@
    - অন্য যেকোনো কম্পিউটারে এই অ্যাপ চালু করলে নিজে থেকেই সেই পিসির ড্রপবক্স পাথ খুঁজে নেয়; ব্যবহারকারীকে কোনো পাথ ম্যানুয়ালি বসাতে হয় না।
 9. **ইন-অ্যাপ অটো-আপডেট ইঞ্জিন (In-App Auto-Updater):**
    - গিটহাবে নতুন কোনো সংস্করণ প্রকাশ হলে অ্যাপ নিজে থেকেই নোটিফিকেশন দেবে এবং ১-ক্লিকে স্বয়ংক্রিয়ভাবে আপডেট হয়ে রিস্টার্ট নেবে।
-10. **স্মার্ট স্টোরেজ শিল্ড ও নিজস্ব অর্ডারের স্পেস ক্লিনার (Storage Shield & Space Cleaner):**
-    - **১০০% সেফ ও সুনির্দিষ্ট আইসোলেশন:** এই অ্যাপটি কেবল সেইসব অর্ডার আইডি নিয়ে কাজ করে যা আপনি নিজে পেস্ট করেছেন এবং লোকাল করেছেন। ড্রপবক্সের অন্য কারো বা বাইরের কোনো অর্ডার আইডিতে এটি কখনোই হস্তক্ষেপ বা স্ক্যান করবে না।
-    - **১-ক্লিকে নিজস্ব অর্ডারের মেমোরি রিলিজ (`[ 🧹 Free My Local Orders (X) ]`):** আপনি পূর্বে যে যে অর্ডার লোকাল করেছিলেন কিন্তু অনলাইন করতে ভুলে গেছেন, অ্যাপের হেডারে থাকা ব্যাজটি রিয়েলটাইমে শুধু আপনার সেই অর্ডারগুলোর সংখ্যা দেখাবে (যেমন: `Free My Local Orders (5)`)। ব্যাজে ক্লিক করলেই ১-ক্লিকে শুধু আপনার অর্ডারগুলো অনলাইন হয়ে হার্ডডিস্ক সম্পূর্ণ পরিষ্কার হয়ে যাবে।
-    - **অটো-প্রম্পট গার্ড (Auto-Prompt Guard):** নতুন ব্যাচের কাজ শুরু করার সময় (`Make Local` চাপলে) পূর্বে আপনার ডাউনলোড করা কোনো অর্ডার পেন্ডিং থাকলে অ্যাপ শুধু আপনার পুরনো অর্ডারগুলো অনলাইন করিয়ে ডিস্ক খালি করার জন্য অনুমতি চাইবে এবং নতুন ব্যাচ ডাউনলোড শুরু করবে।
+10. **স্মার্ট হিস্ট্রি বা বকেয়া তালিকা (Persistent History Tracker):**
+    - **ডেডিকেটেড হিস্ট্রি ড্যাশবোর্ড:** হেডারে থাকা **`[ ⚠️ বকেয়া তালিকা: X টি লোকাল ]`** বা **`[ 📜 বকেয়া তালিকা: ০ (Drive Clean) ]`** বাটনে চাপ দিলেই একটি আলাদা উইন্ডো খুলে যাবে, যেখানে আপনার কাজ করা প্রতিটি অর্ডারের নাম, ভেন্ডর, ফাইল সংখ্যা এবং ডাউনলোডের নির্ভুল তারিখ ও সময় দেখতে পাবেন।
+    - **লাইভ ফিল্টার ও স্ট্যাটাস:** এক ক্লিকে `🔴 শুধু বকেয়া অর্ডার (Pending Local)` অথবা `📋 সমস্ত হিস্ট্রি (All History)` ফিল্টার করে দেখা যায়। বকেয়া অর্ডারগুলো লাল/কমলা এবং মুক্তগুলো সবুজ রঙে দৃশ্যমান হয়।
+    - **১-ক্লিকে সব বকেয়া অনলাইন (`⚡ সব বকেয়া অনলাইন করুন`):** দিনশেষে বা পরের দিন কাজ শুরুর আগে এক ক্লিকেই সবগুলো বকেয়া অর্ডার ক্লাউডে পাঠিয়ে ড্রাইভ স্পেস খালি করা যায়।
+    - **কিউসি টেবিলে রিলোড (`📋 Load to QC Table`):** বকেয়া তালিকা থেকে যেকোনো অর্ডার সরাসরি মূল কিউসি টেবিলে লোড করে পরিদর্শন করা যায়।
+    - **সম্পূর্ণ নিরাপদ ও বিচ্ছিন্ন (100% Isolated):** এই তালিকা শুধুমাত্র আপনার নিজের লোকাল করা অর্ডারগুলোর ট্র্যাক রাখে। ড্রপবক্সের বাইরের বা অন্য কারো কোনো ফোল্ডারে এটি কোনো হস্তক্ষেপ করে না।
 
 ---
 
@@ -309,10 +311,12 @@ This application eliminates web downloads and manual unzipping entirely. Utilizi
    - Automatically detects the user's Dropbox location on any computer via official Dropbox configuration (`info.json`) with zero manual setup.
 9. **In-App Auto-Updater:**
    - Automatically checks GitHub Releases on startup and provides 1-click self-updating without manual file transfers.
-10. **Smart Storage Shield & User Session Space Cleaner:**
-    - **Strict Isolation (No Interference with Other Orders):** The app strictly tracks ONLY the orders you explicitly made local through this application. It never scans, touches, or alters unrelated Dropbox directories or orders worked on by other team members.
-    - **1-Click Local Order Release (`[ 🧹 Free My Local Orders (X) ]`):** Top header badge displays the exact count of orders that you previously downloaded locally and haven't yet reverted to online. Clicking the badge lets you free disk space for all your previous orders in 1 click (`attrib -P +U`).
-    - **Auto-Prompt Storage Guard:** When starting a new batch, if previously worked orders remain local on disk, the app automatically prompts to make only your previous orders Online-Only before downloading the new batch.
+10. **Persistent History Tracker & Pending Orders Manager (স্মার্ট হিস্ট্রি বা বকেয়া তালিকা):**
+    - **Dedicated Management Dashboard:** Clicking the top header badge opens the History Tracker dialog showing all orders you downloaded locally, along with vendors, file counts, and exact download timestamps (`YYYY-MM-DD HH:MM AM/PM`).
+    - **Live Filters & Status Visuals:** Toggle between `🔴 Pending Local Orders` and `📋 All Processed History`. Pending local orders are highlighted with red/amber badges; completed orders are shown in green.
+    - **1-Click Batch Online Release (`⚡ Free All Pending Orders`):** Instantly reverts all leftover local orders back into Online-Only cloud placeholders, restoring local storage with zero friction.
+    - **Load to Main QC Table (`📋 Load to QC Table`):** Push any pending order straight into the main QC input box to re-examine or verify files.
+    - **100% Strict User Isolation:** Strictly tracks ONLY the orders you made local via this app. Never touches or scans external Dropbox folders.
 
 ---
 
