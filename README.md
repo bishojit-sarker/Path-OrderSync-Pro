@@ -1,6 +1,6 @@
 # ⚡ Smart Dropbox QC Batch Loader
 
-[![Release](https://img.shields.io/badge/version-1.3.0-blue.svg)](https://github.com/bishojit-sarker/Smart-Dropbox-QC-Batch-Loader/releases)
+[![Release](https://img.shields.io/badge/version-1.4.0-blue.svg)](https://github.com/bishojit-sarker/Smart-Dropbox-QC-Batch-Loader/releases)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078d7.svg)](https://www.microsoft.com/windows)
 [![GitHub](https://img.shields.io/badge/GitHub-Repository-black?logo=github)](https://github.com/bishojit-sarker/Smart-Dropbox-QC-Batch-Loader)
 
@@ -54,6 +54,22 @@
     - **১-ক্লিকে সব বকেয়া অনলাইন (`⚡ সব বকেয়া অনলাইন করুন`):** দিনশেষে বা পরের দিন কাজ শুরুর আগে এক ক্লিকেই সবগুলো বকেয়া অর্ডার ক্লাউডে পাঠিয়ে ড্রাইভ স্পেস খালি করা যায়।
     - **কিউসি টেবিলে রিলোড (`📋 Load to QC Table`):** বকেয়া তালিকা থেকে যেকোনো অর্ডার সরাসরি মূল কিউসি টেবিলে লোড করে পরিদর্শন করা যায়।
     - **সম্পূর্ণ নিরাপদ ও বিচ্ছিন্ন (100% Isolated):** এই তালিকা শুধুমাত্র আপনার নিজের লোকাল করা অর্ডারগুলোর ট্র্যাক রাখে। ড্রপবক্সের বাইরের বা অন্য কারো কোনো ফোল্ডারে এটি কোনো হস্তক্ষেপ করে না।
+11. **রিয়েল-টাইম সার্চ ও ফিল্টার বার (Live Search & Filter Bar):**
+    - মূল কিউসি টেবিলে এবং বকেয়া হিস্ট্রি ট্র্যাকার উইন্ডোতে সরাসরি সার্চ বার যুক্ত করা হয়েছে। অর্ডার আইডি বা ভেন্ডর টাইপ করার সাথে সাথেই লাইভ ফিল্টার হয়ে যায় এবং `✕` বাটনে চাপ দিলে আবার পুরো তালিকা ফিরে আসে।
+12. **১০০% ফুল ইংলিশ ইন্টারফেস (100% Full English Version):**
+    - অ্যাপের পুরো ইন্টারফেস, উইন্ডো টাইটেল, বাটন, ডায়লগ এবং পপআপ মেসেজ সম্পূর্ণ ইংরেজিতে রূপান্তর করা হয়েছে।
+13. **মাল্টি-ভেন্ডর হাই-স্পিড ইঞ্জিন (Ultra-Fast Indexing & Parallel Hydration):**
+    - একই অর্ডার একাধিক ভেন্ডরে থাকলে পূর্বে যে প্রসেস স্লো ও ফ্রিজ হয়ে যেত, তা সম্পূর্ণ সমাধান করা হয়েছে।
+    - **ইন-মেমোরি ইনডেক্সিং:** ব্যাচ শুরুর মুহূর্তে মাত্র ১৫ মিলিসেকেন্ডে ১৪+ ভেন্ডরের ৪,০০০+ ফোল্ডার মেমরিতে ইনডেক্স হয়ে যায়, যার ফলে সার্চ টাইম নেমে এসেছে $O(1)$ অর্থাৎ শূন্যের কোঠায়।
+    - **প্যারালাল ফাইল হাইড্রেশন:** ৮টি মাল্টি-থ্রেড (`ThreadPoolExecutor`) এর সাহায্যে একসাথে একাধিক ফাইল ডাউনলোড হয়, কোনো প্রকার হ্যাং ছাড়াই সর্বোচ্চ নেটওয়ার্ক গতি নিশ্চিত করে।
+14. **ড্রাইভ ফ্রি স্পেস ও লোকাল ফাইল সাইজ মনিটর (Live Storage Metrics):**
+    - **ড্রাইভ ফ্রি স্পেস:** ড্রপবক্স ড্রাইভের মোট সাইজ, ব্যবহৃত সাইজ ও অবশিষ্ট খালি জায়গা রিয়েলটাইমে প্রদর্শিত হয় (যেমন: `💾 Drive (C:) Free Space: 59.9 GB / 389.7 GB (15% free)`)।
+    - **লোকাল কিউসি ফাইল সাইজ:** বর্তমানে আপনার পিসিতে কিউসির জন্য কত মেগাবাইট বা গিগাবাইট ফাইল লোকাল স্পেস দখল করে আছে তা তাৎক্ষণিকভাবে হিসাব করে হেডারে ও বারে দেখা যায় (যেমন: `📦 Local QC Orders: 2.45 GB (12 Orders on disk)`)।
+15. **ডায়নামিক ভেন্ডর ড্রপডাউন ও মাল্টি-সিলেক্ট ফিল্টার (Vendor Dropdown & Multi-Select Filter):**
+    - ড্রপবক্স রুটে থাকা সকল ভেন্ডর ফোল্ডার নিজে থেকেই স্ক্যান করে ইন্টারঅ্যাক্টিভ ড্রপডাউন লিস্ট তৈরি করে (`[ 🏢 Vendors: All (14) ▼ ]`)।
+    - **একক ভেন্ডর নির্বাচন (Single Vendor Selection):** যেকোনো ভেন্ডরের নামের পাশে `[ Only ]` বাটনে চাপ দিয়ে তাৎক্ষণিকভাবে অন্যসব আনচেক করে কেবল সেই একটি ভেন্ডরের কাজ করা যায়।
+    - **একাধিক ভেন্ডর নির্বাচন (Multi-Vendor Selection):** চেকবক্সে টিক দিয়ে ইচ্ছামতো একাধিক নির্দিষ্ট ভেন্ডর নির্বাচন করা যায়।
+    - **ফিল্টার প্রসেসিং:** আপনি যে ভেন্ডরগুলো বেছে নেবেন, `Make Local` এবং `Make Online` করার সময় কেবল সেই নির্বাচিত ভেন্ডরগুলোর অর্ডার প্রসেস হবে; অপ্রয়োজনীয় ভেন্ডরে কোনো স্ক্যান বা ডাউনলোড হবে না।
 
 ---
 
@@ -317,6 +333,23 @@ This application eliminates web downloads and manual unzipping entirely. Utilizi
     - **1-Click Batch Online Release (`⚡ Free All Pending Orders`):** Instantly reverts all leftover local orders back into Online-Only cloud placeholders, restoring local storage with zero friction.
     - **Load to Main QC Table (`📋 Load to QC Table`):** Push any pending order straight into the main QC input box to re-examine or verify files.
     - **100% Strict User Isolation:** Strictly tracks ONLY the orders you made local via this app. Never touches or scans external Dropbox folders.
+11. **Live Search & Filter Bar:**
+    - Integrated real-time Search Bars in both the Main QC table and the History Tracker Dialog. Typing any Order ID or Vendor instantly filters visible rows on keystroke, and the `✕` button immediately restores the full table.
+12. **100% Full English Version:**
+    - Entire application interface, dialogs, buttons, table headers, error prompts, and status messages are standardized in clean, professional English.
+13. **High-Speed Multi-Vendor Engine (In-Memory Indexing & Parallel Hydration):**
+    - Completely eliminates slowness and app freezing when orders are split across multiple vendors.
+    - **In-Memory Vendor Indexing**: Scans and indexes 4,200+ orders across 14+ vendors in ~15 milliseconds at batch start, reducing directory lookups to instantaneous $O(1)$.
+    - **Multi-Threaded Parallel Hydration**: Uses `ThreadPoolExecutor(max_workers=8)` to download files concurrently, maximizing network throughput with responsive, smooth progress updates.
+14. **Live Drive Free Space & Local File Size Tracker (Storage Metrics Bar):**
+    - **Drive Free Space Bar**: Live monitoring of total, used, and free storage on the active Dropbox drive (e.g. `💾 Drive (C:) Free Space: 59.9 GB / 389.7 GB (15% free)`).
+    - **Local QC Orders Disk Tracker**: Accurately measures physical bytes occupied by orders downloaded by the user, dynamically updating the storage bar and the header badge (e.g. `[ ⚠️ Pending Local: X Orders (X.XX GB) ]`).
+15. **Dynamic Vendor Dropdown & Multi-Select Filter:**
+    - Automatically discovers all vendor subdirectories inside Dropbox and presents them in an interactive multi-select dropdown (`[ 🏢 Vendors: All (14) ▼ ]`).
+    - **Single Vendor Isolation**: 1-click `[ Only ]` button next to any vendor isolates that single vendor instantly.
+    - **Multi-Vendor Selection**: Toggle any custom set of vendors using responsive checkboxes.
+    - **Strictly Scoped Batch Processing**: `Make Local` and `Make Online` only process orders residing within the active selected vendors, preventing unwanted folder scans.
+    - **Live In-Dropdown Search**: Quickly filter through long lists of vendors with real-time text matching.
 
 ---
 

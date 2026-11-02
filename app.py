@@ -2,24 +2,83 @@ import os
 import sys
 import json
 import re
+import shutil
 import subprocess
 import threading
 import ctypes
 import urllib.request
 import webbrowser
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 from datetime import datetime
 
 CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
 HISTORY_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "history.json")
-CURRENT_VERSION = "v1.3.0"
+CURRENT_VERSION = "v1.4.0"
 GITHUB_REPO = "bishojit-sarker/Smart-Dropbox-QC-Batch-Loader"
 
 # Windows Cloud Filter Attributes
 FILE_ATTRIBUTE_PINNED = 0x80000
 FILE_ATTRIBUTE_UNPINNED = 0x100000
 FILE_ATTRIBUTE_REPARSE_POINT = 0x400
+
+def format_bytes(num_bytes):
+    """Formats raw bytes into human-readable B, KB, MB, GB, TB."""
+    if not num_bytes or num_bytes <= 0:
+        return "0 B"
+    units = ["B", "KB", "MB", "GB", "TB"]
+    unit_idx = 0
+    size = float(num_bytes)
+    while size >= 1024.0 and unit_idx < len(units) - 1:
+        size /= 1024.0
+        unit_idx += 1
+    if unit_idx == 0:
+        return f"{int(size)} B"
+    return f"{size:.2f} {units[unit_idx]}"
+
+def get_drive_space_info(path):
+    """Returns disk usage metrics for the drive containing path."""
+    try:
+        target = path if (path and os.path.exists(path)) else os.environ.get("SystemDrive", "C:")
+        usage = shutil.disk_usage(target)
+        drive = os.path.splitdrive(os.path.abspath(target))[0].upper()
+        if not drive:
+            drive = "C:"
+        free_pct = (usage.free / usage.total) * 100 if usage.total > 0 else 0
+        return {
+            "drive": drive,
+            "free": usage.free,
+            "total": usage.total,
+            "used": usage.used,
+            "free_pct": free_pct,
+            "free_str": format_bytes(usage.free),
+            "total_str": format_bytes(usage.total),
+            "used_str": format_bytes(usage.used)
+        }
+    except Exception:
+        return {
+            "drive": "C:",
+            "free": 0, "total": 0, "used": 0, "free_pct": 0,
+            "free_str": "N/A", "total_str": "N/A", "used_str": "N/A"
+        }
+
+def get_folder_size_bytes(folder_path):
+    """Calculates total physical file size inside folder_path."""
+    total = 0
+    if not folder_path or not os.path.isdir(folder_path):
+        return 0
+    try:
+        for root, _, files in os.walk(folder_path):
+            for f in files:
+                fp = os.path.join(root, f)
+                try:
+                    total += os.path.getsize(fp)
+                except Exception:
+                    pass
+    except Exception:
+        pass
+    return total
 
 def load_history():
     if os.path.exists(HISTORY_FILE):
@@ -37,17 +96,25 @@ def save_history(hist):
     except Exception:
         pass
 
-def mark_order_history(order_id, vendor, folder_path, status, file_count=0):
+def mark_order_history(order_id, vendor, folder_path, status, file_count=0, size_bytes=None):
     hist = load_history()
     key = f"{order_id}_{vendor}" if vendor and vendor != "-" else str(order_id)
     entry = hist.get(key, {})
     now_str = datetime.now().strftime("%Y-%m-%d %I:%M %p")
+
+    if status == "local":
+        if size_bytes is None or size_bytes <= 0:
+            size_bytes = get_folder_size_bytes(folder_path) if folder_path else 0
+    else:
+        size_bytes = 0
+
     entry.update({
         "order_id": str(order_id),
         "vendor": vendor,
         "path": folder_path,
         "status": status,  # "local" or "online"
         "files": file_count,
+        "size_bytes": size_bytes,
         "last_updated": now_str
     })
     if status == "local" and "downloaded_at" not in entry:
@@ -68,10 +135,26 @@ def get_tracked_local_orders():
                 local_orders.append(item)
     return local_orders
 
+def get_tracked_local_storage_stats():
+    """
+    Calculates total orders and bytes currently tracked as local on disk.
+    Returns (order_count, total_bytes, formatted_size_str).
+    """
+    tracked = get_tracked_local_orders()
+    total_bytes = 0
+    for it in tracked:
+        sz = it.get("size_bytes")
+        if sz is not None and isinstance(sz, (int, float)) and sz > 0:
+            total_bytes += sz
+        else:
+            p = it.get("path")
+            if p and os.path.isdir(p):
+                calc_sz = get_folder_size_bytes(p)
+                it["size_bytes"] = calc_sz
+                total_bytes += calc_sz
+    return len(tracked), total_bytes, format_bytes(total_bytes)
+
 def is_folder_local_on_disk(folder_path):
-    """
-    Checks if a folder contains hydrated/pinned files taking physical space on disk.
-    """
     if not os.path.isdir(folder_path):
         return False, 0
     kernel32 = ctypes.windll.kernel32 if hasattr(ctypes, "windll") else None
@@ -95,6 +178,11 @@ def is_folder_local_on_disk(folder_path):
             break
     return has_local, file_count
 
+def parse_version_tuple(tag):
+    """Extracts integer version components e.g. 'v1.4.0' -> (1, 4, 0)."""
+    nums = re.findall(r"\d+", str(tag))
+    return tuple(int(n) for n in nums) if nums else (0, 0, 0)
+
 def cleanup_old_executable():
     try:
         old_exe = sys.executable + ".old"
@@ -114,7 +202,14 @@ def check_for_updates(parent=None, silent=True):
                 data = json.loads(resp.read().decode("utf-8"))
 
             latest_tag = data.get("tag_name", "").strip()
-            if not latest_tag or latest_tag == CURRENT_VERSION:
+            if not latest_tag:
+                return
+
+            latest_ver = parse_version_tuple(latest_tag)
+            cur_ver = parse_version_tuple(CURRENT_VERSION)
+
+            # Strictly require GitHub version to be newer than current version
+            if latest_ver <= cur_ver:
                 if not silent and parent:
                     parent.after(0, lambda: messagebox.showinfo("Up to Date", f"You are using the latest version ({CURRENT_VERSION})!"))
                 return
@@ -179,10 +274,6 @@ def _perform_update(download_url, latest_tag, parent=None):
         messagebox.showerror("Update Error", f"Failed to complete automatic update:\n{e}")
 
 def auto_detect_dropbox_path():
-    """
-    Automatically detects Dropbox root folder on ANY Windows computer without manual input.
-    Checks Dropbox's official info.json (business & personal), userprofile directory, or fallback.
-    """
     candidate_json_paths = [
         os.path.join(os.environ.get("LOCALAPPDATA", ""), "Dropbox", "info.json"),
         os.path.join(os.environ.get("APPDATA", ""), "Dropbox", "info.json"),
@@ -195,7 +286,6 @@ def auto_detect_dropbox_path():
                 for account_type in ["business", "personal"]:
                     acc = data.get(account_type)
                     if isinstance(acc, dict):
-                        # root_path is preferred for team/business (e.g. C:\Users\User\Path Dropbox)
                         if "root_path" in acc and os.path.isdir(acc["root_path"]):
                             return acc["root_path"]
                         if "path" in acc and os.path.isdir(acc["path"]):
@@ -203,7 +293,6 @@ def auto_detect_dropbox_path():
             except Exception:
                 pass
 
-    # Search in current user's profile directory for any *Dropbox* folder
     user_profile = os.environ.get("USERPROFILE", os.path.expanduser("~"))
     if os.path.isdir(user_profile):
         try:
@@ -225,7 +314,6 @@ def load_config():
             with open(CONFIG_FILE, "r", encoding="utf-8") as f:
                 cfg = json.load(f)
                 saved_path = cfg.get("dropbox_path")
-                # If the saved path still exists on this specific computer, keep it
                 if saved_path and os.path.isdir(saved_path):
                     return cfg
         except Exception:
@@ -239,25 +327,126 @@ def save_config(cfg):
     except Exception:
         pass
 
+def normalize_order_id(s):
+    """Normalizes an Order ID for ultra-fast, robust matching across all vendors."""
+    if not s:
+        return ""
+    c = re.sub(r"^#\s*", "", str(s)).strip()
+    c = re.sub(r"\s*\([^)]*\)", "", c).strip()
+    c = re.split(r"[-_]", c)[0].strip()
+    return c.lower()
+
+def build_vendor_index(base_path, selected_vendors=None):
+    """
+    Builds a lightning-fast in-memory map of clean order IDs to vendor locations:
+    {
+        clean_order_id: [
+            {
+                "vendor": vendor,
+                "folder_name": entry_name,
+                "order_dir": full_order_dir
+            }, ...
+        ]
+    }
+    Scans thousands of orders across selected vendors in ~15 milliseconds.
+    """
+    index = {}
+    if not base_path or not os.path.isdir(base_path):
+        return index
+
+    try:
+        vendors = [
+            d for d in os.listdir(base_path)
+            if not d.startswith(".") and os.path.isdir(os.path.join(base_path, d))
+        ]
+    except Exception:
+        return index
+
+    if selected_vendors:
+        vendors = [d for d in vendors if d in selected_vendors]
+
+    for vendor in vendors:
+        v_dir = os.path.join(base_path, vendor)
+        try:
+            entries = os.listdir(v_dir)
+        except Exception:
+            continue
+
+        for entry in entries:
+            clean = normalize_order_id(entry)
+            if not clean:
+                continue
+
+            if clean not in index:
+                index[clean] = []
+
+            index[clean].append({
+                "vendor": vendor,
+                "folder_name": entry,
+                "order_dir": os.path.join(v_dir, entry)
+            })
+
+    return index
+
+def resolve_target_folder(order_dir):
+    """Checks if order folder has a 'Completed' or 'Complete' subfolder."""
+    if not os.path.isdir(order_dir):
+        return order_dir
+    for sub in ["Completed", "Complete", "completed", "complete"]:
+        c_sub = os.path.join(order_dir, sub)
+        if os.path.isdir(c_sub):
+            return c_sub
+    return order_dir
+
+def collect_folder_files(target_dir):
+    """Collects file paths and total size in bytes."""
+    files = []
+    total_size = 0
+    if not os.path.isdir(target_dir):
+        return files, 0
+    try:
+        for root, _, fs in os.walk(target_dir):
+            for f in fs:
+                fp = os.path.join(root, f)
+                files.append(fp)
+                try:
+                    total_size += os.path.getsize(fp)
+                except Exception:
+                    pass
+    except Exception:
+        pass
+    return files, total_size
+
+def _hydrate_single_file(fp):
+    """Streams 1 KB of the file to force Dropbox to hydrate it locally."""
+    try:
+        with open(fp, "rb") as fh:
+            fh.read(1024)
+        return True
+    except Exception:
+        return False
+
+
 class HistoryTrackerDialog(tk.Toplevel):
     def __init__(self, parent):
         super().__init__(parent)
         self.parent = parent
-        self.title("📜 বকেয়া তালিকা ও হিস্ট্রি ট্র্যাকার — Persistent History Tracker")
-        self.geometry("900x580")
-        self.minsize(780, 480)
+        self.title("📜 Pending Orders & History Tracker")
+        self.geometry("960x600")
+        self.minsize(800, 480)
         self.configure(bg="#1e1e2e")
         self.transient(parent)
         self.grab_set()
 
         try:
-            x = parent.winfo_x() + (parent.winfo_width() // 2) - 450
-            y = parent.winfo_y() + (parent.winfo_height() // 2) - 290
+            x = parent.winfo_x() + (parent.winfo_width() // 2) - 480
+            y = parent.winfo_y() + (parent.winfo_height() // 2) - 300
             self.geometry(f"+{max(x, 50)}+{max(y, 50)}")
         except Exception:
             pass
 
         self.filter_var = tk.StringVar(value="pending")
+        self.search_var = tk.StringVar(value="")
         self._create_widgets()
         self._refresh_data()
 
@@ -268,7 +457,7 @@ class HistoryTrackerDialog(tk.Toplevel):
 
         title_lbl = tk.Label(
             top_frame,
-            text="📜 বকেয়া তালিকা ও হিস্ট্রি ট্র্যাকার (Persistent History)",
+            text="📜 Pending Orders & History Tracker",
             font=("Segoe UI", 13, "bold"),
             bg="#1e1e2e",
             fg="#60a5fa"
@@ -277,12 +466,12 @@ class HistoryTrackerDialog(tk.Toplevel):
 
         subtitle_lbl = tk.Label(
             top_frame,
-            text="যেসব অর্ডার আপনি নিজে লোকাল করে কাজ করেছেন, কেবল সেগুলোর সংরক্ষিত তালিকা ও ডিস্ক স্পেস রিলিজ",
-            font=("Segoe UI", 8),
+            text="Track downloaded orders, search records, and free up hard disk space.",
+            font=("Segoe UI", 9),
             bg="#1e1e2e",
             fg="#94a3b8"
         )
-        subtitle_lbl.pack(side="left", padx=8, pady=(3, 0))
+        subtitle_lbl.pack(side="left", padx=10, pady=(3, 0))
 
         close_btn = tk.Button(
             top_frame,
@@ -295,12 +484,12 @@ class HistoryTrackerDialog(tk.Toplevel):
             relief="flat",
             font=("Segoe UI", 8, "bold"),
             cursor="hand2",
-            padx=8,
-            pady=2
+            padx=10,
+            pady=3
         )
         close_btn.pack(side="right")
 
-        # 2. Control Bar (Filter & Summary Stats)
+        # 2. Control Bar (Filter, Search & Stats)
         ctrl_card = tk.Frame(self, bg="#252538", bd=1, relief="solid")
         ctrl_card.pack(fill="x", padx=16, pady=4)
 
@@ -308,11 +497,11 @@ class HistoryTrackerDialog(tk.Toplevel):
         filter_box = tk.Frame(ctrl_card, bg="#252538")
         filter_box.pack(side="left", padx=10, pady=6)
 
-        tk.Label(filter_box, text="ফিল্টার:", bg="#252538", fg="#f8fafc", font=("Segoe UI", 9, "bold")).pack(side="left", padx=(0, 6))
+        tk.Label(filter_box, text="Filter:", bg="#252538", fg="#f8fafc", font=("Segoe UI", 9, "bold")).pack(side="left", padx=(0, 6))
 
         rb_pending = tk.Radiobutton(
             filter_box,
-            text="🔴 শুধু বকেয়া অর্ডার (Pending Local)",
+            text="🔴 Pending Local Only",
             variable=self.filter_var,
             value="pending",
             command=self._refresh_data,
@@ -327,7 +516,7 @@ class HistoryTrackerDialog(tk.Toplevel):
 
         rb_all = tk.Radiobutton(
             filter_box,
-            text="📋 সমস্ত হিস্ট্রি (All History)",
+            text="📋 All History",
             variable=self.filter_var,
             value="all",
             command=self._refresh_data,
@@ -340,10 +529,42 @@ class HistoryTrackerDialog(tk.Toplevel):
         )
         rb_all.pack(side="left", padx=4)
 
+        # Search Bar in Middle
+        search_box = tk.Frame(ctrl_card, bg="#252538")
+        search_box.pack(side="left", padx=14, pady=6)
+
+        tk.Label(search_box, text="🔍 Search:", bg="#252538", fg="#94a3b8", font=("Segoe UI", 9, "bold")).pack(side="left", padx=(0, 4))
+        self.search_entry = tk.Entry(
+            search_box,
+            textvariable=self.search_var,
+            bg="#181825",
+            fg="#f8fafc",
+            insertbackground="#ffffff",
+            relief="flat",
+            font=("Segoe UI", 9),
+            width=20
+        )
+        self.search_entry.pack(side="left", ipady=2)
+        self.search_entry.bind("<KeyRelease>", lambda e: self._refresh_data())
+
+        search_clear_btn = tk.Button(
+            search_box,
+            text="✕",
+            command=self._clear_search,
+            bg="#374151",
+            fg="white",
+            relief="flat",
+            font=("Segoe UI", 8, "bold"),
+            cursor="hand2",
+            padx=5,
+            pady=1
+        )
+        search_clear_btn.pack(side="left", padx=(2, 0))
+
         # Stats Label on Right
         self.stats_lbl = tk.Label(
             ctrl_card,
-            text="বকেয়া: 0 টি   |   মুক্ত: 0 টি   |   মোট: 0 টি",
+            text="Pending: 0 | Online: 0 | Total: 0",
             bg="#252538",
             fg="#93c5fd",
             font=("Segoe UI", 9, "bold")
@@ -354,19 +575,21 @@ class HistoryTrackerDialog(tk.Toplevel):
         tree_frame = tk.Frame(self, bg="#181825")
         tree_frame.pack(fill="both", expand=True, padx=16, pady=4)
 
-        columns = ("order_id", "vendor", "status", "files", "time")
+        columns = ("order_id", "vendor", "status", "files", "size", "time")
         self.tree = ttk.Treeview(tree_frame, columns=columns, show="headings", selectmode="extended")
         self.tree.heading("order_id", text="Order ID")
         self.tree.heading("vendor", text="Vendor")
-        self.tree.heading("status", text="Sync Status (ডিস্ক অবস্থা)")
+        self.tree.heading("status", text="Sync Status")
         self.tree.heading("files", text="Files")
-        self.tree.heading("time", text="ডাউনলোড / আপডেট সময়")
+        self.tree.heading("size", text="Disk Size")
+        self.tree.heading("time", text="Downloaded / Updated")
 
-        self.tree.column("order_id", width=120, anchor="w")
-        self.tree.column("vendor", width=140, anchor="w")
-        self.tree.column("status", width=200, anchor="center")
-        self.tree.column("files", width=70, anchor="center")
-        self.tree.column("time", width=180, anchor="center")
+        self.tree.column("order_id", width=110, anchor="w")
+        self.tree.column("vendor", width=130, anchor="w")
+        self.tree.column("status", width=160, anchor="center")
+        self.tree.column("files", width=60, anchor="center")
+        self.tree.column("size", width=95, anchor="center")
+        self.tree.column("time", width=170, anchor="center")
 
         tree_scroll = ttk.Scrollbar(tree_frame, orient="vertical", command=self.tree.yview)
         self.tree.configure(yscrollcommand=tree_scroll.set)
@@ -459,7 +682,7 @@ class HistoryTrackerDialog(tk.Toplevel):
 
         free_all_btn = tk.Button(
             right_btns,
-            text="⚡ সব বকেয়া অনলাইন করুন (Make ALL Pending Online)",
+            text="⚡ Make ALL Pending Online (Free Space)",
             command=self._free_all_pending,
             bg="#10b981",
             fg="white",
@@ -473,6 +696,10 @@ class HistoryTrackerDialog(tk.Toplevel):
         )
         free_all_btn.pack(side="left")
 
+    def _clear_search(self):
+        self.search_var.set("")
+        self._refresh_data()
+
     def _on_tree_right_click(self, event):
         row_id = self.tree.identify_row(event.y)
         if row_id:
@@ -483,9 +710,11 @@ class HistoryTrackerDialog(tk.Toplevel):
         self.tree.delete(*self.tree.get_children())
         hist = load_history()
         filter_mode = self.filter_var.get()
+        query = self.search_var.get().strip().lower()
 
         local_count = 0
         online_count = 0
+        total_local_bytes = 0
 
         # Count and sync with existing paths
         updated = False
@@ -494,11 +723,18 @@ class HistoryTrackerDialog(tk.Toplevel):
             if item.get("status") == "local":
                 if not p or not os.path.isdir(p):
                     item["status"] = "online"
+                    item["size_bytes"] = 0
                     hist[key] = item
                     updated = True
 
             if item.get("status") == "local":
                 local_count += 1
+                b = item.get("size_bytes", 0)
+                if not b and p and os.path.isdir(p):
+                    b = get_folder_size_bytes(p)
+                    item["size_bytes"] = b
+                    updated = True
+                total_local_bytes += b or 0
             else:
                 online_count += 1
 
@@ -506,7 +742,7 @@ class HistoryTrackerDialog(tk.Toplevel):
             save_history(hist)
 
         self.stats_lbl.config(
-            text=f"🔴 বকেয়া (Local): {local_count} টি   |   🟢 মুক্ত (Online): {online_count} টি   |   📁 মোট রেকর্ড: {len(hist)} টি"
+            text=f"🔴 Pending Local: {local_count} | 🟢 Online: {online_count} | 📁 Total: {len(hist)} | 📦 Local Size: {format_bytes(total_local_bytes)}"
         )
 
         sorted_keys = sorted(
@@ -521,24 +757,32 @@ class HistoryTrackerDialog(tk.Toplevel):
         for key in sorted_keys:
             entry = hist[key]
             status = entry.get("status", "online")
+            order_id = str(entry.get("order_id", key))
+            vendor = str(entry.get("vendor", "-"))
 
             if filter_mode == "pending" and status != "local":
                 continue
 
-            status_display = "🔴 বকেয়া (লোকাল মেমোরি দখল)" if status == "local" else "🟢 মুক্ত (Online-Only 0B)"
+            if query:
+                if query not in order_id.lower() and query not in vendor.lower() and query not in status.lower():
+                    continue
+
+            status_display = "🔴 Local (Disk Active)" if status == "local" else "🟢 Online (0 Bytes)"
             tag = "pending_tag" if status == "local" else "online_tag"
             time_display = entry.get("downloaded_at") or entry.get("last_updated") or "-"
             files_display = str(entry.get("files", 0))
+            size_display = format_bytes(entry.get("size_bytes", 0)) if status == "local" else "0 B (Cloud)"
 
             self.tree.insert(
                 "",
                 "end",
                 iid=key,
                 values=(
-                    f"#{entry.get('order_id', key)}",
-                    entry.get("vendor", "-"),
+                    f"#{order_id}",
+                    vendor,
                     status_display,
                     files_display,
+                    size_display,
                     time_display
                 ),
                 tags=(tag,)
@@ -555,14 +799,14 @@ class HistoryTrackerDialog(tk.Toplevel):
             try:
                 os.startfile(entry["path"])
             except Exception as e:
-                messagebox.showerror("এরর", f"ফোল্ডার খোলা যায়নি:\n{e}", parent=self)
+                messagebox.showerror("Error", f"Failed to open folder:\n{e}", parent=self)
         else:
-            messagebox.showwarning("ফোল্ডার অনুপস্থিত", "ফোল্ডারটি পিসিতে পাওয়া যায়নি।", parent=self)
+            messagebox.showwarning("Folder Missing", "Folder path was not found on this computer.", parent=self)
 
     def _free_selected(self):
         selected = self.tree.selection()
         if not selected:
-            messagebox.showinfo("অর্ডার নির্বাচন করুন", "দয়া করে তালিকা থেকে অন্তত একটি অর্ডার নির্বাচন করুন।", parent=self)
+            messagebox.showinfo("Select Order", "Please select at least one order from the list.", parent=self)
             return
 
         hist = load_history()
@@ -574,30 +818,29 @@ class HistoryTrackerDialog(tk.Toplevel):
             p = entry.get("path")
             if p and os.path.isdir(p):
                 try:
-                    cmd_files = f'attrib -P +U "{p}\\*.*" /s'
-                    subprocess.run(cmd_files, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                    cmd_folder = f'attrib -P +U "{p}" /d'
-                    subprocess.run(cmd_folder, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    cmd = f'attrib -P +U "{p}\\*.*" /s & attrib -P +U "{p}" /d'
+                    subprocess.run(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 except Exception:
                     pass
-            mark_order_history(entry["order_id"], entry.get("vendor"), p, "online", entry.get("files", 0))
+            mark_order_history(entry["order_id"], entry.get("vendor"), p, "online", entry.get("files", 0), 0)
             count += 1
 
         self._refresh_data()
         self.parent._update_leftover_badge()
-        messagebox.showinfo("অনলাইন সম্পন্ন", f"{count}টি অর্ডার সফলভাবে Online-Only করা হয়েছে!", parent=self)
+        self.parent._update_storage_metrics()
+        messagebox.showinfo("Online Complete", f"Successfully converted {count} order(s) to Online-Only!", parent=self)
 
     def _free_all_pending(self):
         tracked = get_tracked_local_orders()
         if not tracked:
-            messagebox.showinfo("বকেয়া তালিকা", "🎉 চমৎকার! কোনো বকেয়া লোকাল অর্ডার নেই। আপনার হার্ডডিস্ক সম্পূর্ণ পরিষ্কার।", parent=self)
+            messagebox.showinfo("Clean Drive", "🎉 Excellent! No pending local orders found. Your disk space is clean.", parent=self)
             return
 
         confirm = messagebox.askyesno(
-            "সব বকেয়া অনলাইন করুন",
-            f"আপনার মোট {len(tracked)}টি বকেয়া লোকাল অর্ডার রয়েছে।\n\n"
-            f"আপনি কি কেবল আপনার কাজ করা এই {len(tracked)}টি অর্ডার Online-Only করে হার্ডড্রাইভ খালি করতে চান?\n\n"
-            "(ড্রপবক্সের বাইরের কোনো অর্ডার এতে প্রভাবিত হবে না।)",
+            "Make All Pending Online",
+            f"You have {len(tracked)} pending local order(s) taking disk space.\n\n"
+            f"Do you want to convert these {len(tracked)} order(s) to Online-Only to free up hard drive space?\n\n"
+            "(No other Dropbox folders will be affected.)",
             parent=self
         )
         if not confirm:
@@ -606,9 +849,10 @@ class HistoryTrackerDialog(tk.Toplevel):
         self.parent._free_orders_in_background(tracked)
         self._refresh_data()
         self.parent._update_leftover_badge()
+        self.parent._update_storage_metrics()
         messagebox.showinfo(
-            "ডিস্ক স্পেস মুক্ত",
-            f"সফলভাবে আপনার {len(tracked)}টি বকেয়া অর্ডার Online-Only করা হয়েছে!\nহার্ডডিস্কের জায়গা খালি হয়েছে।",
+            "Space Freed",
+            f"Successfully converted {len(tracked)} pending order(s) to Online-Only!\nHard drive space has been recovered.",
             parent=self
         )
 
@@ -627,7 +871,7 @@ class HistoryTrackerDialog(tk.Toplevel):
                     orders_to_load.append(hist[iid])
 
         if not orders_to_load:
-            messagebox.showinfo("তথ্য", "লোড করার মতো কোনো অর্ডার নেই।", parent=self)
+            messagebox.showinfo("Info", "No orders available to load.", parent=self)
             return
 
         unique_ids = list(dict.fromkeys([it["order_id"] for it in orders_to_load]))
@@ -635,8 +879,8 @@ class HistoryTrackerDialog(tk.Toplevel):
         self.parent.input_text.delete("1.0", "end")
         self.parent.input_text.insert("1.0", formatted)
         self.parent._update_order_count()
-        self.parent.status_var.set(f"বকেয়া তালিকা থেকে {len(unique_ids)}টি অর্ডার কিউসি বক্সে লোড করা হয়েছে।")
-        messagebox.showinfo("সফল", f"{len(unique_ids)}টি অর্ডার আইডি মূল কিউসি উইন্ডোতে লোড করা হয়েছে!", parent=self)
+        self.parent.status_var.set(f"Loaded {len(unique_ids)} order(s) from history into QC input.")
+        messagebox.showinfo("Success", f"Loaded {len(unique_ids)} order ID(s) into the main QC window!", parent=self)
         self.destroy()
 
     def _clear_online_history(self):
@@ -644,27 +888,28 @@ class HistoryTrackerDialog(tk.Toplevel):
         cleaned_hist = {k: v for k, v in hist.items() if v.get("status") == "local"}
         cleared_count = len(hist) - len(cleaned_hist)
         if cleared_count == 0:
-            messagebox.showinfo("হিস্ট্রি", "মুছে ফেলার মতো কোনো পুরনো অনলাইন হিস্ট্রি নেই।", parent=self)
+            messagebox.showinfo("History Clean", "No completed online records to clear.", parent=self)
             return
 
         confirm = messagebox.askyesno(
-            "অনলাইন হিস্ট্রি ক্লিয়ার",
-            f"{cleared_count}টি সম্পন্ন হওয়া (Online) অর্ডারের হিস্ট্রি মুছে ফেলতে চান?\n\n"
-            "(বকেয়া থাকা লোকাল অর্ডারগুলো সুরক্ষিত থাকবে।)",
+            "Clear Completed History",
+            f"Clear {cleared_count} completed (Online) order record(s) from history?\n\n"
+            "(Pending local orders will be kept safely.)",
             parent=self
         )
         if confirm:
             save_history(cleaned_hist)
             self._refresh_data()
             self.parent._update_leftover_badge()
-            messagebox.showinfo("সম্পন্ন", f"{cleared_count}টি সম্পন্ন হিস্ট্রি মুছে ফেলা হয়েছে।", parent=self)
+            messagebox.showinfo("Completed", f"Cleared {cleared_count} completed record(s) from history.", parent=self)
+
 
 class QCBatchLoaderApp(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title(f"⚡ Smart Dropbox QC Batch Loader {CURRENT_VERSION}")
-        self.geometry("900x750")
-        self.minsize(780, 600)
+        self.geometry("950x780")
+        self.minsize(820, 620)
 
         self.config_data = load_config()
 
@@ -673,15 +918,28 @@ class QCBatchLoaderApp(tk.Tk):
         self.is_paused = False
         self.stop_requested = False
         self.pause_event = threading.Event()
-        self.pause_event.set()  # Not paused by default
+        self.pause_event.set()
 
-        # Stores lookup details: {row_key: {"order_id": ..., "vendor": ..., "path": ..., "status": ..., "files": ...}}
+        # Vendor Selector state
+        self.detected_vendors = []
+        self.selected_vendors = set()
+        self.vendor_popup = None
+        self.vendor_check_vars = {}
+        self.vendor_row_widgets = {}
+
+        # Stores lookup details: {row_key: {"order_id": ..., "vendor": ..., "path": ..., "status": ..., "files": ..., "size_bytes": ...}}
         self.resolved_orders = {}
+        # Stores table rows for live search filter: {row_key: (values_tuple)}
+        self.table_items = {}
 
+        self.search_var = tk.StringVar(value="")
+
+        self._scan_vendors()
         self._setup_style()
         self._create_widgets()
         self._update_order_count()
         self._update_leftover_badge()
+        self._update_storage_metrics()
 
         # Check for updates in background 2.5s after launch
         self.after(2500, lambda: check_for_updates(self, silent=True))
@@ -727,6 +985,227 @@ class QCBatchLoaderApp(tk.Tk):
             font=("Segoe UI", 9, "bold")
         )
         self.style.map("Treeview", background=[("selected", "#3b82f6")], foreground=[("selected", "#ffffff")])
+
+    def _scan_vendors(self, keep_selection=False):
+        """Scans the Dropbox root folder for all vendor directories."""
+        base_path = self.path_var.get() if hasattr(self, "path_var") else self.config_data.get("dropbox_path") or DEFAULT_DROPBOX_PATH
+        vendors = []
+        if base_path and os.path.isdir(base_path):
+            try:
+                vendors = [
+                    d for d in os.listdir(base_path)
+                    if not d.startswith(".") and os.path.isdir(os.path.join(base_path, d))
+                ]
+                vendors.sort(key=lambda x: x.lower())
+            except Exception:
+                vendors = []
+
+        self.detected_vendors = vendors
+
+        if not keep_selection or not self.selected_vendors:
+            saved_sel = self.config_data.get("selected_vendors")
+            if saved_sel and isinstance(saved_sel, list):
+                valid_saved = {v for v in saved_sel if v in self.detected_vendors}
+                self.selected_vendors = valid_saved if valid_saved else set(self.detected_vendors)
+            else:
+                self.selected_vendors = set(self.detected_vendors)
+        else:
+            self.selected_vendors = {v for v in self.selected_vendors if v in self.detected_vendors}
+            if not self.selected_vendors and self.detected_vendors:
+                self.selected_vendors = set(self.detected_vendors)
+
+        if hasattr(self, "vendor_btn"):
+            self._update_vendor_btn_label()
+
+    def _update_vendor_btn_label(self):
+        """Updates the vendor dropdown button text and styling based on active selection."""
+        if not hasattr(self, "vendor_btn"):
+            return
+
+        total = len(self.detected_vendors)
+        sel_count = len(self.selected_vendors)
+
+        if total == 0:
+            self.vendor_btn.config(text="🏢 Vendors: None Found ▼", bg="#374151", fg="#94a3b8")
+        elif sel_count == total:
+            self.vendor_btn.config(text=f"🏢 Vendors: All ({total}) ▼", bg="#252538", fg="#f8fafc")
+        elif sel_count == 1:
+            single = next(iter(self.selected_vendors))
+            self.vendor_btn.config(text=f"🏢 Vendor: {single} ▼", bg="#0284c7", fg="#ffffff")
+        elif sel_count == 0:
+            self.vendor_btn.config(text="🏢 Vendors: None (0) ⚠️ ▼", bg="#ef4444", fg="#ffffff")
+        else:
+            names = sorted(list(self.selected_vendors))
+            short = f"{names[0]}, {names[1]}" if len(names) == 2 else f"{sel_count} Selected ({names[0]}, {names[1]}...)"
+            self.vendor_btn.config(text=f"🏢 Vendors: {short} ▼", bg="#4f46e5", fg="#ffffff")
+
+    def _close_vendor_popup(self, event=None):
+        if self.vendor_popup and self.vendor_popup.winfo_exists():
+            try:
+                self.vendor_popup.destroy()
+            except Exception:
+                pass
+        self.vendor_popup = None
+        try:
+            self.unbind_all("<Button-1>")
+        except Exception:
+            pass
+
+    def _toggle_vendor_popup(self):
+        """Displays a multi-select dropdown popup directly beneath the Vendor button."""
+        if self.vendor_popup and self.vendor_popup.winfo_exists():
+            self._close_vendor_popup()
+            return
+
+        self.vendor_popup = tk.Toplevel(self)
+        self.vendor_popup.wm_overrideredirect(True)
+        self.vendor_popup.configure(bg="#252538", bd=1, relief="solid")
+
+        x = self.vendor_btn.winfo_rootx()
+        y = self.vendor_btn.winfo_rooty() + self.vendor_btn.winfo_height() + 2
+        self.vendor_popup.geometry(f"+{x}+{y}")
+
+        # Search bar inside popup
+        search_frame = tk.Frame(self.vendor_popup, bg="#252538")
+        search_frame.pack(fill="x", padx=8, pady=(6, 2))
+        tk.Label(search_frame, text="🔍", bg="#252538", fg="#94a3b8", font=("Segoe UI", 8)).pack(side="left", padx=(0, 2))
+
+        search_var = tk.StringVar()
+        search_entry = tk.Entry(
+            search_frame, textvariable=search_var, bg="#181825", fg="#f8fafc",
+            insertbackground="white", relief="flat", font=("Segoe UI", 8), width=26
+        )
+        search_entry.pack(side="left", fill="x", expand=True, ipady=2)
+
+        # Action Buttons
+        act_frame = tk.Frame(self.vendor_popup, bg="#252538")
+        act_frame.pack(fill="x", padx=8, pady=(2, 4))
+
+        def select_all():
+            self.selected_vendors.update(self.detected_vendors)
+            for v_name, var in self.vendor_check_vars.items():
+                var.set(True)
+            self._update_vendor_btn_label()
+            update_status_label()
+            self._save_selected_vendors()
+
+        def select_none():
+            self.selected_vendors.clear()
+            for v_name, var in self.vendor_check_vars.items():
+                var.set(False)
+            self._update_vendor_btn_label()
+            update_status_label()
+            self._save_selected_vendors()
+
+        def rescan():
+            self._scan_vendors(keep_selection=True)
+            self._close_vendor_popup()
+            self._toggle_vendor_popup()
+
+        tk.Button(act_frame, text="All", command=select_all, bg="#374151", fg="white", relief="flat", font=("Segoe UI", 8), padx=6).pack(side="left", padx=(0, 2))
+        tk.Button(act_frame, text="None", command=select_none, bg="#374151", fg="white", relief="flat", font=("Segoe UI", 8), padx=6).pack(side="left", padx=2)
+        tk.Button(act_frame, text="🔄", command=rescan, bg="#374151", fg="#93c5fd", relief="flat", font=("Segoe UI", 8), padx=5).pack(side="left", padx=2)
+        tk.Button(act_frame, text="✕ Done", command=self._close_vendor_popup, bg="#10b981", fg="white", relief="flat", font=("Segoe UI", 8, "bold"), padx=8).pack(side="right")
+
+        # Scrollable list
+        canvas_frame = tk.Frame(self.vendor_popup, bg="#181825")
+        canvas_frame.pack(fill="both", expand=True, padx=8, pady=4)
+
+        canvas_height = min(max(len(self.detected_vendors) * 26, 60), 220)
+        canvas = tk.Canvas(canvas_frame, bg="#181825", highlightthickness=0, height=canvas_height, width=270)
+        scrollbar = tk.Scrollbar(canvas_frame, orient="vertical", command=canvas.yview)
+        scroll_frame = tk.Frame(canvas, bg="#181825")
+
+        scroll_frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.create_window((0, 0), window=scroll_frame, anchor="nw", width=252)
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+
+        self.vendor_check_vars.clear()
+        self.vendor_row_widgets.clear()
+
+        for v in self.detected_vendors:
+            row = tk.Frame(scroll_frame, bg="#181825")
+            row.pack(fill="x", pady=1)
+            self.vendor_row_widgets[v] = row
+
+            var = tk.BooleanVar(value=(v in self.selected_vendors))
+            self.vendor_check_vars[v] = var
+
+            def on_toggle(v_name=v, v_var=var):
+                if v_var.get():
+                    self.selected_vendors.add(v_name)
+                else:
+                    self.selected_vendors.discard(v_name)
+                self._update_vendor_btn_label()
+                update_status_label()
+                self._save_selected_vendors()
+
+            cb = tk.Checkbutton(
+                row, text=v, variable=var, command=on_toggle,
+                bg="#181825", fg="white", selectcolor="#252538",
+                activebackground="#181825", activeforeground="white",
+                anchor="w", font=("Segoe UI", 8)
+            )
+            cb.pack(side="left", fill="x", expand=True)
+
+            def select_only(v_name=v):
+                self.selected_vendors.clear()
+                self.selected_vendors.add(v_name)
+                for name, chk in self.vendor_check_vars.items():
+                    chk.set(name == v_name)
+                self._update_vendor_btn_label()
+                update_status_label()
+                self._save_selected_vendors()
+
+            only_btn = tk.Button(
+                row, text="Only", command=select_only,
+                bg="#374151", fg="#93c5fd", activebackground="#3b82f6", activeforeground="white",
+                relief="flat", font=("Segoe UI", 7, "bold"), padx=4
+            )
+            only_btn.pack(side="right", padx=2)
+
+        def on_search(event=None):
+            q = search_var.get().strip().lower()
+            for v_name, w in self.vendor_row_widgets.items():
+                if not q or q in v_name.lower():
+                    w.pack(fill="x", pady=1)
+                else:
+                    w.pack_forget()
+
+        search_entry.bind("<KeyRelease>", on_search)
+
+        # Bottom status label
+        b_frame = tk.Frame(self.vendor_popup, bg="#252538")
+        b_frame.pack(fill="x", padx=8, pady=(2, 6))
+        status_lbl = tk.Label(b_frame, text="", bg="#252538", fg="#94a3b8", font=("Segoe UI", 8))
+        status_lbl.pack(side="left")
+
+        def update_status_label():
+            status_lbl.config(text=f"{len(self.selected_vendors)} of {len(self.detected_vendors)} selected")
+
+        update_status_label()
+
+        def _on_outside_click(event):
+            if self.vendor_popup and self.vendor_popup.winfo_exists():
+                x, y = event.x_root, event.y_root
+                px, py = self.vendor_popup.winfo_rootx(), self.vendor_popup.winfo_rooty()
+                pw, ph = self.vendor_popup.winfo_width(), self.vendor_popup.winfo_height()
+                bx, by = self.vendor_btn.winfo_rootx(), self.vendor_btn.winfo_rooty()
+                bw, bh = self.vendor_btn.winfo_width(), self.vendor_btn.winfo_height()
+                if not (px <= x <= px + pw and py <= y <= py + ph) and not (bx <= x <= bx + bw and by <= y <= by + bh):
+                    self._close_vendor_popup()
+
+        self.after(100, lambda: self.bind_all("<Button-1>", _on_outside_click))
+
+    def _save_selected_vendors(self):
+        try:
+            self.config_data["selected_vendors"] = list(self.selected_vendors)
+            save_config(self.config_data)
+        except Exception:
+            pass
 
     def _create_widgets(self):
         # 1. Top Header
@@ -780,7 +1259,7 @@ class QCBatchLoaderApp(tk.Tk):
 
         self.leftover_btn = tk.Button(
             top_frame,
-            text="📜 বকেয়া তালিকা: ০ (Drive Clean)",
+            text="📜 History: 0 Local (Clean)",
             command=self._open_history_tracker,
             bg="#252538",
             fg="#10b981",
@@ -796,7 +1275,7 @@ class QCBatchLoaderApp(tk.Tk):
 
         # 2. Dropbox Path Bar
         path_card = tk.Frame(self, bg=self.card_bg, bd=1, relief="solid")
-        path_card.pack(fill="x", padx=16, pady=4)
+        path_card.pack(fill="x", padx=16, pady=(4, 2))
 
         path_lbl = tk.Label(path_card, text="📁 Dropbox Root:", bg=self.card_bg, fg=self.text_main, font=("Segoe UI", 9, "bold"))
         path_lbl.pack(side="left", padx=(10, 6), pady=6)
@@ -828,9 +1307,65 @@ class QCBatchLoaderApp(tk.Tk):
         )
         browse_btn.pack(side="right", padx=10, pady=6)
 
-        # 3. Main Split Panes (Input on Left, Table on Right)
+        # 3. Live Storage Metrics & Vendor Filter Bar
+        metrics_card = tk.Frame(self, bg=self.card_bg, bd=1, relief="solid")
+        metrics_card.pack(fill="x", padx=16, pady=(2, 4))
+
+        # Vendor Multi-Select Dropdown Button
+        self.vendor_btn = tk.Button(
+            metrics_card,
+            text="🏢 Vendors: All ▼",
+            command=self._toggle_vendor_popup,
+            bg="#252538",
+            fg="#f8fafc",
+            activebackground="#374151",
+            activeforeground="white",
+            relief="flat",
+            font=("Segoe UI", 9, "bold"),
+            cursor="hand2",
+            padx=10,
+            pady=3
+        )
+        self.vendor_btn.pack(side="left", padx=(10, 8), pady=4)
+        self._update_vendor_btn_label()
+
+        self.drive_metric_lbl = tk.Label(
+            metrics_card,
+            text="💾 Drive Free Space: Calculating...",
+            bg=self.card_bg,
+            fg="#93c5fd",
+            font=("Segoe UI", 9, "bold")
+        )
+        self.drive_metric_lbl.pack(side="left", padx=(8, 12), pady=5)
+
+        self.local_metric_lbl = tk.Label(
+            metrics_card,
+            text="📦 Local QC Orders: 0 B (0 Orders on disk)",
+            bg=self.card_bg,
+            fg="#34d399",
+            font=("Segoe UI", 9, "bold")
+        )
+        self.local_metric_lbl.pack(side="left", padx=4, pady=5)
+
+        refresh_metric_btn = tk.Button(
+            metrics_card,
+            text="🔄 Refresh",
+            command=self._update_storage_metrics,
+            bg="#374151",
+            fg="white",
+            activebackground="#4b5563",
+            activeforeground="white",
+            relief="flat",
+            font=("Segoe UI", 8),
+            cursor="hand2",
+            padx=8,
+            pady=1
+        )
+        refresh_metric_btn.pack(side="right", padx=(0, 10), pady=4)
+
+        # 4. Main Split Panes (Input on Left, Table on Right)
         paned = tk.PanedWindow(self, orient="horizontal", bg=self.bg_color, bd=0, sashwidth=4)
-        paned.pack(fill="both", expand=True, padx=16, pady=6)
+        paned.pack(fill="both", expand=True, padx=16, pady=4)
 
         # Left Pane: Order ID Input
         left_frame = tk.Frame(paned, bg=self.card_bg, bd=1, relief="solid")
@@ -907,15 +1442,63 @@ class QCBatchLoaderApp(tk.Tk):
 
         # Right Pane: Order Status Table
         right_frame = tk.Frame(paned, bg=self.card_bg, bd=1, relief="solid")
-        paned.add(right_frame, minsize=460)
+        paned.add(right_frame, minsize=480)
 
         right_header = tk.Frame(right_frame, bg=self.card_bg)
         right_header.pack(fill="x", padx=10, pady=(8, 4))
-        tk.Label(right_header, text="📊 Orders & Sync Status:", bg=self.card_bg, fg=self.text_main, font=("Segoe UI", 9, "bold")).pack(side="left")
+        tk.Label(right_header, text="📊 Orders:", bg=self.card_bg, fg=self.text_main, font=("Segoe UI", 9, "bold")).pack(side="left")
+
+        # Live Search Entry in Main Table
+        search_box = tk.Frame(right_header, bg=self.card_bg)
+        search_box.pack(side="left", padx=(8, 0))
+
+        tk.Label(search_box, text="🔍", bg=self.card_bg, fg="#94a3b8", font=("Segoe UI", 9)).pack(side="left", padx=(0, 2))
+        self.search_entry = tk.Entry(
+            search_box,
+            textvariable=self.search_var,
+            bg="#181825",
+            fg="#f8fafc",
+            insertbackground="#ffffff",
+            relief="flat",
+            font=("Segoe UI", 8),
+            width=16
+        )
+        self.search_entry.pack(side="left", ipady=2)
+        self.search_entry.bind("<KeyRelease>", lambda e: self._filter_main_table())
+
+        search_btn = tk.Button(
+            search_box,
+            text="Search",
+            command=self._filter_main_table,
+            bg="#3b82f6",
+            fg="white",
+            activebackground="#2563eb",
+            activeforeground="white",
+            relief="flat",
+            font=("Segoe UI", 8, "bold"),
+            cursor="hand2",
+            padx=6,
+            pady=1
+        )
+        search_btn.pack(side="left", padx=(2, 2))
+
+        search_clear_btn = tk.Button(
+            search_box,
+            text="✕",
+            command=self._clear_main_search,
+            bg="#374151",
+            fg="white",
+            relief="flat",
+            font=("Segoe UI", 8, "bold"),
+            cursor="hand2",
+            padx=5,
+            pady=1
+        )
+        search_clear_btn.pack(side="left")
 
         open_btn = tk.Button(
             right_header,
-            text="📂 Open Folder",
+            text="📂 Open",
             command=self._open_selected_folder,
             bg="#3b82f6",
             fg="white",
@@ -931,7 +1514,7 @@ class QCBatchLoaderApp(tk.Tk):
 
         free_single_btn = tk.Button(
             right_header,
-            text="☁️ Make Selected Online",
+            text="☁️ Make Online",
             command=self._make_selected_online,
             bg="#0284c7",
             fg="white",
@@ -948,17 +1531,19 @@ class QCBatchLoaderApp(tk.Tk):
         tree_frame = tk.Frame(right_frame, bg="#181825")
         tree_frame.pack(fill="both", expand=True, padx=10, pady=4)
 
-        columns = ("order_id", "vendor", "status", "files")
+        columns = ("order_id", "vendor", "status", "files", "size")
         self.tree = ttk.Treeview(tree_frame, columns=columns, show="headings", selectmode="browse")
         self.tree.heading("order_id", text="Order ID")
         self.tree.heading("vendor", text="Vendor")
         self.tree.heading("status", text="Sync Status")
         self.tree.heading("files", text="Files")
+        self.tree.heading("size", text="Disk Size")
 
         self.tree.column("order_id", width=110, anchor="w")
-        self.tree.column("vendor", width=140, anchor="w")
-        self.tree.column("status", width=150, anchor="center")
-        self.tree.column("files", width=70, anchor="center")
+        self.tree.column("vendor", width=130, anchor="w")
+        self.tree.column("status", width=140, anchor="center")
+        self.tree.column("files", width=60, anchor="center")
+        self.tree.column("size", width=85, anchor="center")
 
         tree_scroll = ttk.Scrollbar(tree_frame, orient="vertical", command=self.tree.yview)
         self.tree.configure(yscrollcommand=tree_scroll.set)
@@ -974,12 +1559,12 @@ class QCBatchLoaderApp(tk.Tk):
         self.context_menu.add_separator()
         self.context_menu.add_command(label="📥 Re-download (Make Local)", command=self._make_selected_local)
 
-        # 4. Action Buttons & Controls Card
+        # 5. Action Buttons & Controls Card
         action_card = tk.Frame(self, bg=self.card_bg, bd=1, relief="solid")
-        action_card.pack(fill="x", padx=16, pady=6)
+        action_card.pack(fill="x", padx=16, pady=4)
 
         btn_container = tk.Frame(action_card, bg=self.card_bg)
-        btn_container.pack(fill="x", padx=12, pady=8)
+        btn_container.pack(fill="x", padx=12, pady=6)
 
         # Make Local Button
         self.btn_make_local = tk.Button(
@@ -1051,13 +1636,13 @@ class QCBatchLoaderApp(tk.Tk):
         )
         self.btn_stop.pack(side="left")
 
-        # 5. Dual Progress Indicators Card (Total & Single Order)
+        # 6. Dual Progress Indicators Card (Total & Single Order)
         progress_card = tk.Frame(self, bg=self.card_bg, bd=1, relief="solid")
         progress_card.pack(fill="x", padx=16, pady=4)
 
         # Total Progress Row
         total_p_row = tk.Frame(progress_card, bg=self.card_bg)
-        total_p_row.pack(fill="x", padx=12, pady=(6, 2))
+        total_p_row.pack(fill="x", padx=12, pady=(5, 2))
 
         self.total_lbl = tk.Label(
             total_p_row,
@@ -1069,7 +1654,7 @@ class QCBatchLoaderApp(tk.Tk):
         self.total_lbl.pack(side="left")
 
         self.total_progress = ttk.Progressbar(progress_card, style="Total.Horizontal.TProgressbar", mode="determinate")
-        self.total_progress.pack(fill="x", padx=12, pady=(0, 4))
+        self.total_progress.pack(fill="x", padx=12, pady=(0, 3))
 
         # Single Order Progress Row
         single_p_row = tk.Frame(progress_card, bg=self.card_bg)
@@ -1085,11 +1670,11 @@ class QCBatchLoaderApp(tk.Tk):
         self.single_lbl.pack(side="left")
 
         self.single_progress = ttk.Progressbar(progress_card, style="Single.Horizontal.TProgressbar", mode="determinate")
-        self.single_progress.pack(fill="x", padx=12, pady=(0, 6))
+        self.single_progress.pack(fill="x", padx=12, pady=(0, 5))
 
-        # 6. Bottom Status Bar & Log
+        # 7. Bottom Status Bar
         bottom_frame = tk.Frame(self, bg=self.bg_color)
-        bottom_frame.pack(fill="x", padx=16, pady=(2, 8))
+        bottom_frame.pack(fill="x", padx=16, pady=(2, 6))
 
         self.status_var = tk.StringVar(value="Ready. Paste Order IDs and choose an action.")
         status_lbl = tk.Label(
@@ -1101,12 +1686,54 @@ class QCBatchLoaderApp(tk.Tk):
         )
         status_lbl.pack(side="left")
 
+    def _update_storage_metrics(self):
+        """Calculates and refreshes live drive free space and local QC orders size."""
+        try:
+            cur_path = self.path_var.get() if hasattr(self, "path_var") else DEFAULT_DROPBOX_PATH
+            d_info = get_drive_space_info(cur_path)
+            drive_letter = d_info.get("drive", "C:")
+            free_str = d_info.get("free_str", "N/A")
+            total_str = d_info.get("total_str", "N/A")
+            free_pct = int(d_info.get("free_pct", 0))
+
+            if hasattr(self, "drive_metric_lbl"):
+                self.drive_metric_lbl.config(
+                    text=f"💾 Drive ({drive_letter}) Free Space: {free_str} / {total_str} ({free_pct}% free)"
+                )
+
+            count, total_bytes, size_str = get_tracked_local_storage_stats()
+            if hasattr(self, "local_metric_lbl"):
+                fg_color = "#f87171" if count > 0 else "#34d399"
+                self.local_metric_lbl.config(
+                    text=f"📦 Local QC Orders: {size_str} ({count} Orders on disk)",
+                    fg=fg_color
+                )
+        except Exception:
+            pass
+
+    def _filter_main_table(self):
+        """Filters the main QC table by Order ID or Vendor using search query."""
+        query = self.search_var.get().strip().lower()
+        self.tree.delete(*self.tree.get_children())
+        for key, vals in self.table_items.items():
+            order_id = str(vals[0]).lower()
+            vendor = str(vals[1]).lower()
+            status = str(vals[2]).lower()
+            if not query or query in order_id or query in vendor or query in status:
+                self.tree.insert("", "end", iid=key, values=vals)
+
+    def _clear_main_search(self):
+        self.search_var.set("")
+        self._filter_main_table()
+
     def _browse_dropbox_path(self):
         chosen = filedialog.askdirectory(initialdir=self.path_var.get(), title="Select Dropbox Root Folder")
         if chosen:
             self.path_var.set(chosen)
             self.config_data["dropbox_path"] = chosen
             save_config(self.config_data)
+            self._scan_vendors(keep_selection=False)
+            self._update_storage_metrics()
 
     def _clear_input(self):
         self.input_text.delete("1.0", "end")
@@ -1130,9 +1757,8 @@ class QCBatchLoaderApp(tk.Tk):
             if not t:
                 continue
             raw_non_empty += 1
-            # 1. Remove leading hash: e.g. '#456883-P1' -> '456883-P1'
             t_clean = re.sub(r"^#\s*", "", t)
-            # 2. Strip any suffixes after dash or underscore: e.g. '456883-P1' -> '456883'
+            t_clean = re.sub(r"\s*\([^)]*\)", "", t_clean).strip()
             t_clean = re.split(r"[-_]", t_clean)[0].strip()
             if t_clean and t_clean not in cleaned:
                 cleaned.append(t_clean)
@@ -1147,59 +1773,11 @@ class QCBatchLoaderApp(tk.Tk):
         if not unique_orders:
             messagebox.showinfo("Deduplicate", "No Order IDs found to clean.")
             return
-
         formatted = "\n".join([f"#{oid}" for oid in unique_orders])
         self.input_text.delete("1.0", "end")
         self.input_text.insert("1.0", formatted)
         self._update_order_count()
         self.status_var.set(f"Deduplicated! {total_lines} lines cleaned into {len(unique_orders)} unique orders.")
-
-    def _find_all_vendor_matches(self, base_path, order_id):
-        """
-        Scans ALL vendors in base_path for order_id or #order_id.
-        Returns a list of dicts:
-        [
-            {"vendor": ..., "path": ..., "files": [file1, file2...], "file_count": int}
-        ]
-        """
-        matches = []
-        if not os.path.isdir(base_path):
-            return matches
-
-        try:
-            vendors = [d for d in os.listdir(base_path) if os.path.isdir(os.path.join(base_path, d))]
-        except Exception:
-            return matches
-
-        for vendor in vendors:
-            v_dir = os.path.join(base_path, vendor)
-            for prefix in ["#", "", "# "]:
-                order_cand = os.path.join(v_dir, f"{prefix}{order_id}")
-                if os.path.isdir(order_cand):
-                    # Check for Completed / Complete folder
-                    completed_dir = None
-                    for sub in ["Completed", "Complete", "completed", "complete"]:
-                        c_sub = os.path.join(order_cand, sub)
-                        if os.path.isdir(c_sub):
-                            completed_dir = c_sub
-                            break
-
-                    target_dir = completed_dir if completed_dir else order_cand
-                    
-                    # Collect all files recursively
-                    files = []
-                    for root, _, fs in os.walk(target_dir):
-                        for f in fs:
-                            files.append(os.path.join(root, f))
-
-                    matches.append({
-                        "vendor": vendor,
-                        "path": target_dir,
-                        "files": files,
-                        "file_count": len(files)
-                    })
-                    break  # Break prefix loop for this vendor
-        return matches
 
     def _on_tree_double_click(self, event):
         row_id = self.tree.identify_row(event.y)
@@ -1218,9 +1796,8 @@ class QCBatchLoaderApp(tk.Tk):
         
         info = self.resolved_orders.get(item_id)
         if not info:
-            # Fallback by order_id string
             raw_id = str(item["values"][0]).strip()
-            clean_id = re.sub(r"^#\s*", "", raw_id)
+            clean_id = normalize_order_id(raw_id)
             info = self.resolved_orders.get(clean_id) or self.resolved_orders.get(f"#{clean_id}")
 
         if info and info.get("path") and os.path.isdir(info["path"]):
@@ -1249,8 +1826,7 @@ class QCBatchLoaderApp(tk.Tk):
         info = self.resolved_orders.get(item_id)
         if not info:
             raw_id = str(item["values"][0]).strip()
-            clean_id = re.sub(r"^#\s*", "", raw_id)
-            clean_id = re.split(r"[-_]", clean_id)[0].strip()
+            clean_id = normalize_order_id(raw_id)
             info = self.resolved_orders.get(clean_id) or self.resolved_orders.get(f"#{clean_id}")
 
         if not info or not info.get("path") or not os.path.isdir(info["path"]):
@@ -1264,17 +1840,17 @@ class QCBatchLoaderApp(tk.Tk):
         file_count = info.get("files", item["values"][3])
 
         try:
-            # Unpin files and folder: attrib -P +U
-            cmd_files = f'attrib -P +U "{folder_path}\\*.*" /s'
-            subprocess.run(cmd_files, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            cmd_folder = f'attrib -P +U "{folder_path}" /d'
-            subprocess.run(cmd_folder, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            cmd = f'attrib -P +U "{folder_path}\\*.*" /s & attrib -P +U "{folder_path}" /d'
+            subprocess.run(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
             status_text = "☁️ Online-Only"
-            self.tree.item(item_id, values=(f"#{order_id}", vendor, status_text, str(file_count)))
+            new_vals = (f"#{order_id}", vendor, status_text, str(file_count), "0 B")
+            self.tree.item(item_id, values=new_vals)
+            self.table_items[item_id] = new_vals
             info["status"] = status_text
-            mark_order_history(order_id, vendor, folder_path, "online", file_count)
+            mark_order_history(order_id, vendor, folder_path, "online", file_count, 0)
             self._update_leftover_badge()
+            self._update_storage_metrics()
             self.status_var.set(f"☁️ Order #{order_id} ({vendor}) is now Online-Only. Disk space freed!")
         except Exception as e:
             messagebox.showerror("Error", f"Failed to free space:\n{e}")
@@ -1290,8 +1866,7 @@ class QCBatchLoaderApp(tk.Tk):
         info = self.resolved_orders.get(item_id)
         if not info:
             raw_id = str(item["values"][0]).strip()
-            clean_id = re.sub(r"^#\s*", "", raw_id)
-            clean_id = re.split(r"[-_]", clean_id)[0].strip()
+            clean_id = normalize_order_id(raw_id)
             info = self.resolved_orders.get(clean_id) or self.resolved_orders.get(f"#{clean_id}")
 
         if not info or not info.get("path") or not os.path.isdir(info["path"]):
@@ -1302,28 +1877,24 @@ class QCBatchLoaderApp(tk.Tk):
         folder_path = info["path"]
         order_id = info.get("order_id", item["values"][0])
         vendor = info.get("vendor", item["values"][1])
-        file_count = info.get("files", item["values"][3])
 
         try:
-            cmd_files = f'attrib +P -U "{folder_path}\\*.*" /s'
-            subprocess.run(cmd_files, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            cmd_folder = f'attrib +P -U "{folder_path}" /d'
-            subprocess.run(cmd_folder, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            cmd = f'attrib +P -U "{folder_path}\\*.*" /s & attrib +P -U "{folder_path}" /d'
+            subprocess.run(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-            for root, _, files in os.walk(folder_path):
-                for f in files:
-                    fp = os.path.join(root, f)
-                    try:
-                        with open(fp, "rb") as fh:
-                            fh.read(1024)
-                    except Exception:
-                        pass
+            file_list, total_size = collect_folder_files(folder_path)
+            workers = min(8, max(len(file_list), 1))
+            with ThreadPoolExecutor(max_workers=workers) as executor:
+                list(executor.map(_hydrate_single_file, file_list))
 
             status_text = "✅ Local (Ready)"
-            self.tree.item(item_id, values=(f"#{order_id}", vendor, status_text, str(file_count)))
+            new_vals = (f"#{order_id}", vendor, status_text, str(len(file_list)), format_bytes(total_size))
+            self.tree.item(item_id, values=new_vals)
+            self.table_items[item_id] = new_vals
             info["status"] = status_text
-            mark_order_history(order_id, vendor, folder_path, "local", file_count)
+            mark_order_history(order_id, vendor, folder_path, "local", len(file_list), total_size)
             self._update_leftover_badge()
+            self._update_storage_metrics()
             self.status_var.set(f"✅ Order #{order_id} ({vendor}) is now Local and ready for QC.")
         except Exception as e:
             messagebox.showerror("Error", f"Failed to make local:\n{e}")
@@ -1332,10 +1903,11 @@ class QCBatchLoaderApp(tk.Tk):
         try:
             tracked = get_tracked_local_orders()
             count = len(tracked)
+            _, _, size_str = get_tracked_local_storage_stats()
             if hasattr(self, "leftover_btn"):
                 if count > 0:
                     self.leftover_btn.config(
-                        text=f"⚠️ বকেয়া তালিকা: {count} টি লোকাল",
+                        text=f"⚠️ Pending Local: {count} Orders ({size_str})",
                         bg="#f59e0b",
                         fg="#111827",
                         activebackground="#d97706",
@@ -1343,7 +1915,7 @@ class QCBatchLoaderApp(tk.Tk):
                     )
                 else:
                     self.leftover_btn.config(
-                        text="📜 বকেয়া তালিকা: ০ (Drive Clean)",
+                        text="📜 History: 0 Local (Clean)",
                         bg="#252538",
                         fg="#10b981",
                         activebackground="#3b82f6",
@@ -1355,9 +1927,6 @@ class QCBatchLoaderApp(tk.Tk):
     def _open_history_tracker(self):
         HistoryTrackerDialog(self)
 
-    def _show_tracked_leftovers(self):
-        self._open_history_tracker()
-
     def _free_orders_in_background(self, order_items):
         for it in order_items:
             folder_path = it.get("path")
@@ -1366,14 +1935,13 @@ class QCBatchLoaderApp(tk.Tk):
             files = it.get("files", 0)
             if folder_path and os.path.isdir(folder_path):
                 try:
-                    cmd_files = f'attrib -P +U "{folder_path}\\*.*" /s'
-                    subprocess.run(cmd_files, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                    cmd_folder = f'attrib -P +U "{folder_path}" /d'
-                    subprocess.run(cmd_folder, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    cmd = f'attrib -P +U "{folder_path}\\*.*" /s & attrib -P +U "{folder_path}" /d'
+                    subprocess.run(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 except Exception:
                     pass
-            mark_order_history(oid, vendor, folder_path, "online", files)
+            mark_order_history(oid, vendor, folder_path, "online", files, 0)
         self._update_leftover_badge()
+        self._update_storage_metrics()
 
     def _set_controls_running(self, running):
         self.is_running = running
@@ -1388,6 +1956,8 @@ class QCBatchLoaderApp(tk.Tk):
         self.btn_make_online.config(state=state_actions)
         if hasattr(self, "leftover_btn"):
             self.leftover_btn.config(state=state_actions)
+        if hasattr(self, "vendor_btn"):
+            self.vendor_btn.config(state=state_actions)
         self.btn_pause.config(state=state_controls, text="⏸️ Pause", bg=self.accent_orange)
         self.btn_stop.config(state=state_controls)
 
@@ -1413,7 +1983,7 @@ class QCBatchLoaderApp(tk.Tk):
         confirm = messagebox.askyesno("Stop Process", "Are you sure you want to stop the current batch?")
         if confirm:
             self.stop_requested = True
-            self.pause_event.set()  # Unpause to let thread exit cleanly
+            self.pause_event.set()
             self.status_var.set("Stopping process, please wait...")
 
     def _start_make_local(self):
@@ -1424,7 +1994,14 @@ class QCBatchLoaderApp(tk.Tk):
             messagebox.showwarning("No Orders", "Please paste or enter at least one Order ID.")
             return
 
-        # Storage Shield: Auto-Prompt Guard (strictly for user's previous orders)
+        if hasattr(self, "selected_vendors") and not self.selected_vendors:
+            messagebox.showwarning(
+                "No Vendors Selected",
+                "Please select at least one vendor from the 'Vendors' filter dropdown before proceeding."
+            )
+            return
+
+        # Storage Shield: Prompt Guard for previous local orders
         tracked_local = get_tracked_local_orders()
         prev_local = [it for it in tracked_local if it.get("order_id") not in orders]
 
@@ -1465,6 +2042,14 @@ class QCBatchLoaderApp(tk.Tk):
 
         self.tree.delete(*self.tree.get_children())
         self.resolved_orders = {}
+        self.table_items = {}
+
+        selected_v = set(self.selected_vendors) if hasattr(self, "selected_vendors") and self.selected_vendors else None
+        if selected_v and len(selected_v) < len(self.detected_vendors):
+            self.status_var.set(f"Indexing {len(selected_v)} selected vendor(s) for ultra-fast lookup...")
+        else:
+            self.status_var.set("Indexing vendors for ultra-fast multi-vendor lookup...")
+        vendor_index = build_vendor_index(base_path, selected_vendors=selected_v)
 
         success_count = 0
         not_found_count = 0
@@ -1476,20 +2061,23 @@ class QCBatchLoaderApp(tk.Tk):
             if self.stop_requested:
                 break
 
-            # Update Total Progress
+            clean_id = normalize_order_id(order_id)
+
             pct = int((i / total_orders) * 100)
             self.total_lbl.config(text=f"Total Progress: {pct}% ({i} / {total_orders} Orders)")
             self.total_progress["value"] = i
-            self.status_var.set(f"Searching vendors for #{order_id} ({i+1}/{total_orders})...")
+            self.status_var.set(f"Processing #{order_id} ({i+1}/{total_orders})...")
 
-            matches = self._find_all_vendor_matches(base_path, order_id)
+            matches = vendor_index.get(clean_id, [])
 
             if not matches:
                 status_text = "❌ Not Found"
                 item_key = f"{order_id}_notfound"
-                self.resolved_orders[item_key] = {"order_id": order_id, "vendor": "-", "path": None, "status": status_text, "files": 0}
+                row_vals = (f"#{order_id}", "-", status_text, "0", "0 B")
+                self.resolved_orders[item_key] = {"order_id": order_id, "vendor": "-", "path": None, "status": status_text, "files": 0, "size_bytes": 0}
                 self.resolved_orders[order_id] = self.resolved_orders[item_key]
-                self.tree.insert("", "end", iid=item_key, values=(f"#{order_id}", "-", status_text, "0"))
+                self.table_items[item_key] = row_vals
+                self.tree.insert("", "end", iid=item_key, values=row_vals)
                 not_found_count += 1
             else:
                 for match in matches:
@@ -1500,55 +2088,65 @@ class QCBatchLoaderApp(tk.Tk):
                         break
 
                     vendor = match["vendor"]
-                    folder_path = match["path"]
-                    file_list = match["files"]
+                    order_dir = match["order_dir"]
+                    folder_path = resolve_target_folder(order_dir)
+                    file_list, total_size = collect_folder_files(folder_path)
                     total_files = len(file_list)
 
                     item_key = f"{order_id}_{vendor}"
-                    item_id = self.tree.insert("", "end", iid=item_key, values=(f"#{order_id}", vendor, "⏳ Syncing...", str(total_files)))
+                    row_vals = (f"#{order_id}", vendor, "⏳ Syncing...", str(total_files), format_bytes(total_size))
+                    self.table_items[item_key] = row_vals
+                    item_id = self.tree.insert("", "end", iid=item_key, values=row_vals)
                     self.tree.see(item_id)
 
                     try:
-                        # 1. Windows Pin attributes on folder & files
-                        cmd_files = f'attrib +P -U "{folder_path}\\*.*" /s'
-                        subprocess.run(cmd_files, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                        cmd_folder = f'attrib +P -U "{folder_path}" /d'
-                        subprocess.run(cmd_folder, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                        # 1. Combined Windows Pin attributes
+                        cmd = f'attrib +P -U "{folder_path}\\*.*" /s & attrib +P -U "{folder_path}" /d'
+                        subprocess.run(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-                        # 2. Trigger instant hydration with Single Order Progress
+                        # 2. Parallel Hydration with ThreadPoolExecutor (Smooth progress)
                         self.single_progress["maximum"] = max(total_files, 1)
-                        for f_idx, fp in enumerate(file_list):
-                            if self.stop_requested:
-                                break
-                            self.pause_event.wait()
-                            if self.stop_requested:
-                                break
+                        self.single_progress["value"] = 0
+                        completed_files = 0
 
-                            fname = os.path.basename(fp)
-                            s_pct = int(((f_idx + 1) / max(total_files, 1)) * 100)
-                            self.single_lbl.config(text=f"Current Order: #{order_id} ({vendor}) - {s_pct}% ({f_idx + 1}/{total_files} files)")
-                            self.single_progress["value"] = f_idx + 1
-                            self.status_var.set(f"Hydrating: {fname}...")
-
-                            try:
-                                with open(fp, "rb") as fh:
-                                    fh.read(1024)
-                            except Exception:
-                                pass
+                        if file_list:
+                            workers = min(8, len(file_list))
+                            with ThreadPoolExecutor(max_workers=workers) as executor:
+                                futures = {executor.submit(_hydrate_single_file, fp): fp for fp in file_list}
+                                for fut in as_completed(futures):
+                                    if self.stop_requested:
+                                        executor.shutdown(wait=False, cancel_futures=True)
+                                        break
+                                    self.pause_event.wait()
+                                    if self.stop_requested:
+                                        executor.shutdown(wait=False, cancel_futures=True)
+                                        break
+                                    completed_files += 1
+                                    fp = futures[fut]
+                                    fname = os.path.basename(fp)
+                                    s_pct = int((completed_files / max(total_files, 1)) * 100)
+                                    self.single_lbl.config(
+                                        text=f"Current: #{order_id} ({vendor}) - {s_pct}% ({completed_files}/{total_files} files)"
+                                    )
+                                    self.single_progress["value"] = completed_files
+                                    self.status_var.set(f"Hydrating ({completed_files}/{total_files}): {fname}")
 
                         status_text = "✅ Local (Ready)"
                         success_count += 1
-                        mark_order_history(order_id, vendor, folder_path, "local", total_files)
+                        mark_order_history(order_id, vendor, folder_path, "local", total_files, total_size)
                     except Exception as e:
                         status_text = f"⚠️ Error: {str(e)[:15]}"
 
-                    self.tree.item(item_key, values=(f"#{order_id}", vendor, status_text, str(total_files)))
+                    final_vals = (f"#{order_id}", vendor, status_text, str(total_files), format_bytes(total_size))
+                    self.table_items[item_key] = final_vals
+                    self.tree.item(item_key, values=final_vals)
                     order_info = {
                         "order_id": order_id,
                         "vendor": vendor,
                         "path": folder_path,
                         "status": status_text,
-                        "files": total_files
+                        "files": total_files,
+                        "size_bytes": total_size
                     }
                     self.resolved_orders[item_key] = order_info
                     self.resolved_orders[order_id] = order_info
@@ -1572,6 +2170,7 @@ class QCBatchLoaderApp(tk.Tk):
 
         self._set_controls_running(False)
         self.after(0, self._update_leftover_badge)
+        self.after(0, self._update_storage_metrics)
 
     def _start_make_online(self):
         if self.is_running:
@@ -1579,6 +2178,13 @@ class QCBatchLoaderApp(tk.Tk):
         orders, _ = self._parse_order_ids()
         if not orders:
             messagebox.showwarning("No Orders", "Please paste or enter at least one Order ID.")
+            return
+
+        if hasattr(self, "selected_vendors") and not self.selected_vendors:
+            messagebox.showwarning(
+                "No Vendors Selected",
+                "Please select at least one vendor from the 'Vendors' filter dropdown before proceeding."
+            )
             return
 
         confirm = messagebox.askyesno(
@@ -1603,6 +2209,14 @@ class QCBatchLoaderApp(tk.Tk):
 
         self.tree.delete(*self.tree.get_children())
         self.resolved_orders = {}
+        self.table_items = {}
+
+        selected_v = set(self.selected_vendors) if hasattr(self, "selected_vendors") and self.selected_vendors else None
+        if selected_v and len(selected_v) < len(self.detected_vendors):
+            self.status_var.set(f"Indexing {len(selected_v)} selected vendor(s) for ultra-fast lookup...")
+        else:
+            self.status_var.set("Indexing vendors for ultra-fast multi-vendor lookup...")
+        vendor_index = build_vendor_index(base_path, selected_vendors=selected_v)
 
         freed_count = 0
         not_found_count = 0
@@ -1614,19 +2228,23 @@ class QCBatchLoaderApp(tk.Tk):
             if self.stop_requested:
                 break
 
+            clean_id = normalize_order_id(order_id)
+
             pct = int((i / total_orders) * 100)
             self.total_lbl.config(text=f"Total Progress: {pct}% ({i} / {total_orders} Orders)")
             self.total_progress["value"] = i
             self.status_var.set(f"Freeing space for #{order_id} ({i+1}/{total_orders})...")
 
-            matches = self._find_all_vendor_matches(base_path, order_id)
+            matches = vendor_index.get(clean_id, [])
 
             if not matches:
                 status_text = "❌ Not Found"
                 item_key = f"{order_id}_notfound"
-                self.resolved_orders[item_key] = {"order_id": order_id, "vendor": "-", "path": None, "status": status_text, "files": 0}
+                row_vals = (f"#{order_id}", "-", status_text, "0", "0 B")
+                self.resolved_orders[item_key] = {"order_id": order_id, "vendor": "-", "path": None, "status": status_text, "files": 0, "size_bytes": 0}
                 self.resolved_orders[order_id] = self.resolved_orders[item_key]
-                self.tree.insert("", "end", iid=item_key, values=(f"#{order_id}", "-", status_text, "0"))
+                self.table_items[item_key] = row_vals
+                self.tree.insert("", "end", iid=item_key, values=row_vals)
                 not_found_count += 1
             else:
                 for match in matches:
@@ -1637,36 +2255,40 @@ class QCBatchLoaderApp(tk.Tk):
                         break
 
                     vendor = match["vendor"]
-                    folder_path = match["path"]
-                    total_files = match["file_count"]
+                    order_dir = match["order_dir"]
+                    folder_path = resolve_target_folder(order_dir)
+                    file_list, _ = collect_folder_files(folder_path)
+                    total_files = len(file_list)
 
                     item_key = f"{order_id}_{vendor}"
-                    item_id = self.tree.insert("", "end", iid=item_key, values=(f"#{order_id}", vendor, "⏳ Freeing...", str(total_files)))
+                    row_vals = (f"#{order_id}", vendor, "⏳ Freeing...", str(total_files), "0 B")
+                    self.table_items[item_key] = row_vals
+                    item_id = self.tree.insert("", "end", iid=item_key, values=row_vals)
                     self.tree.see(item_id)
 
                     try:
-                        # Mark files and folder as Unpinned: attrib -P +U
-                        cmd_files = f'attrib -P +U "{folder_path}\\*.*" /s'
-                        subprocess.run(cmd_files, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                        cmd_folder = f'attrib -P +U "{folder_path}" /d'
-                        subprocess.run(cmd_folder, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                        cmd = f'attrib -P +U "{folder_path}\\*.*" /s & attrib -P +U "{folder_path}" /d'
+                        subprocess.run(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
                         self.single_lbl.config(text=f"Current Order: #{order_id} ({vendor}) - 100% Space Freed")
                         self.single_progress["value"] = 100
 
                         status_text = "☁️ Online-Only"
                         freed_count += 1
-                        mark_order_history(order_id, vendor, folder_path, "online", total_files)
+                        mark_order_history(order_id, vendor, folder_path, "online", total_files, 0)
                     except Exception as e:
                         status_text = f"⚠️ Error: {str(e)[:15]}"
 
-                    self.tree.item(item_key, values=(f"#{order_id}", vendor, status_text, str(total_files)))
+                    final_vals = (f"#{order_id}", vendor, status_text, str(total_files), "0 B")
+                    self.table_items[item_key] = final_vals
+                    self.tree.item(item_key, values=final_vals)
                     order_info = {
                         "order_id": order_id,
                         "vendor": vendor,
                         "path": folder_path,
                         "status": status_text,
-                        "files": total_files
+                        "files": total_files,
+                        "size_bytes": 0
                     }
                     self.resolved_orders[item_key] = order_info
                     self.resolved_orders[order_id] = order_info
@@ -1689,6 +2311,8 @@ class QCBatchLoaderApp(tk.Tk):
 
         self._set_controls_running(False)
         self.after(0, self._update_leftover_badge)
+        self.after(0, self._update_storage_metrics)
+
 
 if __name__ == "__main__":
     cleanup_old_executable()
