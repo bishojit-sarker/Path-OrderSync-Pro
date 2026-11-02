@@ -4,10 +4,97 @@ import json
 import re
 import subprocess
 import threading
+import urllib.request
+import webbrowser
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 
 CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
+CURRENT_VERSION = "v1.2.0"
+GITHUB_REPO = "bishojit-sarker/Smart-Dropbox-QC-Batch-Loader"
+
+def cleanup_old_executable():
+    try:
+        old_exe = sys.executable + ".old"
+        if os.path.exists(old_exe):
+            os.remove(old_exe)
+    except Exception:
+        pass
+
+def check_for_updates(parent=None, silent=True):
+    def _worker():
+        try:
+            req = urllib.request.Request(
+                f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest",
+                headers={"User-Agent": "QC-Batch-Loader-Updater"}
+            )
+            with urllib.request.urlopen(req, timeout=6) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+
+            latest_tag = data.get("tag_name", "").strip()
+            if not latest_tag or latest_tag == CURRENT_VERSION:
+                if not silent and parent:
+                    parent.after(0, lambda: messagebox.showinfo("Up to Date", f"You are using the latest version ({CURRENT_VERSION})!"))
+                return
+
+            download_url = None
+            for asset in data.get("assets", []):
+                if asset.get("name") == "QC_Batch_Loader.exe":
+                    download_url = asset.get("browser_download_url")
+                    break
+
+            if not download_url:
+                return
+
+            def _prompt():
+                body = data.get("body", "Bug fixes and performance improvements.")
+                msg = (
+                    f"A new version ({latest_tag}) is available!\n"
+                    f"Your current version: {CURRENT_VERSION}\n\n"
+                    f"What's New:\n{body[:300]}\n\n"
+                    "Would you like to automatically update now?"
+                )
+                ans = messagebox.askyesno("Update Available", msg)
+                if ans:
+                    _perform_update(download_url, latest_tag, parent)
+
+            if parent:
+                parent.after(0, _prompt)
+        except Exception as e:
+            if not silent and parent:
+                parent.after(0, lambda: messagebox.showerror("Update Check Failed", f"Could not check for updates:\n{e}"))
+
+    threading.Thread(target=_worker, daemon=True).start()
+
+def _perform_update(download_url, latest_tag, parent=None):
+    try:
+        cur_exe = sys.executable
+        if not cur_exe.lower().endswith("qc_batch_loader.exe"):
+            webbrowser.open(download_url)
+            return
+
+        old_exe = cur_exe + ".old"
+        new_exe_tmp = cur_exe + ".tmp"
+
+        if parent:
+            parent.status_var.set(f"Downloading update {latest_tag} from GitHub...")
+
+        urllib.request.urlretrieve(download_url, new_exe_tmp)
+
+        if os.path.exists(old_exe):
+            try:
+                os.remove(old_exe)
+            except Exception:
+                pass
+
+        os.rename(cur_exe, old_exe)
+        os.rename(new_exe_tmp, cur_exe)
+
+        messagebox.showinfo("Update Complete", f"Successfully updated to {latest_tag}! The application will now restart.")
+        subprocess.Popen([cur_exe])
+        os._exit(0)
+    except Exception as e:
+        messagebox.showerror("Update Error", f"Failed to complete automatic update:\n{e}")
 
 def auto_detect_dropbox_path():
     """
@@ -73,7 +160,7 @@ def save_config(cfg):
 class QCBatchLoaderApp(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("⚡ Smart Dropbox QC Batch Loader v1.1")
+        self.title("⚡ Smart Dropbox QC Batch Loader v1.2")
         self.geometry("900x750")
         self.minsize(780, 600)
 
@@ -92,6 +179,9 @@ class QCBatchLoaderApp(tk.Tk):
         self._setup_style()
         self._create_widgets()
         self._update_order_count()
+
+        # Check for updates in background 2.5s after launch
+        self.after(2500, lambda: check_for_updates(self, silent=True))
 
     def _setup_style(self):
         self.configure(bg="#1e1e2e")
@@ -151,7 +241,7 @@ class QCBatchLoaderApp(tk.Tk):
 
         version_badge = tk.Label(
             top_frame,
-            text="v1.1",
+            text=CURRENT_VERSION,
             font=("Segoe UI", 8, "bold"),
             bg="#3b82f6",
             fg="white",
@@ -168,6 +258,22 @@ class QCBatchLoaderApp(tk.Tk):
             fg=self.text_muted
         )
         subtitle_lbl.pack(side="left", padx=6, pady=(4, 0))
+
+        update_btn = tk.Button(
+            top_frame,
+            text="🔄 Check Updates",
+            command=lambda: check_for_updates(self, silent=False),
+            bg="#252538",
+            fg="#93c5fd",
+            activebackground="#3b82f6",
+            activeforeground="white",
+            relief="flat",
+            font=("Segoe UI", 8),
+            cursor="hand2",
+            padx=8,
+            pady=2
+        )
+        update_btn.pack(side="right")
 
         # 2. Dropbox Path Bar
         path_card = tk.Frame(self, bg=self.card_bg, bd=1, relief="solid")
@@ -982,5 +1088,6 @@ class QCBatchLoaderApp(tk.Tk):
         self._set_controls_running(False)
 
 if __name__ == "__main__":
+    cleanup_old_executable()
     app = QCBatchLoaderApp()
     app.mainloop()
