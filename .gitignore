@@ -1,0 +1,20 @@
+# Python virtual environment
+.venv/
+venv/
+env/
+
+# PyInstaller build artifacts
+build/
+dist/
+*.spec
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Local user configuration (stores machine-specific paths)
+config.json
+
+# Temporary files & logs
+*.log
