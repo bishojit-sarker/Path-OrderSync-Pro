@@ -48,10 +48,10 @@
    - অন্য যেকোনো কম্পিউটারে এই অ্যাপ চালু করলে নিজে থেকেই সেই পিসির ড্রপবক্স পাথ খুঁজে নেয়; ব্যবহারকারীকে কোনো পাথ ম্যানুয়ালি বসাতে হয় না।
 9. **ইন-অ্যাপ অটো-আপডেট ইঞ্জিন (In-App Auto-Updater):**
    - গিটহাবে নতুন কোনো সংস্করণ প্রকাশ হলে অ্যাপ নিজে থেকেই নোটিফিকেশন দেবে এবং ১-ক্লিকে স্বয়ংক্রিয়ভাবে আপডেট হয়ে রিস্টার্ট নেবে।
-10. **৩-স্তরবিশিষ্ট স্টোরেজ সুরক্ষা শিল্ড ও ভুলে যাওয়া অর্ডার রিকভারি (3-Layer Storage Shield):**
-    - **ডিপ ডিস্ক স্ক্যানার (`[ 🔍 Find All Local Orders ]`):** কাজ শেষে কোনো কারণে যদি মেক অনলাইন না করে পিসি বন্ধ করে দেন, তবে ড্রপবক্সের শত শত ফোল্ডার ম্যানুয়ালি খোঁজার দরকার নেই। এই বোতামে চাপ দিলে ড্রপবক্সের সমস্ত ভেন্ডর ফোল্ডার স্ক্যান করে হার্ডডিস্কে জায়গা দখল করে থাকা সমস্ত ভুলে যাওয়া লোকাল অর্ডার খুঁজে টেবিলে সাজিয়ে দেবে।
-    - **হিস্ট্রি ট্র্যাকার ও রিয়েলটাইম ব্যাজ (`[ 🕒 Leftover: X ]`):** কতটি অর্ডার পিসিতে লোকাল অবস্থায় মেমরি ধরে রেখেছে, তা হেডারে লাইভ ব্যাজ আকারে দেখায়। কোনো অর্ডার বাকি থাকলে ব্যাজটি কমলা রঙে সতর্কবার্তা দেবে এবং ব্যাজে ক্লিক করে ১-ক্লিকেই টেবিলে লোড করা যাবে।
-    - **অটো-প্রম্পট গার্ড (Auto-Prompt Guard):** নতুন ব্যাচের কাজ শুরু করার সময় (`Make Local` চাপলে) পূর্বে লোকাল থাকা কোনো অর্ডার পেন্ডিং থাকলে অ্যাপ নিজে থেকেই আপনাকে স্মরণ করিয়ে দেবে এবং ১-ক্লিকে পুরনো অর্ডারগুলোকে অনলাইন করিয়ে ডিস্ক খালি করে নতুন ব্যাচ ডাউনলোড শুরু করবে।
+10. **স্মার্ট স্টোরেজ শিল্ড ও নিজস্ব অর্ডারের স্পেস ক্লিনার (Storage Shield & Space Cleaner):**
+    - **১০০% সেফ ও সুনির্দিষ্ট আইসোলেশন:** এই অ্যাপটি কেবল সেইসব অর্ডার আইডি নিয়ে কাজ করে যা আপনি নিজে পেস্ট করেছেন এবং লোকাল করেছেন। ড্রপবক্সের অন্য কারো বা বাইরের কোনো অর্ডার আইডিতে এটি কখনোই হস্তক্ষেপ বা স্ক্যান করবে না।
+    - **১-ক্লিকে নিজস্ব অর্ডারের মেমোরি রিলিজ (`[ 🧹 Free My Local Orders (X) ]`):** আপনি পূর্বে যে যে অর্ডার লোকাল করেছিলেন কিন্তু অনলাইন করতে ভুলে গেছেন, অ্যাপের হেডারে থাকা ব্যাজটি রিয়েলটাইমে শুধু আপনার সেই অর্ডারগুলোর সংখ্যা দেখাবে (যেমন: `Free My Local Orders (5)`)। ব্যাজে ক্লিক করলেই ১-ক্লিকে শুধু আপনার অর্ডারগুলো অনলাইন হয়ে হার্ডডিস্ক সম্পূর্ণ পরিষ্কার হয়ে যাবে।
+    - **অটো-প্রম্পট গার্ড (Auto-Prompt Guard):** নতুন ব্যাচের কাজ শুরু করার সময় (`Make Local` চাপলে) পূর্বে আপনার ডাউনলোড করা কোনো অর্ডার পেন্ডিং থাকলে অ্যাপ শুধু আপনার পুরনো অর্ডারগুলো অনলাইন করিয়ে ডিস্ক খালি করার জন্য অনুমতি চাইবে এবং নতুন ব্যাচ ডাউনলোড শুরু করবে।
 
 ---
 
@@ -309,10 +309,10 @@ This application eliminates web downloads and manual unzipping entirely. Utilizi
    - Automatically detects the user's Dropbox location on any computer via official Dropbox configuration (`info.json`) with zero manual setup.
 9. **In-App Auto-Updater:**
    - Automatically checks GitHub Releases on startup and provides 1-click self-updating without manual file transfers.
-10. **3-Layer Storage Shield & Leftover Order Recovery:**
-    - **Deep Disk Scanner (`[ 🔍 Find All Local Orders ]`):** Direct low-level disk audit across all vendor folders to detect forgotten hydrated/local orders consuming SSD storage, instantly loading them into the table for 1-click space recovery.
-    - **Persistent History Tracker & Live Badge (`[ 🕒 Leftover: X ]`):** Remembers the sync state across sessions; top header badge highlights pending local orders in amber and lets you reload them into the view with a single click.
-    - **Auto-Prompt Storage Guard:** Automatically intercepts new batch downloads if leftover orders from past sessions exist, prompting you to free old disk space before starting new downloads.
+10. **Smart Storage Shield & User Session Space Cleaner:**
+    - **Strict Isolation (No Interference with Other Orders):** The app strictly tracks ONLY the orders you explicitly made local through this application. It never scans, touches, or alters unrelated Dropbox directories or orders worked on by other team members.
+    - **1-Click Local Order Release (`[ 🧹 Free My Local Orders (X) ]`):** Top header badge displays the exact count of orders that you previously downloaded locally and haven't yet reverted to online. Clicking the badge lets you free disk space for all your previous orders in 1 click (`attrib -P +U`).
+    - **Auto-Prompt Storage Guard:** When starting a new batch, if previously worked orders remain local on disk, the app automatically prompts to make only your previous orders Online-Only before downloading the new batch.
 
 ---
 

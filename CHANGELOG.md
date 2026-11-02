@@ -5,18 +5,16 @@ All notable changes, bug fixes, and feature additions to **Smart Dropbox QC Batc
 ---
 
 ## [v1.3.0] - 2026-11-02
-### 🛡️ 3-Layer Storage Shield & Leftover Order Recovery:
-- **🔍 Deep Disk Scanner (`[ 🔍 Find All Local Orders ]`):**
-  - Directly scans all vendor directories in Dropbox for any leftover orders that are still hydrated or taking up physical disk space.
-  - Automatically loads discovered local orders into the table and input box for immediate 1-click cleanup or inspection.
-- **🕒 Persistent History Tracker & Live Badge (`[ 🕒 Leftover: X ]`):**
-  - Tracks the sync state (local vs online) of every processed order in a local `history.json`.
-  - Header badge displays the exact count of leftover local orders; highlights in amber/orange if forgotten orders exist.
-  - Clicking the badge allows 1-click loading of all tracked leftover orders into the table for instant review or space release.
-- **⚠️ Auto-Prompt Guard on New Batch Launch:**
-  - When starting a new `Make Local` batch, the application detects if previous orders were left local on disk.
-  - Prompts the user: *"Would you like to make previous orders Online-Only first to free up disk space?"*
-  - Automatically frees previous orders in the background before downloading the new batch, eliminating storage bottlenecks.
+### 🛡️ Smart Storage Shield & User Session Space Cleaner:
+- **🎯 Strict Isolation (No Interference with Other Orders):**
+  - The application strictly tracks ONLY the orders that the user explicitly made local through this app.
+  - Never scans or touches unrelated Dropbox directories or orders worked on by other team members.
+- **🕒 Persistent Session Tracker & 1-Click Cleaner (`[ 🧹 Free My Local Orders (X) ]`):**
+  - Header badge displays the exact count of orders that the user previously made local and haven't yet been freed.
+  - Clicking the badge lets the user release disk space for all their previous orders in 1 click (`attrib -P +U`), turning them back to Online-Only.
+- **⚠️ Auto-Prompt Storage Guard on New Batch Launch:**
+  - When starting a new `Make Local` batch, if previously worked orders are still sitting locally, the app prompts: *"Would you like to make ONLY your previous orders Online-Only now to free up disk space?"*
+  - Automatically frees only the user's previous orders in the background before downloading the new batch, eliminating storage bottlenecks safely.
 
 ---
 
