@@ -4,6 +4,30 @@ All notable changes, bug fixes, and feature additions to **Smart Dropbox QC Batc
 
 ---
 
+## [v1.5.0] - 2026-11-03
+### ⚡ Advanced Workflow Features & Deep Cloud Sync Reliability:
+- **🖱️ Vendor Dropdown Smooth Mouse-Wheel Scrolling & Master Checkbox:**
+  - Added smooth mouse-wheel scrolling (`<MouseWheel>`) from top to bottom across all vendor popup widgets.
+  - Replaced separate "All" and "None" buttons with a single master checkbox `[ Select / Deselect All ]` that automatically syncs with individual vendor check states.
+- **🔍 Scan Local Orders in Selected Vendors:**
+  - Added `[ 🔍 Scan Local Orders ]` button in the main table toolbar.
+  - Rapidly scans selected vendors in parallel to discover all orders and image files currently hydrated and consuming physical disk space.
+  - Populates the Orders table with Order ID, Vendor, Sync Status, total files, and exact local disk size.
+- **☁️ Multi-Row 'Make Online' (Bulk Space Reclaim):**
+  - Upgraded table selection mode to `extended` for multi-row selection (Shift+Click, Ctrl+Click, or Drag).
+  - Clicking `[ ☁️ Make Online ]` or right-clicking frees up disk space across all selected orders simultaneously.
+- **📋 Collapsible / Toggle Sidebar for Order IDs:**
+  - Replaced fixed left-hand space with a responsive collapsible sidebar.
+  - Added `[ ◀ Hide Sidebar ]` / `[ 📋 Show Sidebar (Paste IDs) ]` button to maximize table and detail view.
+- **➕ 'Add to Sync List' Button & Queue Submission:**
+  - Added dedicated `[ ➕ Add to Sync List ]` button directly beside Clean & Deduplicate.
+  - Parses pasted order IDs, checks current disk/cloud state across vendors, and queues them into the Process Table without immediately downloading.
+- **🛡️ 100% Complete Local Hydration Fix (Zero Photoshop Hangs):**
+  - Resolved partial file hydration issue where Photoshop froze while opening partially downloaded TIFF/PSD images.
+  - Streams full files in parallel chunks and confirms removal of Windows `FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS` before declaring `✅ Local (Ready)`.
+
+---
+
 ## [v1.4.0] - 2026-11-02
 ### ⚡ High-Speed Multi-Vendor Engine, Vendor Filter Dropdown, Storage Metrics & Full English UI:
 - **🏢 Dynamic Vendor Dropdown & Multi-Select Filter:**
