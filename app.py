@@ -200,14 +200,323 @@ def cleanup_old_executable():
     except Exception:
         pass
 
+def get_local_version_notes(version):
+    """Extracts changelog release notes for the specified version from CHANGELOG.md."""
+    changelog_path = os.path.join(APP_DIR, "CHANGELOG.md")
+    if os.path.exists(changelog_path):
+        try:
+            with open(changelog_path, "r", encoding="utf-8") as f:
+                content = f.read()
+            pattern = rf'## \[{re.escape(version)}\][^\n]*\n(.*?)(?=\n## \[|\Z)'
+            m = re.search(pattern, content, re.DOTALL)
+            if m:
+                return m.group(1).strip()
+        except Exception:
+            pass
+    return "Bug fixes, performance improvements, and reliability updates."
+
+class UpdateDialog(tk.Toplevel):
+    """Modern interactive dialog displaying update details, release notes, and real-time 1-click update progress."""
+    def __init__(self, parent, latest_tag, current_ver, release_body, download_url):
+        super().__init__(parent)
+        self.parent = parent
+        self.latest_tag = latest_tag
+        self.current_ver = current_ver
+        self.release_body = release_body or "Bug fixes and performance improvements."
+        self.download_url = download_url
+
+        self.title(f"🚀 Update Available: {latest_tag}")
+        self.geometry("680x560")
+        self.minsize(580, 460)
+        self.configure(bg="#1e1e2e")
+        self.transient(parent)
+        self.grab_set()
+
+        try:
+            x = parent.winfo_x() + (parent.winfo_width() // 2) - 340
+            y = parent.winfo_y() + (parent.winfo_height() // 2) - 280
+            self.geometry(f"+{max(x, 50)}+{max(y, 50)}")
+        except Exception:
+            pass
+
+        self._create_widgets()
+
+    def _create_widgets(self):
+        # 1. Top Header Banner
+        header = tk.Frame(self, bg="#252538", bd=1, relief="solid")
+        header.pack(fill="x", padx=16, pady=(16, 10))
+
+        title_box = tk.Frame(header, bg="#252538")
+        title_box.pack(fill="x", padx=14, pady=12)
+
+        tk.Label(title_box, text="🚀", font=("Segoe UI", 24), bg="#252538", fg="#38bdf8").pack(side="left", padx=(0, 10))
+
+        text_box = tk.Frame(title_box, bg="#252538")
+        text_box.pack(side="left", fill="x", expand=True)
+
+        tk.Label(text_box, text="A New Update is Ready!", font=("Segoe UI", 12, "bold"), bg="#252538", fg="#f8fafc").pack(anchor="w")
+
+        v_lbl = tk.Label(
+            text_box,
+            text=f"Current: {self.current_ver}   ➔   Latest: {self.latest_tag}",
+            font=("Segoe UI", 9),
+            bg="#252538",
+            fg="#94a3b8"
+        )
+        v_lbl.pack(anchor="w", pady=(2, 0))
+
+        # 2. Release Notes & How to Use Guide Card
+        card = tk.Frame(self, bg="#252538", bd=1, relief="solid")
+        card.pack(fill="both", expand=True, padx=16, pady=4)
+
+        card_header = tk.Frame(card, bg="#252538")
+        card_header.pack(fill="x", padx=14, pady=(10, 4))
+        tk.Label(card_header, text="📋 What's New & Feature Guide:", font=("Segoe UI", 10, "bold"), bg="#252538", fg="#f8fafc").pack(side="left")
+
+        # Scrollable text widget
+        txt_frame = tk.Frame(card, bg="#181825")
+        txt_frame.pack(fill="both", expand=True, padx=12, pady=(4, 12))
+
+        self.txt = tk.Text(
+            txt_frame,
+            bg="#181825",
+            fg="#f8fafc",
+            insertbackground="#ffffff",
+            relief="flat",
+            font=("Segoe UI", 9),
+            wrap="word",
+            padx=10,
+            pady=10
+        )
+        scroll = tk.Scrollbar(txt_frame, orient="vertical", command=self.txt.yview)
+        self.txt.configure(yscrollcommand=scroll.set)
+
+        self.txt.pack(side="left", fill="both", expand=True)
+        scroll.pack(side="right", fill="y")
+
+        self.txt.insert("1.0", self.release_body.strip())
+        self.txt.config(state="disabled")
+
+        # 3. Download Progress Area
+        self.progress_frame = tk.Frame(self, bg="#1e1e2e")
+        self.progress_frame.pack(fill="x", padx=16, pady=(4, 6))
+
+        self.progress_lbl = tk.Label(self.progress_frame, text="", font=("Segoe UI", 9), bg="#1e1e2e", fg="#93c5fd")
+        self.progress_lbl.pack(anchor="w")
+
+        self.prog_bar = ttk.Progressbar(self.progress_frame, mode="determinate")
+        self.prog_bar.pack(fill="x", pady=(2, 0))
+        self.progress_frame.pack_forget()
+
+        # 4. Action Buttons
+        btn_box = tk.Frame(self, bg="#1e1e2e")
+        btn_box.pack(fill="x", padx=16, pady=(10, 16))
+
+        self.btn_update = tk.Button(
+            btn_box,
+            text="🚀 Update & Restart Now",
+            command=self._start_download,
+            bg="#10b981",
+            fg="white",
+            activebackground="#059669",
+            activeforeground="white",
+            relief="flat",
+            font=("Segoe UI", 10, "bold"),
+            cursor="hand2",
+            padx=16,
+            pady=6
+        )
+        self.btn_update.pack(side="right", padx=(8, 0))
+
+        self.btn_cancel = tk.Button(
+            btn_box,
+            text="✕ Remind Me Later",
+            command=self.destroy,
+            bg="#374151",
+            fg="white",
+            activebackground="#4b5563",
+            activeforeground="white",
+            relief="flat",
+            font=("Segoe UI", 9),
+            cursor="hand2",
+            padx=12,
+            pady=6
+        )
+        self.btn_cancel.pack(side="right")
+
+    def _start_download(self):
+        if not self.download_url:
+            messagebox.showerror("Error", "Download URL is not available.")
+            return
+
+        cur_exe = sys.executable
+        if not cur_exe.lower().endswith("qc_batch_loader.exe"):
+            webbrowser.open(self.download_url)
+            self.destroy()
+            return
+
+        self.btn_update.config(state="disabled")
+        self.btn_cancel.config(state="disabled")
+        self.progress_frame.pack(fill="x", padx=16, pady=(4, 6))
+        self.prog_bar["value"] = 0
+        self.progress_lbl.config(text=f"Connecting to GitHub to download {self.latest_tag}...")
+
+        threading.Thread(target=self._worker_download, daemon=True).start()
+
+    def _worker_download(self):
+        cur_exe = sys.executable
+        old_exe = cur_exe + ".old"
+        new_exe_tmp = cur_exe + ".tmp"
+
+        try:
+            req = urllib.request.Request(self.download_url, headers={"User-Agent": "QC-Batch-Loader-Updater"})
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                total_len = resp.headers.get("Content-Length")
+                total_bytes = int(total_len) if total_len and total_len.isdigit() else 0
+                downloaded = 0
+                chunk_size = 64 * 1024
+
+                with open(new_exe_tmp, "wb") as out_f:
+                    while True:
+                        chunk = resp.read(chunk_size)
+                        if not chunk:
+                            break
+                        out_f.write(chunk)
+                        downloaded += len(chunk)
+                        if total_bytes > 0:
+                            pct = int((downloaded / total_bytes) * 100)
+                            cur_mb = downloaded / (1024 * 1024)
+                            tot_mb = total_bytes / (1024 * 1024)
+                            self.after(0, lambda p=pct, c=cur_mb, t=tot_mb: self._update_progress(p, f"Downloading {self.latest_tag}: {p}% ({c:.1f} MB / {t:.1f} MB)..."))
+                        else:
+                            cur_mb = downloaded / (1024 * 1024)
+                            self.after(0, lambda c=cur_mb: self._update_progress(50, f"Downloading {self.latest_tag}: {c:.1f} MB..."))
+
+            if os.path.exists(old_exe):
+                try:
+                    os.remove(old_exe)
+                except Exception:
+                    pass
+
+            os.rename(cur_exe, old_exe)
+            os.rename(new_exe_tmp, cur_exe)
+
+            self.after(0, self._on_download_complete)
+        except Exception as e:
+            try:
+                if os.path.exists(new_exe_tmp):
+                    os.remove(new_exe_tmp)
+            except Exception:
+                pass
+            self.after(0, lambda err=e: self._on_download_error(err))
+
+    def _update_progress(self, pct, label_text):
+        self.prog_bar["value"] = pct
+        self.progress_lbl.config(text=label_text)
+
+    def _on_download_complete(self):
+        cur_exe = sys.executable
+        messagebox.showinfo("Update Complete", f"Successfully updated to {self.latest_tag}!\nThe application will now restart with the new version.")
+        subprocess.Popen([cur_exe])
+        os._exit(0)
+
+    def _on_download_error(self, err):
+        self.btn_update.config(state="normal")
+        self.btn_cancel.config(state="normal")
+        self.progress_lbl.config(text="Download failed.", fg="#ef4444")
+        messagebox.showerror("Update Error", f"Failed to complete automatic update:\n{err}")
+
+class WhatsNewDialog(tk.Toplevel):
+    """Welcome dialog shown on first launch of a new version to guide user on new capabilities."""
+    def __init__(self, parent, version, notes_text=None):
+        super().__init__(parent)
+        self.parent = parent
+        self.version = version
+        self.notes_text = notes_text or get_local_version_notes(version)
+
+        self.title(f"✨ What's New in {version}")
+        self.geometry("680x540")
+        self.minsize(580, 440)
+        self.configure(bg="#1e1e2e")
+        self.transient(parent)
+
+        try:
+            x = parent.winfo_x() + (parent.winfo_width() // 2) - 340
+            y = parent.winfo_y() + (parent.winfo_height() // 2) - 270
+            self.geometry(f"+{max(x, 50)}+{max(y, 50)}")
+        except Exception:
+            pass
+
+        self._create_widgets()
+
+    def _create_widgets(self):
+        header = tk.Frame(self, bg="#252538", bd=1, relief="solid")
+        header.pack(fill="x", padx=16, pady=(16, 10))
+
+        title_box = tk.Frame(header, bg="#252538")
+        title_box.pack(fill="x", padx=14, pady=12)
+
+        tk.Label(title_box, text="✨", font=("Segoe UI", 22), bg="#252538", fg="#facc15").pack(side="left", padx=(0, 10))
+
+        t_lbl = tk.Label(title_box, text=f"Welcome to Smart Dropbox QC Batch Loader {self.version}!", font=("Segoe UI", 11, "bold"), bg="#252538", fg="#f8fafc")
+        t_lbl.pack(anchor="w")
+
+        sub_lbl = tk.Label(title_box, text="Review the latest features, enhancements, and usage guide below.", font=("Segoe UI", 8), bg="#252538", fg="#94a3b8")
+        sub_lbl.pack(anchor="w", pady=(2, 0))
+
+        card = tk.Frame(self, bg="#252538", bd=1, relief="solid")
+        card.pack(fill="both", expand=True, padx=16, pady=4)
+
+        txt_frame = tk.Frame(card, bg="#181825")
+        txt_frame.pack(fill="both", expand=True, padx=12, pady=12)
+
+        txt = tk.Text(
+            txt_frame,
+            bg="#181825",
+            fg="#f8fafc",
+            insertbackground="#ffffff",
+            relief="flat",
+            font=("Segoe UI", 9),
+            wrap="word",
+            padx=10,
+            pady=10
+        )
+        scroll = tk.Scrollbar(txt_frame, orient="vertical", command=txt.yview)
+        txt.configure(yscrollcommand=scroll.set)
+        txt.pack(side="left", fill="both", expand=True)
+        scroll.pack(side="right", fill="y")
+
+        txt.insert("1.0", self.notes_text)
+        txt.config(state="disabled")
+
+        btn_box = tk.Frame(self, bg="#1e1e2e")
+        btn_box.pack(fill="x", padx=16, pady=(10, 16))
+
+        ok_btn = tk.Button(
+            btn_box,
+            text="👍 Got It! (Start QC)",
+            command=self.destroy,
+            bg="#3b82f6",
+            fg="white",
+            activebackground="#2563eb",
+            activeforeground="white",
+            relief="flat",
+            font=("Segoe UI", 9, "bold"),
+            cursor="hand2",
+            padx=16,
+            pady=6
+        )
+        ok_btn.pack(side="right")
+
 def check_for_updates(parent=None, silent=True):
+    """Checks GitHub Releases for new updates with real-time notifications."""
     def _worker():
         try:
             req = urllib.request.Request(
                 f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest",
                 headers={"User-Agent": "QC-Batch-Loader-Updater"}
             )
-            with urllib.request.urlopen(req, timeout=6) as resp:
+            with urllib.request.urlopen(req, timeout=8) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
 
             latest_tag = data.get("tag_name", "").strip()
@@ -217,10 +526,16 @@ def check_for_updates(parent=None, silent=True):
             latest_ver = parse_version_tuple(latest_tag)
             cur_ver = parse_version_tuple(CURRENT_VERSION)
 
-            # Strictly require GitHub version to be newer than current version
             if latest_ver <= cur_ver:
                 if not silent and parent:
-                    parent.after(0, lambda: messagebox.showinfo("Up to Date", f"You are using the latest version ({CURRENT_VERSION})!"))
+                    def _show_up_to_date():
+                        ans = messagebox.askyesno(
+                            "Up to Date",
+                            f"You are using the latest version ({CURRENT_VERSION})!\n\nWould you like to review the What's New guide for this version?"
+                        )
+                        if ans:
+                            WhatsNewDialog(parent, CURRENT_VERSION)
+                    parent.after(0, _show_up_to_date)
                 return
 
             download_url = None
@@ -230,57 +545,18 @@ def check_for_updates(parent=None, silent=True):
                     break
 
             if not download_url:
+                if not silent and parent:
+                    parent.after(0, lambda: messagebox.showwarning("Update Available", f"Version {latest_tag} is available on GitHub, but executable asset is not attached."))
                 return
 
-            def _prompt():
-                body = data.get("body", "Bug fixes and performance improvements.")
-                msg = (
-                    f"A new version ({latest_tag}) is available!\n"
-                    f"Your current version: {CURRENT_VERSION}\n\n"
-                    f"What's New:\n{body[:300]}\n\n"
-                    "Would you like to automatically update now?"
-                )
-                ans = messagebox.askyesno("Update Available", msg)
-                if ans:
-                    _perform_update(download_url, latest_tag, parent)
-
+            release_body = data.get("body", "Bug fixes and performance improvements.")
             if parent:
-                parent.after(0, _prompt)
+                parent.after(0, lambda: parent._show_update_available(latest_tag, release_body, download_url, silent))
         except Exception as e:
             if not silent and parent:
                 parent.after(0, lambda: messagebox.showerror("Update Check Failed", f"Could not check for updates:\n{e}"))
 
     threading.Thread(target=_worker, daemon=True).start()
-
-def _perform_update(download_url, latest_tag, parent=None):
-    try:
-        cur_exe = sys.executable
-        if not cur_exe.lower().endswith("qc_batch_loader.exe"):
-            webbrowser.open(download_url)
-            return
-
-        old_exe = cur_exe + ".old"
-        new_exe_tmp = cur_exe + ".tmp"
-
-        if parent:
-            parent.status_var.set(f"Downloading update {latest_tag} from GitHub...")
-
-        urllib.request.urlretrieve(download_url, new_exe_tmp)
-
-        if os.path.exists(old_exe):
-            try:
-                os.remove(old_exe)
-            except Exception:
-                pass
-
-        os.rename(cur_exe, old_exe)
-        os.rename(new_exe_tmp, cur_exe)
-
-        messagebox.showinfo("Update Complete", f"Successfully updated to {latest_tag}! The application will now restart.")
-        subprocess.Popen([cur_exe])
-        os._exit(0)
-    except Exception as e:
-        messagebox.showerror("Update Error", f"Failed to complete automatic update:\n{e}")
 
 def auto_detect_dropbox_path():
     candidate_json_paths = [
@@ -318,16 +594,18 @@ DEFAULT_DROPBOX_PATH = auto_detect_dropbox_path()
 
 def load_config():
     detected_path = auto_detect_dropbox_path()
+    cfg = {"dropbox_path": detected_path, "last_seen_version": CURRENT_VERSION}
     if os.path.exists(CONFIG_FILE):
         try:
             with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-                cfg = json.load(f)
-                saved_path = cfg.get("dropbox_path")
-                if saved_path and os.path.isdir(saved_path):
-                    return cfg
+                loaded = json.load(f)
+                if isinstance(loaded, dict):
+                    cfg.update(loaded)
+                    if not cfg.get("dropbox_path") or not os.path.isdir(cfg.get("dropbox_path")):
+                        cfg["dropbox_path"] = detected_path
         except Exception:
             pass
-    return {"dropbox_path": detected_path}
+    return cfg
 
 def save_config(cfg):
     try:
@@ -958,8 +1236,10 @@ class QCBatchLoaderApp(tk.Tk):
         self._update_leftover_badge()
         self._update_storage_metrics()
 
-        # Check for updates in background 2.5s after launch
+        # Real-time Update System: Initial check, periodic polling, and first-launch guide
         self.after(2500, lambda: check_for_updates(self, silent=True))
+        self.after(3600000, self._periodic_update_check)
+        self.after(1200, self._check_first_launch_whats_new)
 
     def _setup_style(self):
         self.configure(bg="#1e1e2e")
@@ -1307,7 +1587,7 @@ class QCBatchLoaderApp(tk.Tk):
         )
         subtitle_lbl.pack(side="left", padx=6, pady=(4, 0))
 
-        update_btn = tk.Button(
+        self.update_btn = tk.Button(
             top_frame,
             text="🔄 Check Updates",
             command=lambda: check_for_updates(self, silent=False),
@@ -1321,7 +1601,7 @@ class QCBatchLoaderApp(tk.Tk):
             padx=8,
             pady=2
         )
-        update_btn.pack(side="right")
+        self.update_btn.pack(side="right")
 
         self.leftover_btn = tk.Button(
             top_frame,
@@ -1954,6 +2234,38 @@ class QCBatchLoaderApp(tk.Tk):
         if row_id:
             self.tree.selection_set(row_id)
             self.context_menu.post(event.x_root, event.y_root)
+
+    def _periodic_update_check(self):
+        """Runs periodic background update check every 60 minutes."""
+        if not getattr(self, "is_running", False):
+            check_for_updates(self, silent=True)
+        self.after(3600000, self._periodic_update_check)
+
+    def _show_update_available(self, latest_tag, release_body, download_url, silent=False):
+        """Updates the header button state and opens the rich update dialog."""
+        if hasattr(self, "update_btn"):
+            self.update_btn.config(
+                text=f"🚀 Update Ready ({latest_tag})!",
+                bg="#10b981",
+                fg="#ffffff",
+                font=("Segoe UI", 8, "bold"),
+                command=lambda: UpdateDialog(self, latest_tag, CURRENT_VERSION, release_body, download_url)
+            )
+
+        if silent and getattr(self, "is_running", False):
+            self.status_var.set(f"🚀 New update {latest_tag} is available! Click 'Update Ready' in header when done.")
+            return
+
+        UpdateDialog(self, latest_tag, CURRENT_VERSION, release_body, download_url)
+
+    def _check_first_launch_whats_new(self):
+        """Displays What's New dialog if running a newly updated version for the first time."""
+        cfg = load_config()
+        last_seen = cfg.get("last_seen_version")
+        if last_seen != CURRENT_VERSION:
+            cfg["last_seen_version"] = CURRENT_VERSION
+            save_config(cfg)
+            WhatsNewDialog(self, CURRENT_VERSION)
 
     def _toggle_sidebar(self):
         """Toggles the Paste Order IDs left sidebar between collapsed and visible."""
