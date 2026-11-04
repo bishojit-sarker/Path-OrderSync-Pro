@@ -17,5 +17,7 @@ __pycache__/
 config.json
 history.json
 
-# Temporary files & logs
+# Temporary files & logs & backups
 *.log
+*.bak
+_release_notes_tmp.md

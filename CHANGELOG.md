@@ -4,6 +4,40 @@ All notable changes, bug fixes, and feature additions to **Smart Dropbox QC Batc
 
 ---
 
+## [v1.6.0] - 2026-11-04
+### 🚀 Path OrderSync Studio Overhaul, Smart File Review, Local Clean & Dynamic UI:
+- **🎨 Brand Identity & Modern Header:**
+  - Renamed application to **Path OrderSync Studio** with official tagline *"Smart Batch Order Sync & Space Optimizer"*.
+  - Embedded infinity Dropbox brand logo into the app header and multi-resolution Windows executable icon.
+  - Unified Dropbox Root path selector and hard drive space metrics into a single compact header row with a live `[ 🔄 Refresh ]` button.
+- **🔔 Notification & Update Center:**
+  - Replaced static check button with an interactive Notification Center (`🔔`).
+  - Displays unread update badges, full release history organized by date, and one-click update installation with user confirmation prompt.
+- **🧹 Dedicated Local Clean Tool (`[ 🧹 Local Clean ]`):**
+  - Dedicated storage optimizer window showing only hydrated orders consuming physical hard drive space.
+  - Multi-select checkboxes, real-time space calculation, and instant cloud-offloading to reclaim local disk space.
+- **📜 Complete History Eraser (`[ 🗑️ Clean All History ]`):**
+  - Added 1-click option inside History Tracker to permanently clear all local and online history records with a warning confirmation dialog.
+- **📋 Toggle Drawer & Smart Duplicate Cleaner:**
+  - Moved Paste Order IDs into a clean collapsible drawer toggled from the main toolbar (`[ 📋 Paste Order IDs ]`).
+  - **Dynamic Button State**: `[ 🧹 Clean Duplicate ]` is **RED** and `[ ➕ Add to Sync List ]` is **DISABLED** whenever order text is edited. Once Clean Duplicate is clicked, button turns **GREEN** and Add to Sync List activates immediately.
+- **🗑️ Dashboard Cleaner (`[ 🗑️ Clean Dashboard ]`):**
+  - Added toolbar button to reset and clear all rows from the Sync List Dashboard with user confirmation.
+- **🔍 Modern Pill Search Bar:**
+  - Streamlined table header search into an ultra-modern pill container with inside `🔍` and integrated inside `✕` clear button.
+- **☑️ Master Checkbox, Multi-Select & Copy Order IDs:**
+  - Added table checkbox column with header master toggle (`☐` / `☑`) and keyboard Space bar support.
+  - Enabled copying Order IDs to clipboard via `Ctrl + C` or right-click context menu.
+- **🔍 Order Review & Smart Folder Filter (`[ 🔍 Order Review ]`):**
+  - Interactive inspector for analyzing folder structure, subfolders, and file sizes before downloading.
+  - Quick presets: `[ 🎯 QC Images Only (.tif, .psd, .jpg) ]` and `[ ⚡ Exclude RAW / Samples ]`.
+  - Downloads only user-whitelisted files, saving substantial bandwidth and local disk space.
+- **⚡ In-Cell Real-Time Progress Animation & Bottom Dock:**
+  - Replaced static labels with live in-cell download progress indicators (`⏳ 15% (60/385 files)`) and row color highlights.
+  - Modern bottom status dock featuring total progress bar, status badges, and global `[ ⏸️ Pause All ]` and `[ ⏹️ Stop All ]` controls.
+
+---
+
 ## [v1.5.0] - 2026-11-03
 ### ⚡ Advanced Workflow Features & Deep Cloud Sync Reliability:
 - **🖱️ Vendor Dropdown Smooth Mouse-Wheel Scrolling & Master Checkbox:**

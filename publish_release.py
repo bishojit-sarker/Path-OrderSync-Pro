@@ -2,6 +2,7 @@ import os
 import sys
 import re
 import json
+import time
 import shutil
 import subprocess
 from pathlib import Path
@@ -24,41 +25,53 @@ def run_cmd(cmd, cwd=BASE_DIR, check=True):
         sys.exit(res.returncode)
     return res
 
-def get_current_version():
-    with open(APP_PY, "r", encoding="utf-8") as f:
-        content = f.read()
-    m = re.search(r'CURRENT_VERSION\s*=\s*["\']([^"\']+)["\']', content)
-    if not m:
-        print("[ERROR] CURRENT_VERSION not found in app.py!")
-        sys.exit(1)
-    return m.group(1).strip()
+def kill_running_app():
+    """Stops any running QC_Batch_Loader instance so Windows does not lock the file."""
+    try:
+        subprocess.run(
+            ["powershell", "-Command", "Stop-Process -Name 'QC_Batch_Loader' -Force -ErrorAction SilentlyContinue"],
+            capture_output=True
+        )
+        time.sleep(1)
+    except Exception:
+        pass
 
-def get_release_notes(version):
-    if not CHANGELOG_MD.exists():
-        return f"Release {version} with bug fixes and improvements."
-    with open(CHANGELOG_MD, "r", encoding="utf-8") as f:
-        content = f.read()
+def extract_current_version():
+    content = APP_PY.read_text(encoding="utf-8")
+    for line in content.splitlines():
+        if line.startswith("CURRENT_VERSION"):
+            parts = line.split("=")
+            if len(parts) == 2:
+                return parts[1].strip().strip('"').strip("'")
+    print("[ERROR] Could not extract CURRENT_VERSION from app.py")
+    sys.exit(1)
+
+def extract_release_notes(version):
+    content = CHANGELOG_MD.read_text(encoding="utf-8")
     pattern = rf'## \[{re.escape(version)}\][^\n]*\n(.*?)(?=\n## \[|\Z)'
     m = re.search(pattern, content, re.DOTALL)
-    if m:
-        return m.group(1).strip()
-    return f"Smart Dropbox QC Batch Loader {version} - Latest improvements."
+    if not m:
+        print(f"[WARNING] Could not find release notes for {version} in CHANGELOG.md. Using default notes.")
+        return "Bug fixes, performance improvements, and UI enhancements."
+    return m.group(1).strip()
 
 def main():
     print("=" * 60)
-    print("  🚀 QC Batch Loader - 1-Click GitHub Release Publisher")
+    print("  🚀 Path OrderSync Studio - 1-Click GitHub Release Publisher")
     print("=" * 60)
 
-    # 1. Version Detection
-    version = get_current_version()
+    # 1. Detect Version
+    version = extract_current_version()
     print(f"\n[1/6] Detected Target Version: {version}")
 
-    # 2. Extract Release Notes
-    notes = get_release_notes(version)
+    # 2. Extract Changelog Notes
+    notes = extract_release_notes(version)
     print(f"[2/6] Extracted Release Notes ({len(notes)} chars)")
 
     # 3. Compile Executable with PyInstaller
     print("\n[3/6] Compiling standalone QC_Batch_Loader.exe with PyInstaller...")
+    kill_running_app()
+
     pyinstaller_exe = BASE_DIR / ".venv" / "Scripts" / "pyinstaller.exe"
     if not pyinstaller_exe.exists():
         pyinstaller_exe = "pyinstaller"
@@ -75,7 +88,21 @@ def main():
     if not DIST_EXE.exists():
         print(f"[ERROR] Compiled binary not found at {DIST_EXE}")
         sys.exit(1)
-    shutil.copy2(DIST_EXE, EXE_FILE)
+
+    kill_running_app()
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            shutil.copy2(DIST_EXE, EXE_FILE)
+            break
+        except PermissionError:
+            if attempt < max_retries - 1:
+                print(f"  [Notice] File in use, stopping existing process and retrying ({attempt+1}/{max_retries})...")
+                kill_running_app()
+                time.sleep(1.5)
+            else:
+                raise
+
     print(f"  ✓ Updated {EXE_FILE.name} ({EXE_FILE.stat().st_size / (1024*1024):.2f} MB)")
 
     # 5. Git Commit & Push
@@ -83,7 +110,7 @@ def main():
     run_cmd("git add -A")
     status_res = run_cmd("git status --porcelain", check=False)
     if status_res.stdout.strip():
-        commit_msg = f"release: {version} - Automated feature release and binary build"
+        commit_msg = f"release: {version} - Path OrderSync Studio release and binary build"
         run_cmd(f'git commit -m "{commit_msg}"')
     else:
         print("  ✓ Working tree clean, no new changes to commit.")
@@ -95,7 +122,7 @@ def main():
     print(f"\n[6/6] Publishing official GitHub Release {version}...")
     temp_notes_file = BASE_DIR / "_release_notes_tmp.md"
     with open(temp_notes_file, "w", encoding="utf-8") as f:
-        f.write(f"# ⚡ Smart Dropbox QC Batch Loader {version}\n\n")
+        f.write(f"# 🚀 Path OrderSync Studio {version}\n\n")
         f.write(notes + "\n\n")
         f.write("---\n")
         f.write("### 📥 Download & Usage:\n")
@@ -105,11 +132,11 @@ def main():
     chk_rel = run_cmd(f'gh release view {version} --repo bishojit-sarker/Smart-Dropbox-QC-Batch-Loader', check=False)
     if chk_rel.returncode == 0:
         print(f"  Release {version} already exists. Updating release notes and executable asset...")
-        run_cmd(f'gh release edit {version} --title "Smart Dropbox QC Batch Loader {version}" --notes-file "{temp_notes_file}" --repo bishojit-sarker/Smart-Dropbox-QC-Batch-Loader')
+        run_cmd(f'gh release edit {version} --title "Path OrderSync Studio {version}" --notes-file "{temp_notes_file}" --repo bishojit-sarker/Smart-Dropbox-QC-Batch-Loader')
         run_cmd(f'gh release upload {version} "{EXE_FILE}" --clobber --repo bishojit-sarker/Smart-Dropbox-QC-Batch-Loader')
     else:
         print(f"  Creating new official GitHub Release {version}...")
-        run_cmd(f'gh release create {version} "{EXE_FILE}" --title "Smart Dropbox QC Batch Loader {version}" --notes-file "{temp_notes_file}" --repo bishojit-sarker/Smart-Dropbox-QC-Batch-Loader')
+        run_cmd(f'gh release create {version} "{EXE_FILE}" --title "Path OrderSync Studio {version}" --notes-file "{temp_notes_file}" --repo bishojit-sarker/Smart-Dropbox-QC-Batch-Loader')
 
     if temp_notes_file.exists():
         temp_notes_file.unlink()
