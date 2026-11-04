@@ -130,13 +130,17 @@ def main():
 
     # Check if release already exists on GitHub
     chk_rel = run_cmd(f'gh release view {version} --repo bishojit-sarker/Smart-Dropbox-QC-Batch-Loader', check=False)
+    # Use relative paths without '#' character so GitHub CLI doesn't treat '#' as an asset label delimiter
+    rel_exe_name = "QC_Batch_Loader.exe"
+    rel_notes_name = "_release_notes_tmp.md"
+
     if chk_rel.returncode == 0:
         print(f"  Release {version} already exists. Updating release notes and executable asset...")
-        run_cmd(f'gh release edit {version} --title "Path OrderSync Studio {version}" --notes-file "{temp_notes_file}" --repo bishojit-sarker/Smart-Dropbox-QC-Batch-Loader')
-        run_cmd(f'gh release upload {version} "{EXE_FILE}" --clobber --repo bishojit-sarker/Smart-Dropbox-QC-Batch-Loader')
+        run_cmd(f'gh release edit {version} --title "Path OrderSync Studio {version}" --notes-file "{rel_notes_name}" --repo bishojit-sarker/Smart-Dropbox-QC-Batch-Loader')
+        run_cmd(f'gh release upload {version} "{rel_exe_name}" --clobber --repo bishojit-sarker/Smart-Dropbox-QC-Batch-Loader')
     else:
         print(f"  Creating new official GitHub Release {version}...")
-        run_cmd(f'gh release create {version} "{EXE_FILE}" --title "Path OrderSync Studio {version}" --notes-file "{temp_notes_file}" --repo bishojit-sarker/Smart-Dropbox-QC-Batch-Loader')
+        run_cmd(f'gh release create {version} "{rel_exe_name}" --title "Path OrderSync Studio {version}" --notes-file "{rel_notes_name}" --repo bishojit-sarker/Smart-Dropbox-QC-Batch-Loader')
 
     if temp_notes_file.exists():
         temp_notes_file.unlink()
