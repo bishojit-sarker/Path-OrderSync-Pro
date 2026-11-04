@@ -1,3 +1,41 @@
+import customtkinter as ctk
+
+# Enable seamless compatibility for CTk widgets with legacy tkinter .config() and parameters
+def _patch_ctk_compatibility():
+    def _patch_one_class(cls):
+        orig_conf = cls.configure
+        def _compat_conf(self, *args, **kwargs):
+            if "bg" in kwargs:
+                kwargs["fg_color"] = kwargs.pop("bg")
+            if "fg" in kwargs:
+                kwargs["text_color"] = kwargs.pop("fg")
+            if "activebackground" in kwargs:
+                kwargs["hover_color"] = kwargs.pop("activebackground")
+            if "activeforeground" in kwargs:
+                kwargs.pop("activeforeground")
+            if "bd" in kwargs:
+                kwargs["border_width"] = kwargs.pop("bd")
+            if "borderwidth" in kwargs:
+                kwargs["border_width"] = kwargs.pop("borderwidth")
+            if "highlightthickness" in kwargs:
+                kwargs.pop("highlightthickness")
+            if "highlightbackground" in kwargs:
+                kwargs.pop("highlightbackground")
+            if "relief" in kwargs:
+                kwargs.pop("relief")
+            if "padx" in kwargs and not isinstance(self, (ctk.CTk, ctk.CTkToplevel)):
+                kwargs.pop("padx")
+            if "pady" in kwargs and not isinstance(self, (ctk.CTk, ctk.CTkToplevel)):
+                kwargs.pop("pady")
+            return orig_conf(self, *args, **kwargs)
+        cls.configure = _compat_conf
+        cls.config = _compat_conf
+
+    for cls in [ctk.CTk, ctk.CTkToplevel, ctk.CTkFrame, ctk.CTkButton, ctk.CTkLabel, ctk.CTkEntry, ctk.CTkTextbox, ctk.CTkProgressBar, ctk.CTkCheckBox, ctk.CTkScrollableFrame]:
+        _patch_one_class(cls)
+
+_patch_ctk_compatibility()
+
 import os
 import sys
 import json
@@ -40,6 +78,101 @@ ASSETS_DIR = get_assets_dir()
 LOGO_HEADER_PATH = os.path.join(ASSETS_DIR, "logo_header.png")
 LOGO_LARGE_PATH = os.path.join(ASSETS_DIR, "logo_64.png")
 APP_ICON_PATH = os.path.join(ASSETS_DIR, "app_icon.ico")
+
+# ----------------------------------------------------------------------
+# Exact Picture Style Design Tokens (Image 1 Light, Image 2 & 3 Dark)
+# ----------------------------------------------------------------------
+BRAND_THEMES = {
+    "light": {
+        "id": "light",
+        "name": "Light Theme (Image 1: Ice Slate & Deep Navy)",
+        "bg_canvas": "#ebf4fb",       # Soft pastel ice-blue canvas from Image 1
+        "bg_card": "#ffffff",         # Pure crisp white cards
+        "bg_input": "#ffffff",        # Pure white inputs
+        "border": "#d1e1ee",          # Soft clean border
+        "text_main": "#1e293b",       # Dark slate text
+        "text_muted": "#64748b",      # Muted secondary text
+        "primary": "#1e2565",         # Deep Navy / Royal Blue CTA
+        "primary_hover": "#141947",
+        "secondary": "#93c5fd",       # Soft Sky Blue
+        "secondary_hover": "#60a5fa",
+        "secondary_text": "#1e3a8a",  # High contrast text for Sky Blue button
+        "accent": "#fbbf24",          # Warm Amber / Sunflower
+        "supporting": "#818cf8",      # Lavender / Indigo
+        "danger": "#ef4444",          # Coral Red
+        "danger_hover": "#dc2626",
+        "success": "#10b981",         # Emerald Green
+        "success_hover": "#059669",
+        "tree_bg": "#ffffff",
+        "tree_heading": "#f1f6fb",
+        "tree_select": "#dbeafe",
+        "tree_select_fg": "#1e3a8a",
+        "status_local_bg": "#def7ec",
+        "status_local_fg": "#046c4e",
+        "status_sync_bg": "#e1effe",
+        "status_sync_fg": "#1e429f",
+        "status_cloud_bg": "#f3f4f6",
+        "status_cloud_fg": "#4b5563",
+        "status_notfound_bg": "#fde8e8",
+        "status_notfound_fg": "#9b1c1c",
+        "row_sync_bg": "#e1effe",
+        "row_sync_fg": "#1e429f",
+        "action_btn_make_local_bg": "#1e2565",
+        "action_btn_make_local_fg": "#ffffff",
+        "action_btn_free_space_bg": "#93c5fd",
+        "action_btn_free_space_fg": "#1e3a8a",
+        "action_btn_pause_bg": "#fbbf24",
+        "action_btn_pause_fg": "#1e293b",
+        "action_btn_stop_bg": "#ef4444",
+        "action_btn_stop_fg": "#ffffff",
+        "drive_gauge_bg": "#1e2565"
+    },
+    "dark": {
+        "id": "dark",
+        "name": "Dark Theme (Image 2 & 3: Midnight Mint & Cyan)",
+        "bg_canvas": "#0e1626",       # Deep slate navy canvas from Image 2
+        "bg_card": "#1a2436",         # Dark slate card containers
+        "bg_input": "#121b2c",        # Dark input fields
+        "border": "#2e3d52",          # Subtle border
+        "text_main": "#f8fafc",       # Crisp white text
+        "text_muted": "#94a3b8",      # Muted secondary text
+        "primary": "#10b981",         # Vibrant Mint Green CTA from Image 2
+        "primary_hover": "#059669",
+        "secondary": "#38bdf8",       # Vivid Sky Blue / Cyan
+        "secondary_hover": "#0284c7",
+        "secondary_text": "#0b1120",  # Dark text for vibrant cyan
+        "accent": "#f59e0b",          # Amber Gold
+        "supporting": "#818cf8",      # Indigo
+        "danger": "#ef4444",          # Coral Red
+        "danger_hover": "#dc2626",
+        "success": "#10b981",         # Mint Green
+        "success_hover": "#059669",
+        "tree_bg": "#121b2c",
+        "tree_heading": "#1a2436",
+        "tree_select": "#23334d",
+        "tree_select_fg": "#38bdf8",
+        "status_local_bg": "#064e3b",
+        "status_local_fg": "#34d399",
+        "status_sync_bg": "#0891b2",
+        "status_sync_fg": "#ffffff",
+        "status_cloud_bg": "#2a374a",
+        "status_cloud_fg": "#94a3b8",
+        "status_notfound_bg": "#7f1d1d",
+        "status_notfound_fg": "#fca5a5",
+        "row_sync_bg": "#0c4a6e",
+        "row_sync_fg": "#38bdf8",
+        "action_btn_make_local_bg": "#10b981",
+        "action_btn_make_local_fg": "#0b1120",
+        "action_btn_free_space_bg": "#38bdf8",
+        "action_btn_free_space_fg": "#0b1120",
+        "action_btn_pause_bg": "#f59e0b",
+        "action_btn_pause_fg": "#0b1120",
+        "action_btn_stop_bg": "#ef4444",
+        "action_btn_stop_fg": "#ffffff",
+        "drive_gauge_bg": "#38bdf8"
+    }
+}
+
 
 # Windows Cloud Filter Attributes
 FILE_ATTRIBUTE_PINNED = 0x80000
@@ -788,7 +921,9 @@ class NotificationCenterDialog(tk.Toplevel):
         self.title("🔔 Notification & Update Center")
         self.geometry("740x580")
         self.minsize(620, 480)
-        self.configure(bg="#1e1e2e")
+        self.theme = getattr(parent, "theme", BRAND_THEMES["dark"])
+        t = self.theme
+        self.configure(bg=t["bg_canvas"])
         self.transient(parent)
         self.grab_set()
 
@@ -802,32 +937,33 @@ class NotificationCenterDialog(tk.Toplevel):
         self._create_widgets()
 
     def _create_widgets(self):
+        t = self.theme
         # 1. Top Header
-        top_frame = tk.Frame(self, bg="#252538", bd=1, relief="solid")
+        top_frame = tk.Frame(self, bg=t["bg_card"], bd=1, relief="solid")
         top_frame.pack(fill="x", padx=16, pady=(14, 10))
 
-        h_box = tk.Frame(top_frame, bg="#252538")
+        h_box = tk.Frame(top_frame, bg=t["bg_card"])
         h_box.pack(fill="x", padx=14, pady=12)
 
-        tk.Label(h_box, text="🔔", font=("Segoe UI", 22), bg="#252538", fg="#f59e0b").pack(side="left", padx=(0, 10))
+        tk.Label(h_box, text="🔔", font=("Segoe UI", 22), bg=t["bg_card"], fg="#f59e0b").pack(side="left", padx=(0, 10))
 
-        info_box = tk.Frame(h_box, bg="#252538")
+        info_box = tk.Frame(h_box, bg=t["bg_card"])
         info_box.pack(side="left", fill="x", expand=True)
 
-        tk.Label(info_box, text="Notification & Update Center", font=("Segoe UI", 13, "bold"), bg="#252538", fg="#f8fafc").pack(anchor="w")
+        tk.Label(info_box, text="Notification & Update Center", font=("Segoe UI", 13, "bold"), bg=t["bg_card"], fg=t["text_main"]).pack(anchor="w")
         tk.Label(
             info_box,
             text=f"App: {APP_NAME}  |  Current Version: {CURRENT_VERSION}",
             font=("Segoe UI", 9),
-            bg="#252538",
-            fg="#94a3b8"
+            bg=t["bg_card"],
+            fg=t["text_muted"]
         ).pack(anchor="w", pady=(2, 0))
 
         close_btn = tk.Button(
             h_box,
             text="✕ Close",
             command=self.destroy,
-            bg="#374151",
+            bg=t["border"],
             fg="white",
             relief="flat",
             font=("Segoe UI", 8, "bold"),
@@ -871,20 +1007,20 @@ class NotificationCenterDialog(tk.Toplevel):
             up_btn.pack(side="right")
 
         # 3. Release History Card
-        card = tk.Frame(self, bg="#252538", bd=1, relief="solid")
+        card = tk.Frame(self, bg=t["bg_card"], bd=1, relief="solid")
         card.pack(fill="both", expand=True, padx=16, pady=(0, 14))
 
-        card_title = tk.Frame(card, bg="#252538")
+        card_title = tk.Frame(card, bg=t["bg_card"])
         card_title.pack(fill="x", padx=14, pady=(10, 6))
-        tk.Label(card_title, text="📋 Release History & Feature Changelogs by Date:", font=("Segoe UI", 10, "bold"), bg="#252538", fg="#f8fafc").pack(side="left")
+        tk.Label(card_title, text="📋 Release History & Feature Changelogs by Date:", font=("Segoe UI", 10, "bold"), bg=t["bg_card"], fg=t["text_main"]).pack(side="left")
 
-        txt_frame = tk.Frame(card, bg="#181825")
+        txt_frame = tk.Frame(card, bg=t["bg_input"])
         txt_frame.pack(fill="both", expand=True, padx=12, pady=(0, 12))
 
         txt = tk.Text(
             txt_frame,
-            bg="#181825",
-            fg="#f8fafc",
+            bg=t["bg_input"],
+            fg=t["text_main"],
             insertbackground="#ffffff",
             relief="flat",
             font=("Segoe UI", 9),
@@ -897,9 +1033,9 @@ class NotificationCenterDialog(tk.Toplevel):
         txt.pack(side="left", fill="both", expand=True)
         scroll.pack(side="right", fill="y")
 
-        txt.tag_configure("ver_header", font=("Segoe UI", 11, "bold"), foreground="#60a5fa", spacing1=10, spacing3=4)
-        txt.tag_configure("date_badge", font=("Segoe UI", 8), foreground="#94a3b8")
-        txt.tag_configure("section", font=("Segoe UI", 9, "bold"), foreground="#34d399", spacing1=6, spacing3=2)
+        txt.tag_configure("ver_header", font=("Segoe UI", 11, "bold"), foreground=t["secondary"], spacing1=10, spacing3=4)
+        txt.tag_configure("date_badge", font=("Segoe UI", 8), foreground=t["text_muted"])
+        txt.tag_configure("section", font=("Segoe UI", 9, "bold"), foreground=t["success"], spacing1=6, spacing3=2)
         txt.tag_configure("bullet", font=("Segoe UI", 9), foreground="#e2e8f0", lmargin1=16, lmargin2=28)
 
         releases = get_all_changelog_releases()
@@ -960,7 +1096,9 @@ class LocalCleanDialog(tk.Toplevel):
         self.title("🧹 Local Storage Clean & Free Space Optimizer")
         self.geometry("980x620")
         self.minsize(820, 500)
-        self.configure(bg="#1e1e2e")
+        self.theme = getattr(parent, "theme", BRAND_THEMES["dark"])
+        t = self.theme
+        self.configure(bg=t["bg_canvas"])
         self.transient(parent)
         self.grab_set()
 
@@ -980,16 +1118,17 @@ class LocalCleanDialog(tk.Toplevel):
         self._load_local_orders()
 
     def _create_widgets(self):
+        t = self.theme
         # 1. Top Header
-        top_frame = tk.Frame(self, bg="#1e1e2e")
+        top_frame = tk.Frame(self, bg=t["bg_canvas"])
         top_frame.pack(fill="x", padx=16, pady=(12, 6))
 
         title_lbl = tk.Label(
             top_frame,
             text="🧹 Local Storage Clean & Free Space",
             font=("Segoe UI", 13, "bold"),
-            bg="#1e1e2e",
-            fg="#34d399"
+            bg=t["bg_canvas"],
+            fg=t["success"]
         )
         title_lbl.pack(side="left")
 
@@ -997,8 +1136,8 @@ class LocalCleanDialog(tk.Toplevel):
             top_frame,
             text="Only hydrated orders consuming physical hard drive space are listed here.",
             font=("Segoe UI", 9),
-            bg="#1e1e2e",
-            fg="#94a3b8"
+            bg=t["bg_canvas"],
+            fg=t["text_muted"]
         )
         sub_lbl.pack(side="left", padx=10, pady=(3, 0))
 
@@ -1006,7 +1145,7 @@ class LocalCleanDialog(tk.Toplevel):
             top_frame,
             text="✕ Close",
             command=self.destroy,
-            bg="#374151",
+            bg=t["border"],
             fg="white",
             relief="flat",
             font=("Segoe UI", 8, "bold"),
@@ -1017,17 +1156,17 @@ class LocalCleanDialog(tk.Toplevel):
         close_btn.pack(side="right")
 
         # 2. Control Bar (Search, Select All, Stats)
-        ctrl_card = tk.Frame(self, bg="#252538", bd=1, relief="solid")
+        ctrl_card = tk.Frame(self, bg=t["bg_card"], bd=1, relief="solid")
         ctrl_card.pack(fill="x", padx=16, pady=4)
 
-        sel_box = tk.Frame(ctrl_card, bg="#252538")
+        sel_box = tk.Frame(ctrl_card, bg=t["bg_card"])
         sel_box.pack(side="left", padx=10, pady=6)
 
         btn_all = tk.Button(
             sel_box,
             text="☑ Select All",
             command=self._select_all,
-            bg="#374151",
+            bg=t["border"],
             fg="white",
             relief="flat",
             font=("Segoe UI", 8, "bold"),
@@ -1041,7 +1180,7 @@ class LocalCleanDialog(tk.Toplevel):
             sel_box,
             text="☐ Deselect All",
             command=self._deselect_all,
-            bg="#374151",
+            bg=t["border"],
             fg="white",
             relief="flat",
             font=("Segoe UI", 8),
@@ -1052,15 +1191,15 @@ class LocalCleanDialog(tk.Toplevel):
         btn_none.pack(side="left")
 
         # Search Bar
-        search_box = tk.Frame(ctrl_card, bg="#252538")
+        search_box = tk.Frame(ctrl_card, bg=t["bg_card"])
         search_box.pack(side="left", padx=16, pady=6)
 
-        tk.Label(search_box, text="🔍 Search:", bg="#252538", fg="#94a3b8", font=("Segoe UI", 9, "bold")).pack(side="left", padx=(0, 4))
+        tk.Label(search_box, text="🔍 Search:", bg=t["bg_card"], fg=t["text_muted"], font=("Segoe UI", 9, "bold")).pack(side="left", padx=(0, 4))
         self.search_entry = tk.Entry(
             search_box,
             textvariable=self.search_var,
-            bg="#181825",
-            fg="#f8fafc",
+            bg=t["bg_input"],
+            fg=t["text_main"],
             insertbackground="#ffffff",
             relief="flat",
             font=("Segoe UI", 9),
@@ -1073,14 +1212,14 @@ class LocalCleanDialog(tk.Toplevel):
         self.stats_lbl = tk.Label(
             ctrl_card,
             text="Local Orders: 0 | Selected: 0 B",
-            bg="#252538",
-            fg="#34d399",
+            bg=t["bg_card"],
+            fg=t["success"],
             font=("Segoe UI", 9, "bold")
         )
         self.stats_lbl.pack(side="right", padx=12, pady=6)
 
         # 3. Table (Treeview)
-        tree_frame = tk.Frame(self, bg="#181825")
+        tree_frame = tk.Frame(self, bg=t["bg_input"])
         tree_frame.pack(fill="both", expand=True, padx=16, pady=4)
 
         columns = ("sel", "order_id", "vendor", "files", "size", "path", "date")
@@ -1110,14 +1249,14 @@ class LocalCleanDialog(tk.Toplevel):
         self.tree.bind("<space>", lambda e: self._toggle_selected_rows())
 
         # 4. Action Buttons Bar
-        btn_bar = tk.Frame(self, bg="#1e1e2e")
+        btn_bar = tk.Frame(self, bg=t["bg_canvas"])
         btn_bar.pack(fill="x", padx=16, pady=(8, 12))
 
         open_btn = tk.Button(
             btn_bar,
             text="📂 Open Selected Folder",
             command=self._open_selected_folder,
-            bg="#374151",
+            bg=t["border"],
             fg="white",
             relief="flat",
             font=("Segoe UI", 9),
@@ -1131,7 +1270,7 @@ class LocalCleanDialog(tk.Toplevel):
             btn_bar,
             text="🔄 Rescan Local Storage",
             command=self._load_local_orders,
-            bg="#4b5563",
+            bg=t["border"],
             fg="white",
             relief="flat",
             font=("Segoe UI", 9),
@@ -1314,7 +1453,9 @@ class OrderReviewDialog(tk.Toplevel):
         self.title("🔍 Order Review & Smart File Filter")
         self.geometry("960x620")
         self.minsize(800, 500)
-        self.configure(bg="#1e1e2e")
+        self.theme = getattr(parent, "theme", BRAND_THEMES["dark"])
+        t = self.theme
+        self.configure(bg=t["bg_canvas"])
         self.transient(parent)
         self.grab_set()
 
@@ -1334,16 +1475,17 @@ class OrderReviewDialog(tk.Toplevel):
         self._load_dashboard_orders()
 
     def _create_widgets(self):
+        t = self.theme
         # 1. Top Header
-        top_frame = tk.Frame(self, bg="#1e1e2e")
+        top_frame = tk.Frame(self, bg=t["bg_canvas"])
         top_frame.pack(fill="x", padx=16, pady=(12, 6))
 
         title_lbl = tk.Label(
             top_frame,
             text="🔍 Order Review & Smart File Filter",
             font=("Segoe UI", 13, "bold"),
-            bg="#1e1e2e",
-            fg="#60a5fa"
+            bg=t["bg_canvas"],
+            fg=t["secondary"]
         )
         title_lbl.pack(side="left")
 
@@ -1351,8 +1493,8 @@ class OrderReviewDialog(tk.Toplevel):
             top_frame,
             text="Inspect folders and exclude heavy unneeded files (e.g. Raw, Samples) before downloading.",
             font=("Segoe UI", 9),
-            bg="#1e1e2e",
-            fg="#94a3b8"
+            bg=t["bg_canvas"],
+            fg=t["text_muted"]
         )
         sub_lbl.pack(side="left", padx=10, pady=(3, 0))
 
@@ -1360,7 +1502,7 @@ class OrderReviewDialog(tk.Toplevel):
             top_frame,
             text="✕ Close",
             command=self.destroy,
-            bg="#374151",
+            bg=t["border"],
             fg="white",
             relief="flat",
             font=("Segoe UI", 8, "bold"),
@@ -1371,18 +1513,18 @@ class OrderReviewDialog(tk.Toplevel):
         close_btn.pack(side="right")
 
         # 2. Main Horizontal Panes (Left: Orders List, Right: Subfolder / File Inspector)
-        paned = tk.PanedWindow(self, orient="horizontal", bg="#1e1e2e", bd=0, sashwidth=4)
+        paned = tk.PanedWindow(self, orient="horizontal", bg=t["bg_canvas"], bd=0, sashwidth=4)
         paned.pack(fill="both", expand=True, padx=16, pady=4)
 
         # Left Card: Orders in Dashboard
-        left_card = tk.Frame(paned, bg="#252538", bd=1, relief="solid")
+        left_card = tk.Frame(paned, bg=t["bg_card"], bd=1, relief="solid")
         paned.add(left_card, minsize=320, width=380)
 
-        left_header = tk.Frame(left_card, bg="#252538")
+        left_header = tk.Frame(left_card, bg=t["bg_card"])
         left_header.pack(fill="x", padx=10, pady=8)
-        tk.Label(left_header, text="📋 Dashboard Orders:", font=("Segoe UI", 10, "bold"), bg="#252538", fg="#f8fafc").pack(side="left")
+        tk.Label(left_header, text="📋 Dashboard Orders:", font=("Segoe UI", 10, "bold"), bg=t["bg_card"], fg=t["text_main"]).pack(side="left")
 
-        tree_frame = tk.Frame(left_card, bg="#181825")
+        tree_frame = tk.Frame(left_card, bg=t["bg_input"])
         tree_frame.pack(fill="both", expand=True, padx=8, pady=(0, 8))
 
         cols = ("order_id", "vendor", "files", "size", "filter")
@@ -1406,27 +1548,27 @@ class OrderReviewDialog(tk.Toplevel):
         self.orders_tree.bind("<<TreeviewSelect>>", self._on_order_selected)
 
         # Right Card: Folder Structure & Filter Controls
-        right_card = tk.Frame(paned, bg="#252538", bd=1, relief="solid")
+        right_card = tk.Frame(paned, bg=t["bg_card"], bd=1, relief="solid")
         paned.add(right_card, minsize=420)
 
         self.right_header_lbl = tk.Label(
             right_card,
             text="📁 Select an order on the left to inspect files",
             font=("Segoe UI", 10, "bold"),
-            bg="#252538",
-            fg="#93c5fd"
+            bg=t["bg_card"],
+            fg=t["secondary"]
         )
         self.right_header_lbl.pack(anchor="w", padx=12, pady=(10, 4))
 
         # Quick Preset Buttons
-        preset_bar = tk.Frame(right_card, bg="#252538")
+        preset_bar = tk.Frame(right_card, bg=t["bg_card"])
         preset_bar.pack(fill="x", padx=10, pady=(2, 6))
 
         tk.Button(
             preset_bar,
             text="🎯 QC Images Only (.tif, .psd, .jpg)",
             command=self._preset_qc_only,
-            bg="#374151",
+            bg=t["border"],
             fg="white",
             relief="flat",
             font=("Segoe UI", 8),
@@ -1439,7 +1581,7 @@ class OrderReviewDialog(tk.Toplevel):
             preset_bar,
             text="⚡ Exclude RAW / Samples",
             command=self._preset_exclude_raw,
-            bg="#374151",
+            bg=t["border"],
             fg="white",
             relief="flat",
             font=("Segoe UI", 8),
@@ -1452,7 +1594,7 @@ class OrderReviewDialog(tk.Toplevel):
             preset_bar,
             text="☑ All",
             command=self._preset_all,
-            bg="#374151",
+            bg=t["border"],
             fg="white",
             relief="flat",
             font=("Segoe UI", 8),
@@ -1462,14 +1604,14 @@ class OrderReviewDialog(tk.Toplevel):
         ).pack(side="left")
 
         # Scrollable Frame for subfolder checkboxes
-        sub_canvas_frame = tk.Frame(right_card, bg="#181825")
+        sub_canvas_frame = tk.Frame(right_card, bg=t["bg_input"])
         sub_canvas_frame.pack(fill="both", expand=True, padx=10, pady=4)
 
-        self.canvas = tk.Canvas(sub_canvas_frame, bg="#181825", highlightthickness=0)
+        self.canvas = tk.Canvas(sub_canvas_frame, bg=t["bg_input"], highlightthickness=0)
         self.canvas_scroll = ttk.Scrollbar(sub_canvas_frame, orient="vertical", command=self.canvas.yview)
         self.canvas.configure(yscrollcommand=self.canvas_scroll.set)
 
-        self.checkbox_container = tk.Frame(self.canvas, bg="#181825")
+        self.checkbox_container = tk.Frame(self.canvas, bg=t["bg_input"])
         self.canvas_window = self.canvas.create_window((0, 0), window=self.checkbox_container, anchor="nw")
 
         self.checkbox_container.bind("<Configure>", lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all")))
@@ -1479,15 +1621,15 @@ class OrderReviewDialog(tk.Toplevel):
         self.canvas_scroll.pack(side="right", fill="y")
 
         # Bottom Filter Summary & Save Bar
-        bottom_bar = tk.Frame(right_card, bg="#252538")
+        bottom_bar = tk.Frame(right_card, bg=t["bg_card"])
         bottom_bar.pack(fill="x", padx=10, pady=(6, 10))
 
         self.filter_summary_lbl = tk.Label(
             bottom_bar,
             text="Selected: 0 files (0 B) of 0 files (0 B)",
             font=("Segoe UI", 9, "bold"),
-            bg="#252538",
-            fg="#34d399"
+            bg=t["bg_card"],
+            fg=t["success"]
         )
         self.filter_summary_lbl.pack(side="left")
 
@@ -1496,9 +1638,9 @@ class OrderReviewDialog(tk.Toplevel):
             text="💾 Save Filter for this Order",
             command=self._save_filter,
             state="disabled",
-            bg="#10b981",
+            bg=t["success"],
             fg="white",
-            activebackground="#059669",
+            activebackground=t["success_hover"],
             activeforeground="white",
             relief="flat",
             font=("Segoe UI", 9, "bold"),
@@ -1586,7 +1728,7 @@ class OrderReviewDialog(tk.Toplevel):
             var = tk.BooleanVar(value=init_val)
             self.subfolder_vars[g_name] = var
 
-            cb_frame = tk.Frame(self.checkbox_container, bg="#181825")
+            cb_frame = tk.Frame(self.checkbox_container, bg=t["bg_input"])
             cb_frame.pack(fill="x", padx=10, pady=3)
 
             cb = tk.Checkbutton(
@@ -1594,10 +1736,10 @@ class OrderReviewDialog(tk.Toplevel):
                 text=f"📁  {g_name}  ({cnt} files, {format_bytes(b_sz)})",
                 variable=var,
                 command=self._recalculate_selected_size,
-                bg="#181825",
-                fg="#f8fafc",
+                bg=t["bg_input"],
+                fg=t["text_main"],
                 activebackground="#181825",
-                activeforeground="#60a5fa",
+                activeforeground=t["secondary"],
                 selectcolor="#252538",
                 font=("Segoe UI", 9)
             )
@@ -1671,7 +1813,9 @@ class HistoryTrackerDialog(tk.Toplevel):
         self.title("📜 Pending Orders & History Tracker")
         self.geometry("960x600")
         self.minsize(800, 480)
-        self.configure(bg="#1e1e2e")
+        self.theme = getattr(parent, "theme", BRAND_THEMES["dark"])
+        t = self.theme
+        self.configure(bg=t["bg_canvas"])
         self.transient(parent)
         self.grab_set()
 
@@ -1688,16 +1832,17 @@ class HistoryTrackerDialog(tk.Toplevel):
         self._refresh_data()
 
     def _create_widgets(self):
+        t = self.theme
         # 1. Top Header Frame
-        top_frame = tk.Frame(self, bg="#1e1e2e")
+        top_frame = tk.Frame(self, bg=t["bg_canvas"])
         top_frame.pack(fill="x", padx=16, pady=(12, 6))
 
         title_lbl = tk.Label(
             top_frame,
             text="📜 Pending Orders & History Tracker",
             font=("Segoe UI", 13, "bold"),
-            bg="#1e1e2e",
-            fg="#60a5fa"
+            bg=t["bg_canvas"],
+            fg=t["secondary"]
         )
         title_lbl.pack(side="left")
 
@@ -1705,8 +1850,8 @@ class HistoryTrackerDialog(tk.Toplevel):
             top_frame,
             text="Track downloaded orders, search records, and free up hard disk space.",
             font=("Segoe UI", 9),
-            bg="#1e1e2e",
-            fg="#94a3b8"
+            bg=t["bg_canvas"],
+            fg=t["text_muted"]
         )
         subtitle_lbl.pack(side="left", padx=10, pady=(3, 0))
 
@@ -1714,7 +1859,7 @@ class HistoryTrackerDialog(tk.Toplevel):
             top_frame,
             text="✕ Close",
             command=self.destroy,
-            bg="#374151",
+            bg=t["border"],
             fg="white",
             activebackground="#4b5563",
             activeforeground="white",
@@ -1727,14 +1872,14 @@ class HistoryTrackerDialog(tk.Toplevel):
         close_btn.pack(side="right")
 
         # 2. Control Bar (Filter, Search & Stats)
-        ctrl_card = tk.Frame(self, bg="#252538", bd=1, relief="solid")
+        ctrl_card = tk.Frame(self, bg=t["bg_card"], bd=1, relief="solid")
         ctrl_card.pack(fill="x", padx=16, pady=4)
 
         # Filter Radios on Left
-        filter_box = tk.Frame(ctrl_card, bg="#252538")
+        filter_box = tk.Frame(ctrl_card, bg=t["bg_card"])
         filter_box.pack(side="left", padx=10, pady=6)
 
-        tk.Label(filter_box, text="Filter:", bg="#252538", fg="#f8fafc", font=("Segoe UI", 9, "bold")).pack(side="left", padx=(0, 6))
+        tk.Label(filter_box, text="Filter:", bg=t["bg_card"], fg=t["text_main"], font=("Segoe UI", 9, "bold")).pack(side="left", padx=(0, 6))
 
         rb_pending = tk.Radiobutton(
             filter_box,
@@ -1742,10 +1887,10 @@ class HistoryTrackerDialog(tk.Toplevel):
             variable=self.filter_var,
             value="pending",
             command=self._refresh_data,
-            bg="#252538",
-            fg="#f8fafc",
+            bg=t["bg_card"],
+            fg=t["text_main"],
             activebackground="#252538",
-            activeforeground="#60a5fa",
+            activeforeground=t["secondary"],
             selectcolor="#181825",
             font=("Segoe UI", 9, "bold")
         )
@@ -1757,25 +1902,25 @@ class HistoryTrackerDialog(tk.Toplevel):
             variable=self.filter_var,
             value="all",
             command=self._refresh_data,
-            bg="#252538",
-            fg="#94a3b8",
+            bg=t["bg_card"],
+            fg=t["text_muted"],
             activebackground="#252538",
-            activeforeground="#60a5fa",
+            activeforeground=t["secondary"],
             selectcolor="#181825",
             font=("Segoe UI", 9)
         )
         rb_all.pack(side="left", padx=4)
 
         # Search Bar in Middle
-        search_box = tk.Frame(ctrl_card, bg="#252538")
+        search_box = tk.Frame(ctrl_card, bg=t["bg_card"])
         search_box.pack(side="left", padx=14, pady=6)
 
-        tk.Label(search_box, text="🔍 Search:", bg="#252538", fg="#94a3b8", font=("Segoe UI", 9, "bold")).pack(side="left", padx=(0, 4))
+        tk.Label(search_box, text="🔍 Search:", bg=t["bg_card"], fg=t["text_muted"], font=("Segoe UI", 9, "bold")).pack(side="left", padx=(0, 4))
         self.search_entry = tk.Entry(
             search_box,
             textvariable=self.search_var,
-            bg="#181825",
-            fg="#f8fafc",
+            bg=t["bg_input"],
+            fg=t["text_main"],
             insertbackground="#ffffff",
             relief="flat",
             font=("Segoe UI", 9),
@@ -1788,7 +1933,7 @@ class HistoryTrackerDialog(tk.Toplevel):
             search_box,
             text="✕",
             command=self._clear_search,
-            bg="#374151",
+            bg=t["border"],
             fg="white",
             relief="flat",
             font=("Segoe UI", 8, "bold"),
@@ -1802,14 +1947,14 @@ class HistoryTrackerDialog(tk.Toplevel):
         self.stats_lbl = tk.Label(
             ctrl_card,
             text="Pending: 0 | Online: 0 | Total: 0",
-            bg="#252538",
-            fg="#93c5fd",
+            bg=t["bg_card"],
+            fg=t["secondary"],
             font=("Segoe UI", 9, "bold")
         )
         self.stats_lbl.pack(side="right", padx=12, pady=6)
 
         # 3. Table (Treeview)
-        tree_frame = tk.Frame(self, bg="#181825")
+        tree_frame = tk.Frame(self, bg=t["bg_input"])
         tree_frame.pack(fill="both", expand=True, padx=16, pady=4)
 
         columns = ("order_id", "vendor", "status", "files", "size", "time")
@@ -1833,31 +1978,31 @@ class HistoryTrackerDialog(tk.Toplevel):
         self.tree.pack(side="left", fill="both", expand=True)
         tree_scroll.pack(side="right", fill="y")
 
-        self.tree.tag_configure("pending_tag", foreground="#f87171")
-        self.tree.tag_configure("online_tag", foreground="#34d399")
+        self.tree.tag_configure("pending_tag", foreground=t["danger"])
+        self.tree.tag_configure("online_tag", foreground=t["success"])
 
         self.tree.bind("<Double-1>", lambda e: self._open_selected_folder())
 
         # Context Menu
-        self.context_menu = tk.Menu(self, tearoff=0, bg="#252538", fg="white", activebackground="#3b82f6", activeforeground="white")
+        self.context_menu = tk.Menu(self, tearoff=0, bg=t["bg_card"], fg="white", activebackground=t["primary"], activeforeground="white")
         self.context_menu.add_command(label="📂 Open in File Explorer", command=self._open_selected_folder)
         self.context_menu.add_command(label="☁️ Make this Order Online-Only", command=self._free_selected)
         self.context_menu.add_command(label="📋 Load into Main QC Table", command=self._load_to_main_table)
         self.tree.bind("<Button-3>", self._on_tree_right_click)
 
         # 4. Action Buttons Bar at Bottom
-        btn_bar = tk.Frame(self, bg="#1e1e2e")
+        btn_bar = tk.Frame(self, bg=t["bg_canvas"])
         btn_bar.pack(fill="x", padx=16, pady=(6, 12))
 
         # Left Action Group
-        left_btns = tk.Frame(btn_bar, bg="#1e1e2e")
+        left_btns = tk.Frame(btn_bar, bg=t["bg_canvas"])
         left_btns.pack(side="left")
 
         open_btn = tk.Button(
             left_btns,
             text="📂 Open Folder",
             command=self._open_selected_folder,
-            bg="#374151",
+            bg=t["border"],
             fg="white",
             relief="flat",
             font=("Segoe UI", 9),
@@ -1871,7 +2016,7 @@ class HistoryTrackerDialog(tk.Toplevel):
             left_btns,
             text="📋 Load to QC Table",
             command=self._load_to_main_table,
-            bg="#4b5563",
+            bg=t["border"],
             fg="white",
             relief="flat",
             font=("Segoe UI", 9),
@@ -1885,8 +2030,8 @@ class HistoryTrackerDialog(tk.Toplevel):
             left_btns,
             text="🗑️ Clear Completed History",
             command=self._clear_online_history,
-            bg="#252538",
-            fg="#94a3b8",
+            bg=t["bg_card"],
+            fg=t["text_muted"],
             activebackground="#ef4444",
             activeforeground="white",
             relief="flat",
@@ -1914,7 +2059,7 @@ class HistoryTrackerDialog(tk.Toplevel):
         clean_all_hist_btn.pack(side="left", padx=(6, 0))
 
         # Right Action Group (Primary Cleanup Actions)
-        right_btns = tk.Frame(btn_bar, bg="#1e1e2e")
+        right_btns = tk.Frame(btn_bar, bg=t["bg_canvas"])
         right_btns.pack(side="right")
 
         single_online_btn = tk.Button(
@@ -1937,9 +2082,9 @@ class HistoryTrackerDialog(tk.Toplevel):
             right_btns,
             text="⚡ Make ALL Pending Online (Free Space)",
             command=self._free_all_pending,
-            bg="#10b981",
+            bg=t["success"],
             fg="white",
-            activebackground="#059669",
+            activebackground=t["success_hover"],
             activeforeground="white",
             relief="flat",
             font=("Segoe UI", 9, "bold"),
@@ -2177,12 +2322,13 @@ class HistoryTrackerDialog(tk.Toplevel):
             self.parent._update_storage_metrics()
             messagebox.showinfo("Completed", "All order history has been deleted.", parent=self)
 
-class QCBatchLoaderApp(tk.Tk):
+class QCBatchLoaderApp(ctk.CTk):
+
     def __init__(self):
         super().__init__()
-        self.title(f"🚀 {APP_NAME} {CURRENT_VERSION} — {APP_TAGLINE}")
-        self.geometry("980x780")
-        self.minsize(860, 620)
+        self.title(f"⚡ {APP_NAME} {CURRENT_VERSION} — {APP_TAGLINE}")
+        self.geometry("1040x600")
+        self.minsize(940, 580)
 
         # Set taskbar/window icon
         try:
@@ -2192,6 +2338,11 @@ class QCBatchLoaderApp(tk.Tk):
             pass
 
         self.config_data = load_config()
+        self.theme_name = self.config_data.get("theme", "light")
+        ctk.set_appearance_mode(self.theme_name)
+        ctk.set_default_color_theme("blue")
+        self.theme = BRAND_THEMES.get(self.theme_name, BRAND_THEMES["light"])
+        self.configure(fg_color=self.theme["bg_canvas"])
 
         # Threading & Process Control state
         self.is_running = False
@@ -2234,46 +2385,46 @@ class QCBatchLoaderApp(tk.Tk):
         self.after(1200, self._check_first_launch_whats_new)
 
     def _setup_style(self):
-        self.configure(bg="#1e1e2e")
+        t = self.theme
+        is_light = (self.theme_name == "light")
+        self.configure(fg_color=t["bg_canvas"])
         self.style = ttk.Style(self)
         self.style.theme_use("clam")
 
-        # Color Palette
-        self.bg_color = "#1e1e2e"
-        self.card_bg = "#252538"
-        self.card_border = "#3a3a54"
-        self.accent_blue = "#3b82f6"
-        self.accent_green = "#10b981"
-        self.accent_orange = "#f59e0b"
-        self.accent_red = "#ef4444"
-        self.text_main = "#f8fafc"
-        self.text_muted = "#94a3b8"
+        # Configure Custom.Treeview
+        self.style.configure(
+            "Custom.Treeview",
+            background=t["bg_card"],
+            foreground=t["text_main"],
+            fieldbackground=t["bg_card"],
+            rowheight=34,
+            font=("Segoe UI", 10),
+            borderwidth=0
+        )
+        self.style.configure(
+            "Custom.Treeview.Heading",
+            background="#F8FAFC" if is_light else "#1E293B",
+            foreground=t["text_muted"],
+            font=("Segoe UI", 10, "bold"),
+            relief="flat",
+            borderwidth=0
+        )
+        self.style.map(
+            "Custom.Treeview",
+            background=[("selected", "#EFF6FF" if is_light else "#23334D")],
+            foreground=[("selected", "#1E40AF" if is_light else "#38BDF8")]
+        )
 
-        self.style.configure(".", background=self.bg_color, foreground=self.text_main, font=("Segoe UI", 9))
-        self.style.configure("Card.TFrame", background=self.card_bg)
-        self.style.configure("TLabel", background=self.bg_color, foreground=self.text_main)
-        self.style.configure("Card.TLabel", background=self.card_bg, foreground=self.text_main)
-        self.style.configure("Muted.TLabel", background=self.card_bg, foreground=self.text_muted)
-        
-        self.style.configure("Total.Horizontal.TProgressbar", thickness=10, background="#10b981", troughcolor="#181825")
-        self.style.configure("Single.Horizontal.TProgressbar", thickness=8, background="#3b82f6", troughcolor="#181825")
-        
-        # Treeview styling
-        self.style.configure(
-            "Treeview",
-            background="#181825",
-            foreground=self.text_main,
-            fieldbackground="#181825",
-            rowheight=26,
-            font=("Segoe UI", 9)
-        )
-        self.style.configure(
-            "Treeview.Heading",
-            background="#2b2b40",
-            foreground=self.text_main,
-            font=("Segoe UI", 9, "bold")
-        )
-        self.style.map("Treeview", background=[("selected", "#3b82f6")], foreground=[("selected", "#ffffff")])
+        # Color Palette tokens
+        self.bg_color = t["bg_canvas"]
+        self.card_bg = t["bg_card"]
+        self.card_border = t["border"]
+        self.accent_blue = t["secondary"]
+        self.accent_green = t["success"]
+        self.accent_orange = t["accent"]
+        self.accent_red = t["danger"]
+        self.text_main = t["text_main"]
+        self.text_muted = t["text_muted"]
 
     def _scan_vendors(self, keep_selection=False):
         """Scans the Dropbox root folder for all vendor directories."""
@@ -2315,26 +2466,26 @@ class QCBatchLoaderApp(tk.Tk):
         sel_count = len(self.selected_vendors)
 
         if total == 0:
-            self.vendor_btn.config(text="🏢 Vendors: None Found ▼", bg="#374151", fg="#94a3b8")
+            self.vendor_btn.config(text="🏢 Vendors: None Found ▼", bg=self.theme["border"], fg=self.theme["text_muted"])
             if hasattr(self, "vendor_reset_btn"):
                 self.vendor_reset_btn.pack_forget()
         elif sel_count == total:
-            self.vendor_btn.config(text=f"🏢 Vendors: All ({total}) ▼", bg="#252538", fg="#f8fafc")
+            self.vendor_btn.config(text=f"🏢 Vendors: All ({total}) ▼", bg=self.theme["bg_card"], fg=self.theme["text_main"])
             if hasattr(self, "vendor_reset_btn"):
                 self.vendor_reset_btn.pack_forget()
         elif sel_count == 1:
             single = next(iter(self.selected_vendors))
-            self.vendor_btn.config(text=f"🏢 Filter: {single} (1/{total}) ▼", bg="#d97706", fg="#ffffff")
+            self.vendor_btn.config(text=f"🏢 Vendors: {single} (1/{total}) ▼", bg=self.theme["accent"], fg="#0f172a")
             if hasattr(self, "vendor_reset_btn"):
                 self.vendor_reset_btn.pack(side="left", padx=(0, 8), pady=4, after=self.vendor_btn)
         elif sel_count == 0:
-            self.vendor_btn.config(text=f"🏢 Filter: None (0/{total}) ⚠️ ▼", bg="#ef4444", fg="#ffffff")
+            self.vendor_btn.config(text=f"🏢 Vendors: None (0/{total}) ⚠️ ▼", bg=self.theme["danger"], fg="#ffffff")
             if hasattr(self, "vendor_reset_btn"):
                 self.vendor_reset_btn.pack(side="left", padx=(0, 8), pady=4, after=self.vendor_btn)
         else:
             names = sorted(list(self.selected_vendors))
             short = f"{names[0]}, {names[1]}" if len(names) == 2 else f"{names[0]} +{sel_count - 1} more"
-            self.vendor_btn.config(text=f"🏢 Filter: {short} ({sel_count}/{total}) ▼", bg="#d97706", fg="#ffffff")
+            self.vendor_btn.config(text=f"🏢 Vendors: {sel_count} Selected ▼", bg=self.theme["accent"], fg="#0f172a")
             if hasattr(self, "vendor_reset_btn"):
                 self.vendor_reset_btn.pack(side="left", padx=(0, 8), pady=4, after=self.vendor_btn)
 
@@ -2546,519 +2697,455 @@ class QCBatchLoaderApp(tk.Tk):
             pass
 
     def _create_widgets(self):
-        # 1. Top Header
-        top_frame = tk.Frame(self, bg=self.bg_color)
-        top_frame.pack(fill="x", padx=16, pady=(10, 4))
+        t = self.theme
+        is_light = (self.theme_name == "light")
 
-        title_box = tk.Frame(top_frame, bg=self.bg_color)
-        title_box.pack(side="left")
+        # 1. Top Header Bar
+        header = ctk.CTkFrame(self, fg_color="transparent")
+        header.pack(fill="x", padx=16, pady=(10, 4))
 
-        # Window & Taskbar Icon
-        try:
-            if os.path.exists(APP_ICON_PATH):
-                self.iconbitmap(APP_ICON_PATH)
-        except Exception:
-            pass
+        title_row = ctk.CTkFrame(header, fg_color="transparent")
+        title_row.pack(side="left")
 
-        # Logo Header Image
-        try:
-            if os.path.exists(LOGO_HEADER_PATH):
-                self.logo_img = tk.PhotoImage(file=LOGO_HEADER_PATH)
-                logo_lbl = tk.Label(title_box, image=self.logo_img, bg=self.bg_color)
-                logo_lbl.pack(side="left", padx=(0, 10))
-        except Exception:
-            pass
+        # Lightning Bolt Logo
+        ctk.CTkLabel(title_row, text="⚡", font=("Segoe UI", 22), text_color="#F59E0B").pack(side="left", padx=(0, 6))
 
-        text_title_box = tk.Frame(title_box, bg=self.bg_color)
-        text_title_box.pack(side="left")
+        text_col = ctk.CTkFrame(title_row, fg_color="transparent")
+        text_col.pack(side="left")
 
-        title_row = tk.Frame(text_title_box, bg=self.bg_color)
-        title_row.pack(anchor="w")
+        title_head = ctk.CTkFrame(text_col, fg_color="transparent")
+        title_head.pack(anchor="w")
 
-        title_lbl = tk.Label(
-            title_row,
-            text=APP_NAME,
-            font=("Segoe UI", 14, "bold"),
-            bg=self.bg_color,
-            fg="#60a5fa"
-        )
-        title_lbl.pack(side="left")
-
-        version_badge = tk.Label(
-            title_row,
+        ctk.CTkLabel(title_head, text=APP_NAME, font=("Segoe UI", 14, "bold"), text_color=t["text_main"]).pack(side="left")
+        ctk.CTkLabel(
+            title_head,
             text=CURRENT_VERSION,
-            font=("Segoe UI", 8, "bold"),
-            bg="#3b82f6",
-            fg="white",
-            padx=5,
+            font=("Segoe UI", 9, "bold"),
+            text_color="#FFFFFF" if is_light else "#0B1120",
+            fg_color=t["primary"],
+            corner_radius=6,
+            padx=6,
             pady=1
-        )
-        version_badge.pack(side="left", padx=8)
+        ).pack(side="left", padx=8)
 
-        subtitle_lbl = tk.Label(
-            text_title_box,
-            text=APP_TAGLINE,
-            font=("Segoe UI", 8),
-            bg=self.bg_color,
-            fg=self.text_muted
-        )
-        subtitle_lbl.pack(anchor="w", pady=(1, 0))
+        ctk.CTkLabel(text_col, text=APP_TAGLINE, font=("Segoe UI", 10), text_color=t["text_muted"]).pack(anchor="w")
 
-        # Top Right Action Buttons
-        header_actions = tk.Frame(top_frame, bg=self.bg_color)
+        # Header Right Actions
+        header_actions = ctk.CTkFrame(header, fg_color="transparent")
         header_actions.pack(side="right")
 
-        self.notification_btn = tk.Button(
+        theme_toggle_text = "🌙 Dark Mode" if is_light else "☀️ Light Mode"
+        self.btn_theme_toggle = ctk.CTkButton(
+            header_actions,
+            text=theme_toggle_text,
+            command=self._toggle_theme,
+            fg_color="#FFFFFF" if is_light else "#1E293B",
+            hover_color="#F1F5F9" if is_light else "#334155",
+            text_color=t["text_main"],
+            border_width=1,
+            border_color=t["border"],
+            corner_radius=14,
+            height=30,
+            font=("Segoe UI", 11, "bold")
+        )
+        self.btn_theme_toggle.pack(side="right")
+
+        self.notification_btn = ctk.CTkButton(
             header_actions,
             text="🔔",
             command=self._open_notification_center,
-            bg="#252538",
-            fg="#94a3b8",
-            activebackground="#3b82f6",
-            activeforeground="white",
-            relief="flat",
-            font=("Segoe UI", 9),
-            cursor="hand2",
-            padx=8,
-            pady=3
+            fg_color="#FFFFFF" if is_light else "#1E293B",
+            hover_color="#F1F5F9" if is_light else "#334155",
+            text_color=t["text_muted"],
+            border_width=1,
+            border_color=t["border"],
+            corner_radius=14,
+            width=36,
+            height=30,
+            font=("Segoe UI", 12)
         )
-        self.notification_btn.pack(side="right")
+        self.notification_btn.pack(side="right", padx=(0, 6))
 
-        self.leftover_btn = tk.Button(
+        self.leftover_btn = ctk.CTkButton(
             header_actions,
-            text="📜 History: 0 Local",
+            text="🕒 History: 0 Local",
             command=self._open_history_tracker,
-            bg="#252538",
-            fg="#10b981",
-            activebackground="#3b82f6",
-            activeforeground="white",
-            relief="flat",
-            font=("Segoe UI", 8, "bold"),
-            cursor="hand2",
-            padx=9,
-            pady=3
+            fg_color="#FFFFFF" if is_light else "#1E293B",
+            hover_color="#F1F5F9" if is_light else "#334155",
+            text_color=t["success"],
+            border_width=1,
+            border_color=t["border"],
+            corner_radius=14,
+            height=30,
+            font=("Segoe UI", 11, "bold")
         )
         self.leftover_btn.pack(side="right", padx=(0, 6))
 
-        self.local_clean_btn = tk.Button(
+        self.local_clean_btn = ctk.CTkButton(
             header_actions,
             text="🧹 Local Clean",
             command=self._open_local_clean,
-            bg="#252538",
-            fg="#34d399",
-            activebackground="#059669",
-            activeforeground="white",
-            relief="flat",
-            font=("Segoe UI", 8, "bold"),
-            cursor="hand2",
-            padx=9,
-            pady=3
+            fg_color="#FFFFFF" if is_light else "#1E293B",
+            hover_color="#F1F5F9" if is_light else "#334155",
+            text_color=t["success"],
+            border_width=1,
+            border_color=t["border"],
+            corner_radius=14,
+            height=30,
+            font=("Segoe UI", 11, "bold")
         )
         self.local_clean_btn.pack(side="right", padx=(0, 6))
 
-        # 2. Unified Compact Dropbox Path & Drive Space Bar
-        path_card = tk.Frame(self, bg=self.card_bg, bd=1, relief="solid")
-        path_card.pack(fill="x", padx=16, pady=(3, 3))
+        # 2. Top Control Strip (4 Pill Cards)
+        strip = ctk.CTkFrame(self, fg_color="transparent")
+        strip.pack(fill="x", padx=16, pady=(4, 6))
 
-        path_lbl = tk.Label(path_card, text="📁 Dropbox Root:", bg=self.card_bg, fg=self.text_main, font=("Segoe UI", 9, "bold"))
-        path_lbl.pack(side="left", padx=(10, 4), pady=5)
+        # Pill 1: Dropbox Path
+        card_dropbox = ctk.CTkFrame(strip, fg_color=t["bg_card"], corner_radius=18, border_width=1, border_color=t["border"])
+        card_dropbox.pack(side="left", padx=(0, 8), fill="y")
 
+        ctk.CTkLabel(card_dropbox, text="📁", text_color="#0061FF", font=("Segoe UI", 13)).pack(side="left", padx=(10, 2), pady=4)
         self.path_var = tk.StringVar(value=self.config_data.get("dropbox_path") or DEFAULT_DROPBOX_PATH)
-        path_entry = tk.Entry(
-            path_card,
+        path_entry = ctk.CTkEntry(
+            card_dropbox,
             textvariable=self.path_var,
-            bg="#181825",
-            fg="#f8fafc",
-            insertbackground="#ffffff",
-            relief="flat",
-            font=("Segoe UI", 9),
-            width=26
+            fg_color="transparent",
+            border_width=0,
+            text_color=t["text_main"],
+            font=("Segoe UI", 11),
+            width=220,
+            height=26
         )
-        path_entry.pack(side="left", padx=(0, 4), pady=5, ipady=2)
-
-        browse_btn = tk.Button(
-            path_card,
-            text="Browse...",
+        path_entry.pack(side="left", padx=(2, 6), pady=4)
+        browse_btn = ctk.CTkButton(
+            card_dropbox,
+            text="Browse",
             command=self._browse_dropbox_path,
-            bg="#374151",
-            fg="white",
-            activebackground="#4b5563",
-            activeforeground="white",
-            relief="flat",
-            font=("Segoe UI", 8, "bold"),
-            cursor="hand2",
-            padx=8,
-            pady=2
+            fg_color="#F1F5F9" if is_light else "#253349",
+            hover_color="#E2E8F0" if is_light else "#334155",
+            text_color=t["text_main"],
+            corner_radius=14,
+            width=64,
+            height=26,
+            font=("Segoe UI", 11, "bold")
         )
-        browse_btn.pack(side="left", padx=(0, 10), pady=5)
+        browse_btn.pack(side="left", padx=(0, 6), pady=4)
 
-        # Drive Space Metric Label & Local Orders Metric Label
-        self.drive_metric_lbl = tk.Label(
-            path_card,
-            text="💾 Drive Free: Calculating...",
-            bg=self.card_bg,
-            fg="#93c5fd",
-            font=("Segoe UI", 8, "bold")
-        )
-        self.drive_metric_lbl.pack(side="left", padx=(4, 8), pady=5)
-
-        self.local_metric_lbl = tk.Label(
-            path_card,
-            text="📦 Local: 0 B",
-            bg=self.card_bg,
-            fg="#34d399",
-            font=("Segoe UI", 8, "bold")
-        )
-        self.local_metric_lbl.pack(side="left", padx=4, pady=5)
-
-        refresh_metric_btn = tk.Button(
-            path_card,
-            text="🔄 Refresh",
-            command=self._update_storage_metrics,
-            bg="#374151",
-            fg="white",
-            activebackground="#4b5563",
-            activeforeground="white",
-            relief="flat",
-            font=("Segoe UI", 8),
-            cursor="hand2",
-            padx=8,
-            pady=1
-        )
-        refresh_metric_btn.pack(side="right", padx=(0, 10), pady=5)
-
-        # 3. Smart Toolbar (Paste Order IDs, Vendors, Order Review, Clean Dashboard, Make Local/Online All)
-        toolbar_card = tk.Frame(self, bg=self.card_bg, bd=1, relief="solid")
-        toolbar_card.pack(fill="x", padx=16, pady=(1, 4))
-
-        # Toggle Paste Order IDs Button
-        self.btn_toggle_drawer = tk.Button(
-            toolbar_card,
-            text="📋 Paste Order IDs",
-            command=self._toggle_drawer,
-            bg="#3b82f6",
-            fg="white",
-            activebackground="#2563eb",
-            activeforeground="white",
-            relief="flat",
-            font=("Segoe UI", 8, "bold"),
-            cursor="hand2",
-            padx=10,
-            pady=3
-        )
-        self.btn_toggle_drawer.pack(side="left", padx=(10, 6), pady=4)
-
-        # Vendors Filter Dropdown
-        self.vendor_btn = tk.Button(
-            toolbar_card,
-            text="🏢 Vendors: All ▼",
+        # Pill 2: Vendors Filter
+        card_vendors = ctk.CTkFrame(strip, fg_color=t["bg_card"], corner_radius=18, border_width=1, border_color=t["border"])
+        card_vendors.pack(side="left", padx=(0, 8), fill="y")
+        self.vendor_btn = ctk.CTkButton(
+            card_vendors,
+            text="🏢 Vendors: All Selected ▾",
             command=self._toggle_vendor_popup,
-            bg="#252538",
-            fg="#f8fafc",
-            activebackground="#374151",
-            activeforeground="white",
-            relief="flat",
-            font=("Segoe UI", 8, "bold"),
-            cursor="hand2",
-            padx=10,
-            pady=3
+            fg_color="transparent",
+            hover_color="#F1F5F9" if is_light else "#253349",
+            text_color=t["text_main"],
+            corner_radius=18,
+            height=34,
+            font=("Segoe UI", 11, "bold")
         )
-        self.vendor_btn.pack(side="left", padx=(0, 6), pady=4)
+        self.vendor_btn.pack(padx=6, pady=2)
 
-        self.vendor_reset_btn = tk.Button(
-            toolbar_card,
-            text="✕ Reset All",
-            command=self._reset_vendor_filter,
-            bg="#4b5563",
-            fg="#ffffff",
-            activebackground="#374151",
-            activeforeground="white",
-            relief="flat",
-            font=("Segoe UI", 8),
-            cursor="hand2",
-            padx=6,
-            pady=3
+        # Pill 3: Drive Space Gauge
+        drive_card_bg = "#BAE6FD" if is_light else "#1E293B"
+        drive_card_border = "#7DD3FC" if is_light else "#334155"
+        drive_card_fg = "#0369A1" if is_light else "#38BDF8"
+        card_drive = ctk.CTkFrame(strip, fg_color=drive_card_bg, corner_radius=18, border_width=1, border_color=drive_card_border)
+        card_drive.pack(side="left", padx=(0, 8), fill="y")
+        self.drive_metric_lbl = ctk.CTkLabel(card_drive, text="Drive C: 146.5 GB / 365 GB (40% free)", text_color=drive_card_fg, font=("Segoe UI", 11, "bold"))
+        self.drive_metric_lbl.pack(padx=14, pady=6)
+
+        # Pill 4: Local Orders Badge
+        card_local = ctk.CTkFrame(strip, fg_color=t["bg_card"], corner_radius=18, border_width=1, border_color=t["border"])
+        card_local.pack(side="left", fill="y", expand=True)
+        self.local_metric_lbl = ctk.CTkLabel(card_local, text="● Local QC Orders: 0 (0 B on disk)", text_color=t["success"], font=("Segoe UI", 11, "bold"))
+        self.local_metric_lbl.pack(side="left", padx=(12, 6), pady=4)
+        refresh_local_btn = ctk.CTkButton(
+            card_local,
+            text="🔄",
+            command=self._scan_local_in_selected_vendors,
+            fg_color="transparent",
+            hover_color="#F1F5F9" if is_light else "#253349",
+            text_color=t["text_muted"],
+            width=28,
+            height=28,
+            corner_radius=14,
+            font=("Segoe UI", 12)
         )
+        refresh_local_btn.pack(side="right", padx=(0, 6), pady=4)
 
-        self._update_vendor_btn_label()
+        # 3. Main Body Split (Left Card + Right Card)
+        self.body_container = ctk.CTkFrame(self, fg_color="transparent")
+        self.body_container.pack(fill="both", expand=True, padx=16, pady=4)
 
-        # Order Review Button
-        self.btn_order_review = tk.Button(
-            toolbar_card,
-            text="🔍 Order Review",
-            command=self._open_order_review,
-            bg="#252538",
-            fg="#93c5fd",
-            activebackground="#374151",
-            activeforeground="white",
-            relief="flat",
-            font=("Segoe UI", 8, "bold"),
-            cursor="hand2",
-            padx=10,
-            pady=3
+        # Left Card: Paste Order IDs Drawer
+        self.card_left = ctk.CTkFrame(self.body_container, fg_color=t["bg_card"], corner_radius=14, border_width=1, border_color=t["border"], width=290)
+        self.card_left.pack(side="left", fill="y", padx=(0, 8))
+        self.card_left.pack_propagate(False)
+        self.left_frame = self.card_left  # Alias for backward compatibility
+
+        card_left_header = ctk.CTkFrame(self.card_left, fg_color="transparent")
+        card_left_header.pack(fill="x", padx=12, pady=(10, 4))
+
+        ctk.CTkLabel(card_left_header, text="📋 Paste Order IDs", font=("Segoe UI", 12, "bold"), text_color=t["text_main"]).pack(side="left")
+
+        # Hide & Clear buttons on drawer header
+        btn_box_left_head = ctk.CTkFrame(card_left_header, fg_color="transparent")
+        btn_box_left_head.pack(side="right")
+
+        self.btn_hide_left = ctk.CTkButton(
+            btn_box_left_head,
+            text="◀ Hide",
+            command=self._toggle_drawer,
+            fg_color="transparent",
+            hover_color="#F1F5F9" if is_light else "#253349",
+            text_color=t["text_muted"],
+            border_width=1,
+            border_color=t["border"],
+            corner_radius=10,
+            width=46,
+            height=22,
+            font=("Segoe UI", 10)
         )
-        self.btn_order_review.pack(side="left", padx=(0, 6), pady=4)
+        self.btn_hide_left.pack(side="left", padx=(0, 4))
+        self.btn_toggle_drawer = self.btn_hide_left  # Alias for backward compatibility
 
-        # Clean Dashboard Button
-        self.btn_clean_dashboard = tk.Button(
-            toolbar_card,
-            text="🗑️ Clean Dashboard",
-            command=self._clean_dashboard,
-            bg="#252538",
-            fg="#f87171",
-            activebackground="#ef4444",
-            activeforeground="white",
-            relief="flat",
-            font=("Segoe UI", 8),
-            cursor="hand2",
-            padx=8,
-            pady=3
-        )
-        self.btn_clean_dashboard.pack(side="left", padx=(0, 6), pady=4)
-
-        # Right Action Buttons: Make Local All & Make Online All
-        self.btn_make_online_all = tk.Button(
-            toolbar_card,
-            text="☁️ Make Online All",
-            command=self._make_all_online,
-            bg="#0284c7",
-            fg="white",
-            activebackground="#0369a1",
-            activeforeground="white",
-            relief="flat",
-            font=("Segoe UI", 8, "bold"),
-            cursor="hand2",
-            padx=10,
-            pady=3
-        )
-        self.btn_make_online_all.pack(side="right", padx=(0, 10), pady=4)
-
-        self.btn_make_local_all = tk.Button(
-            toolbar_card,
-            text="📥 Make Local All",
-            command=self._make_all_local,
-            bg=self.accent_green,
-            fg="white",
-            activebackground="#059669",
-            activeforeground="white",
-            relief="flat",
-            font=("Segoe UI", 8, "bold"),
-            cursor="hand2",
-            padx=10,
-            pady=3
-        )
-        self.btn_make_local_all.pack(side="right", padx=(0, 6), pady=4)
-
-        # 4. Main Split Panes (Left Drawer for Order IDs, Right for Dashboard Table)
-        self.paned = tk.PanedWindow(self, orient="horizontal", bg=self.bg_color, bd=0, sashwidth=4)
-        self.paned.pack(fill="both", expand=True, padx=16, pady=4)
-        paned = self.paned
-
-        # Left Pane: Order ID Input Drawer
-        self.left_frame = tk.Frame(paned, bg=self.card_bg, bd=1, relief="solid")
-        paned.add(self.left_frame, minsize=270, width=290)
-        self.drawer_open = True
-
-        left_header = tk.Frame(self.left_frame, bg=self.card_bg)
-        left_header.pack(fill="x", padx=10, pady=(8, 4))
-
-        tk.Label(left_header, text="📋 Paste Order IDs:", bg=self.card_bg, fg=self.text_main, font=("Segoe UI", 9, "bold")).pack(side="left")
-        self.count_lbl = tk.Label(left_header, text="0 orders", bg=self.card_bg, fg=self.text_muted, font=("Segoe UI", 8))
-        self.count_lbl.pack(side="right")
-
-        self.input_text = tk.Text(
-            self.left_frame,
-            bg="#181825",
-            fg="#f8fafc",
-            insertbackground="#ffffff",
-            relief="flat",
-            font=("Consolas", 10),
-            wrap="word",
-            padx=8,
-            pady=8
-        )
-        self.input_text.pack(fill="both", expand=True, padx=10, pady=4)
-        self.input_text.bind("<KeyRelease>", self._on_input_text_changed)
-
-        # Row 1 below text input: Clear, Paste, Clean Duplicate
-        btn_row_left = tk.Frame(self.left_frame, bg=self.card_bg)
-        btn_row_left.pack(fill="x", padx=10, pady=(4, 2))
-
-        clear_btn = tk.Button(
-            btn_row_left,
+        clear_top_btn = ctk.CTkButton(
+            btn_box_left_head,
             text="Clear",
             command=self._clear_input,
-            bg="#374151",
-            fg="white",
-            relief="flat",
-            font=("Segoe UI", 8),
-            cursor="hand2",
-            padx=6,
-            pady=2
+            fg_color="transparent",
+            hover_color="#F1F5F9" if is_light else "#253349",
+            text_color=t["text_muted"],
+            border_width=1,
+            border_color=t["border"],
+            corner_radius=10,
+            width=44,
+            height=22,
+            font=("Segoe UI", 10)
         )
-        clear_btn.pack(side="left", padx=(0, 4))
+        clear_top_btn.pack(side="left")
 
-        paste_btn = tk.Button(
-            btn_row_left,
+        self.count_lbl = ctk.CTkLabel(self.card_left, text="Total: 0 | Unique: 0", font=("Segoe UI", 10), text_color=t["text_muted"])
+        self.count_lbl.pack(anchor="w", padx=12, pady=(0, 6))
+
+        self.input_text = ctk.CTkTextbox(
+            self.card_left,
+            fg_color=t["bg_input"],
+            text_color=t["text_main"],
+            corner_radius=8,
+            border_width=1,
+            border_color=t["border"],
+            font=("Consolas", 11)
+        )
+        self.input_text.pack(fill="both", expand=True, padx=12, pady=(0, 8))
+        self.input_text.bind("<KeyRelease>", self._on_input_text_changed)
+
+        row_util = ctk.CTkFrame(self.card_left, fg_color="transparent")
+        row_util.pack(fill="x", padx=12, pady=(0, 8))
+
+        paste_btn = ctk.CTkButton(
+            row_util,
             text="Paste",
             command=self._paste_clipboard,
-            bg="#4b5563",
-            fg="white",
-            relief="flat",
-            font=("Segoe UI", 8),
-            cursor="hand2",
-            padx=6,
-            pady=2
+            fg_color="#FFFFFF" if is_light else "#1E293B",
+            hover_color="#F8FAFC" if is_light else "#334155",
+            text_color=t["text_main"],
+            border_width=1,
+            border_color=t["border"],
+            corner_radius=8,
+            width=64,
+            height=30,
+            font=("Segoe UI", 11)
         )
-        paste_btn.pack(side="left", padx=(0, 4))
+        paste_btn.pack(side="left", padx=(0, 6))
 
-        # Clean Duplicate Button (Dynamic Red/Green State)
-        self.btn_clean_dedup = tk.Button(
-            btn_row_left,
-            text="🧹 Clean Duplicate",
+        clean_btn_bg = t["success"] if getattr(self, "input_cleaned", False) else (t["danger"] if not is_light else "#FFFFFF")
+        clean_btn_fg = "#FFFFFF" if (getattr(self, "input_cleaned", False) or not is_light) else t["text_main"]
+        clean_btn_txt = "✔️ Clean & Deduplicate" if getattr(self, "input_cleaned", False) else "🧹 Clean & Deduplicate"
+
+        self.btn_clean_dedup = ctk.CTkButton(
+            row_util,
+            text=clean_btn_txt,
             command=self._clean_and_deduplicate,
-            bg="#ef4444",
-            fg="white",
-            activebackground="#dc2626",
-            activeforeground="white",
-            relief="flat",
-            font=("Segoe UI", 8, "bold"),
-            cursor="hand2",
-            padx=6,
-            pady=2
+            fg_color=clean_btn_bg,
+            hover_color="#F8FAFC" if (is_light and not getattr(self, "input_cleaned", False)) else t["danger_hover"],
+            text_color=clean_btn_fg,
+            border_width=1,
+            border_color=t["border"],
+            corner_radius=8,
+            height=30,
+            font=("Segoe UI", 11)
         )
-        self.btn_clean_dedup.pack(side="right")
+        self.btn_clean_dedup.pack(side="left", fill="x", expand=True)
 
-        # Row 2 below text input: Add to Sync List Button (starts disabled)
-        sync_row_left = tk.Frame(self.left_frame, bg=self.card_bg)
-        sync_row_left.pack(fill="x", padx=10, pady=(2, 6))
-
-        self.btn_add_to_sync = tk.Button(
-            sync_row_left,
-            text="➕ Add to Sync List",
+        sync_btn_bg = t["primary"] if getattr(self, "input_cleaned", False) else (t["primary"] if is_light else "#1E293B")
+        sync_btn_fg = "#FFFFFF" if is_light else "#0B1120"
+        self.btn_add_to_sync = ctk.CTkButton(
+            self.card_left,
+            text="+ Add to sync list",
             command=self._add_to_sync_list,
-            state="disabled",
-            bg="#374151",
-            fg="white",
-            activebackground="#059669",
-            activeforeground="white",
-            relief="flat",
-            font=("Segoe UI", 8, "bold"),
-            cursor="arrow",
-            pady=4
+            fg_color=sync_btn_bg,
+            hover_color=t["primary_hover"],
+            text_color=sync_btn_fg,
+            corner_radius=8,
+            height=36,
+            font=("Segoe UI", 12, "bold")
         )
-        self.btn_add_to_sync.pack(fill="x")
+        self.btn_add_to_sync.pack(fill="x", padx=12, pady=(0, 12))
 
-        # Right Pane: Sync List Dashboard Table
-        self.right_frame = tk.Frame(paned, bg=self.card_bg, bd=1, relief="solid")
-        paned.add(self.right_frame, minsize=480)
+        # Right Card: Sync List Dashboard Table
+        self.card_right = ctk.CTkFrame(self.body_container, fg_color=t["bg_card"], corner_radius=14, border_width=1, border_color=t["border"])
+        self.card_right.pack(side="left", fill="both", expand=True)
+        self.right_frame = self.card_right  # Alias
 
-        right_header = tk.Frame(self.right_frame, bg=self.card_bg)
-        right_header.pack(fill="x", padx=10, pady=(8, 4))
+        card_right_header = ctk.CTkFrame(self.card_right, fg_color="transparent")
+        card_right_header.pack(fill="x", padx=14, pady=(10, 8))
 
-        # Modern Pill Search Bar with inside 🔍 and integrated inside ✕ clear button
-        search_pill = tk.Frame(right_header, bg="#181825", bd=1, relief="solid")
-        search_pill.pack(side="left")
+        search_box = ctk.CTkFrame(card_right_header, fg_color=t["bg_card"], corner_radius=16, border_width=1, border_color=t["border"], height=32)
+        search_box.pack(side="left")
 
-        tk.Label(search_pill, text="🔍", bg="#181825", fg="#94a3b8", font=("Segoe UI", 8)).pack(side="left", padx=(6, 2))
-
-        self.search_entry = tk.Entry(
-            search_pill,
+        ctk.CTkLabel(search_box, text="🔍", text_color=t["text_muted"], font=("Segoe UI", 10)).pack(side="left", padx=(8, 2))
+        self.search_entry = ctk.CTkEntry(
+            search_box,
             textvariable=self.search_var,
-            bg="#181825",
-            fg="#f8fafc",
-            insertbackground="#ffffff",
-            relief="flat",
-            font=("Segoe UI", 8),
-            width=20
+            placeholder_text="Search order, vendor...",
+            fg_color="transparent",
+            border_width=0,
+            text_color=t["text_main"],
+            font=("Segoe UI", 11),
+            width=230,
+            height=28
         )
-        self.search_entry.pack(side="left", ipady=2, padx=(0, 2))
+        self.search_entry.pack(side="left", padx=(0, 4))
         self.search_entry.bind("<KeyRelease>", lambda e: self._filter_main_table())
 
-        clear_search_btn = tk.Button(
-            search_pill,
+        clear_search_btn = ctk.CTkButton(
+            search_box,
             text="✕",
             command=self._clear_main_search,
-            bg="#181825",
-            fg="#94a3b8",
-            activebackground="#252538",
-            activeforeground="white",
-            relief="flat",
-            font=("Segoe UI", 8, "bold"),
-            cursor="hand2",
-            bd=0,
-            padx=6,
-            pady=1
+            fg_color="transparent",
+            hover_color="#F1F5F9" if is_light else "#253349",
+            text_color=t["text_muted"],
+            width=22,
+            height=22,
+            corner_radius=11,
+            font=("Segoe UI", 10)
         )
-        clear_search_btn.pack(side="left")
+        clear_search_btn.pack(side="left", padx=(0, 4))
 
-        # Header Right Actions: Open Folder & Scan Local
-        open_btn = tk.Button(
-            right_header,
-            text="📂 Open",
+        # Header action buttons on right card
+        open_top_btn = ctk.CTkButton(
+            card_right_header,
+            text="📁 Open",
             command=self._open_selected_folder,
-            bg="#3b82f6",
-            fg="white",
-            activebackground="#2563eb",
-            activeforeground="white",
-            relief="flat",
-            font=("Segoe UI", 8, "bold"),
-            cursor="hand2",
-            padx=8,
-            pady=2
+            fg_color="#FFFFFF" if is_light else "#1E293B",
+            hover_color="#F8FAFC" if is_light else "#334155",
+            text_color=t["text_main"],
+            border_width=1,
+            border_color=t["border"],
+            corner_radius=14,
+            height=30,
+            font=("Segoe UI", 11, "bold")
         )
-        open_btn.pack(side="right", padx=(4, 0))
+        open_top_btn.pack(side="right", padx=(6, 0))
 
-        self.btn_scan_local = tk.Button(
-            right_header,
-            text="🔍 Scan Local Orders",
+        make_online_top_btn = ctk.CTkButton(
+            card_right_header,
+            text="☁️ Make Online",
+            command=self._make_selected_online,
+            fg_color="#FFFFFF" if is_light else "#1E293B",
+            hover_color="#F8FAFC" if is_light else "#334155",
+            text_color=t["text_main"],
+            border_width=1,
+            border_color=t["border"],
+            corner_radius=14,
+            height=30,
+            font=("Segoe UI", 11, "bold")
+        )
+        make_online_top_btn.pack(side="right", padx=(6, 0))
+
+        self.btn_scan_local = ctk.CTkButton(
+            card_right_header,
+            text="🔍 Scan Local",
             command=self._scan_local_in_selected_vendors,
-            bg="#7c3aed",
-            fg="white",
-            activebackground="#6d28d9",
-            activeforeground="white",
-            relief="flat",
-            font=("Segoe UI", 8, "bold"),
-            cursor="hand2",
-            padx=8,
-            pady=2
+            fg_color="#FFFFFF" if is_light else "#1E293B",
+            hover_color="#F8FAFC" if is_light else "#334155",
+            text_color=t["secondary"] if not is_light else t["secondary_text"],
+            border_width=1,
+            border_color=t["border"],
+            corner_radius=14,
+            height=30,
+            font=("Segoe UI", 11, "bold")
         )
-        self.btn_scan_local.pack(side="right", padx=(4, 0))
+        self.btn_scan_local.pack(side="right", padx=(6, 0))
 
-        # Dashboard Treeview Table
-        tree_frame = tk.Frame(self.right_frame, bg="#181825")
-        tree_frame.pack(fill="both", expand=True, padx=10, pady=4)
+        self.btn_clean_dashboard = ctk.CTkButton(
+            card_right_header,
+            text="🗑️ Clean Dash",
+            command=self._clean_dashboard,
+            fg_color="#FFFFFF" if is_light else "#1E293B",
+            hover_color="#F8FAFC" if is_light else "#334155",
+            text_color=t["danger"],
+            border_width=1,
+            border_color=t["border"],
+            corner_radius=14,
+            height=30,
+            font=("Segoe UI", 11)
+        )
+        self.btn_clean_dashboard.pack(side="right", padx=(6, 0))
+
+        self.btn_order_review = ctk.CTkButton(
+            card_right_header,
+            text="🔍 Review",
+            command=self._open_order_review,
+            fg_color="#FFFFFF" if is_light else "#1E293B",
+            hover_color="#F8FAFC" if is_light else "#334155",
+            text_color=t["text_muted"],
+            border_width=1,
+            border_color=t["border"],
+            corner_radius=14,
+            height=30,
+            font=("Segoe UI", 11)
+        )
+        self.btn_order_review.pack(side="right", padx=(6, 0))
+
+        # Table using styled ttk.Treeview inside card_right
+        tree_frame = ctk.CTkFrame(self.card_right, fg_color="transparent")
+        tree_frame.pack(fill="both", expand=True, padx=14, pady=(0, 10))
 
         columns = ("sel", "order_id", "vendor", "status", "files", "size", "actions")
-        self.tree = ttk.Treeview(tree_frame, columns=columns, show="headings", selectmode="extended")
+        self.tree = ttk.Treeview(tree_frame, columns=columns, show="headings", selectmode="extended", style="Custom.Treeview")
         self.tree.heading("sel", text="☐", command=self._toggle_master_checkbox)
-        self.tree.heading("order_id", text="Order ID")
+        self.tree.heading("order_id", text="Order ID ˅")
         self.tree.heading("vendor", text="Vendor")
         self.tree.heading("status", text="Sync Status")
         self.tree.heading("files", text="Files")
         self.tree.heading("size", text="Disk Size")
         self.tree.heading("actions", text="Action")
 
-        self.tree.column("sel", width=36, anchor="center")
-        self.tree.column("order_id", width=105, anchor="w")
-        self.tree.column("vendor", width=125, anchor="w")
-        self.tree.column("status", width=155, anchor="center")
+        self.tree.column("sel", width=40, anchor="center")
+        self.tree.column("order_id", width=120, anchor="w")
+        self.tree.column("vendor", width=140, anchor="w")
+        self.tree.column("status", width=150, anchor="center")
         self.tree.column("files", width=65, anchor="center")
-        self.tree.column("size", width=90, anchor="center")
-        self.tree.column("actions", width=110, anchor="center")
+        self.tree.column("size", width=95, anchor="center")
+        self.tree.column("actions", width=115, anchor="center")
 
+        # Status Tags configuration
+        self.tree.tag_configure("row_local", background=t["status_local_bg"], foreground=t["status_local_fg"])
+        self.tree.tag_configure("row_syncing", background=t["status_sync_bg"], foreground=t["status_sync_fg"])
+        self.tree.tag_configure("row_online", background=t["status_cloud_bg"], foreground=t["status_cloud_fg"])
+        self.tree.tag_configure("row_notfound", background=t["status_notfound_bg"], foreground=t["status_notfound_fg"])
+
+        # Scrollbar
         tree_scroll = ttk.Scrollbar(tree_frame, orient="vertical", command=self.tree.yview)
         self.tree.configure(yscrollcommand=tree_scroll.set)
         self.tree.pack(side="left", fill="both", expand=True)
         tree_scroll.pack(side="right", fill="y")
 
-        # Treeview Tag Styling
-        self.tree.tag_configure("row_syncing", background="#2a2b4a", foreground="#38bdf8")
-        self.tree.tag_configure("row_local", foreground="#34d399")
-        self.tree.tag_configure("row_online", foreground="#94a3b8")
-        self.tree.tag_configure("row_notfound", foreground="#f87171")
-
-        # Treeview Bindings
+        # Tree Bindings
         self.tree.bind("<Button-1>", self._on_tree_click)
         self.tree.bind("<Double-1>", self._on_tree_double_click)
         self.tree.bind("<Button-3>", self._on_tree_right_click)
@@ -3066,8 +3153,8 @@ class QCBatchLoaderApp(tk.Tk):
         self.tree.bind("<Control-C>", self._copy_selected_order_ids)
         self.tree.bind("<space>", self._on_space_key)
 
-        # Context menu for right-click on table rows
-        self.context_menu = tk.Menu(self, tearoff=0, bg="#252538", fg="white", activebackground="#3b82f6", activeforeground="white")
+        # Context menu
+        self.context_menu = tk.Menu(self, tearoff=0, bg=t["bg_card"], fg=t["text_main"], activebackground=t["primary"], activeforeground="white")
         self.context_menu.add_command(label="📋 Copy Order ID(s) (Ctrl+C)", command=self._copy_selected_order_ids)
         self.context_menu.add_command(label="📂 Open in File Explorer", command=self._open_selected_folder)
         self.context_menu.add_separator()
@@ -3077,134 +3164,232 @@ class QCBatchLoaderApp(tk.Tk):
         self.context_menu.add_command(label="🔍 Review / Filter Files", command=self._open_order_review)
         self.context_menu.add_command(label="🗑️ Remove from Dashboard", command=self._remove_selected_from_dashboard)
 
-        # 5. Floating Bottom Progress & Controls Dock
-        dock_card = tk.Frame(self, bg=self.card_bg, bd=1, relief="solid")
-        dock_card.pack(fill="x", padx=16, pady=(3, 6))
+        # 4. Bottom Signature 4-Button Action Dock
+        dock = ctk.CTkFrame(self, fg_color="transparent")
+        dock.pack(fill="x", padx=16, pady=(4, 8))
 
-        dock_inner = tk.Frame(dock_card, bg=self.card_bg)
-        dock_inner.pack(fill="x", padx=12, pady=6)
+        btn_row = ctk.CTkFrame(dock, fg_color="transparent")
+        btn_row.pack(fill="x", pady=(0, 8))
 
-        # Left: Status indicator
-        status_box = tk.Frame(dock_inner, bg=self.card_bg)
-        status_box.pack(side="left", fill="x", expand=True)
-
-        self.status_var = tk.StringVar(value="Ready. Paste Order IDs and click Add to Sync List.")
-        self.status_pill_lbl = tk.Label(
-            status_box,
-            textvariable=self.status_var,
-            bg=self.card_bg,
-            fg="#93c5fd",
-            font=("Segoe UI", 9)
+        self.btn_make_local_all = ctk.CTkButton(
+            btn_row,
+            text="📥 1. Make Local (Ready for QC)",
+            command=self._make_all_local,
+            fg_color=t["action_btn_make_local_bg"],
+            hover_color=t["primary_hover"],
+            text_color=t["action_btn_make_local_fg"],
+            corner_radius=10,
+            height=44,
+            font=("Segoe UI", 12, "bold")
         )
-        self.status_pill_lbl.pack(anchor="w")
+        self.btn_make_local_all.pack(side="left", fill="x", expand=True, padx=(0, 6))
 
-        self.total_lbl = tk.Label(
-            status_box,
-            text="Total Progress: 0% (0 / 0 Orders)",
-            font=("Segoe UI", 8, "bold"),
-            bg=self.card_bg,
-            fg=self.text_muted
+        self.btn_make_online_all = ctk.CTkButton(
+            btn_row,
+            text="☁️ 2. Free Up Space (Make Online-Only)",
+            command=self._make_all_online,
+            fg_color=t["action_btn_free_space_bg"],
+            hover_color=t["secondary_hover"],
+            text_color=t["action_btn_free_space_fg"],
+            corner_radius=10,
+            height=44,
+            font=("Segoe UI", 12, "bold")
         )
-        self.total_lbl.pack(anchor="w", pady=(1, 0))
+        self.btn_make_online_all.pack(side="left", fill="x", expand=True, padx=(0, 6))
 
-        self.total_progress = ttk.Progressbar(status_box, style="Total.Horizontal.TProgressbar", mode="determinate")
-        self.total_progress.pack(fill="x", pady=(2, 0))
-
-        # Hidden single order progress for internal hydration tracking
-        self.single_lbl = tk.Label(self, text="")
-        self.single_progress = ttk.Progressbar(self, mode="determinate")
-
-        # Right: Quick Global Controls (Pause All & Stop All)
-        ctrl_box = tk.Frame(dock_inner, bg=self.card_bg)
-        ctrl_box.pack(side="right", padx=(12, 0))
-
-        self.btn_pause = tk.Button(
-            ctrl_box,
-            text="⏸️ Pause All",
+        self.btn_pause = ctk.CTkButton(
+            btn_row,
+            text="⏸ Pause",
             command=self._toggle_pause,
-            state="disabled",
-            bg=self.accent_orange,
-            fg="white",
-            activebackground="#d97706",
-            activeforeground="white",
-            relief="flat",
-            font=("Segoe UI", 8, "bold"),
-            cursor="hand2",
-            padx=10,
-            pady=4
+            fg_color=t["action_btn_pause_bg"],
+            hover_color="#F59E0B",
+            text_color=t["action_btn_pause_fg"],
+            corner_radius=10,
+            width=140,
+            height=44,
+            font=("Segoe UI", 12, "bold")
         )
-        self.btn_pause.pack(side="left", padx=(0, 4))
+        self.btn_pause.pack(side="left", padx=(0, 6))
 
-        self.btn_stop = tk.Button(
-            ctrl_box,
-            text="⏹️ Stop All",
+        self.btn_stop = ctk.CTkButton(
+            btn_row,
+            text="⏹ Stop",
             command=self._request_stop,
-            state="disabled",
-            bg=self.accent_red,
-            fg="white",
-            activebackground="#dc2626",
-            activeforeground="white",
-            relief="flat",
-            font=("Segoe UI", 8, "bold"),
-            cursor="hand2",
-            padx=10,
-            pady=4
+            fg_color=t["action_btn_stop_bg"],
+            hover_color="#DC2626",
+            text_color=t["action_btn_stop_fg"],
+            corner_radius=10,
+            width=140,
+            height=44,
+            font=("Segoe UI", 12, "bold")
         )
         self.btn_stop.pack(side="left")
+
+        # Dual Progress Bars
+        prog_row = ctk.CTkFrame(dock, fg_color="transparent")
+        prog_row.pack(fill="x", pady=(0, 6))
+
+        p_left = ctk.CTkFrame(prog_row, fg_color="transparent")
+        p_left.pack(side="left", fill="x", expand=True, padx=(0, 10))
+        self.total_lbl = ctk.CTkLabel(p_left, text="Total Progress 0%", font=("Segoe UI", 10, "bold"), text_color=t["text_main"])
+        self.total_lbl.pack(anchor="w", pady=(0, 2))
+        self.total_progress = ctk.CTkProgressBar(p_left, fg_color="#DCE9F5" if is_light else "#253349", progress_color=t["primary"], corner_radius=6, height=10)
+        self.total_progress.set(0.0)
+        self.total_progress.pack(fill="x")
+
+        p_right = ctk.CTkFrame(prog_row, fg_color="transparent")
+        p_right.pack(side="left", fill="x", expand=True, padx=(10, 0))
+        self.single_lbl = ctk.CTkLabel(p_right, text="Single Order 0%", font=("Segoe UI", 10, "bold"), text_color=t["text_main"])
+        self.single_lbl.pack(anchor="w", pady=(0, 2))
+        self.single_progress = ctk.CTkProgressBar(p_right, fg_color="#DCE9F5" if is_light else "#253349", progress_color=t["primary"], corner_radius=6, height=10)
+        self.single_progress.set(0.0)
+        self.single_progress.pack(fill="x")
+
+        # Status Ticker line
+        self.status_var = tk.StringVar(value="⚡ Ready • 0 orders in queue • High speed parallel sync active")
+        self.status_pill_lbl = ctk.CTkLabel(dock, textvariable=self.status_var, font=("Segoe UI", 10), text_color=t["text_muted"])
+        self.status_pill_lbl.pack(anchor="w", pady=(2, 0))
+
+    def _toggle_theme(self):
+        """Switches dynamically between Dark and Light mode following Picture Style."""
+        self.theme_name = "dark" if self.theme_name == "light" else "light"
+        self.config_data["theme"] = self.theme_name
+        save_config(self.config_data)
+        ctk.set_appearance_mode(self.theme_name)
+        self.theme = BRAND_THEMES[self.theme_name]
+        self._rebuild_ui()
+
+    def _rebuild_ui(self):
+        """Re-renders UI widgets in the newly selected theme while seamlessly preserving active state."""
+        raw_text = self.input_text.get("1.0", "end-1c") if hasattr(self, "input_text") else ""
+        cleaned = getattr(self, "input_cleaned", False)
+        drawer_was_open = getattr(self, "drawer_open", True)
+        search_val = self.search_var.get() if hasattr(self, "search_var") else ""
+        existing_items = dict(self.table_items) if hasattr(self, "table_items") else {}
+        existing_cb = dict(self.order_checkboxes) if hasattr(self, "order_checkboxes") else {}
+
+        # Clear existing widgets
+        for child in self.winfo_children():
+            try:
+                child.destroy()
+            except Exception:
+                pass
+
+        # Re-initialize style and widgets with new theme tokens
+        self._setup_style()
+        self._create_widgets()
+
+        # Restore input state
+        if hasattr(self, "input_text"):
+            self.input_text.delete("1.0", "end")
+            self.input_text.insert("1.0", raw_text)
+            self._update_order_count()
+
+        if cleaned:
+            self.input_cleaned = True
+            t = self.theme
+            self.btn_clean_dedup.configure(
+                text="✔️ Clean & Deduplicate",
+                fg_color=t["success"],
+                hover_color=t["success_hover"],
+                text_color="#FFFFFF"
+            )
+            sync_fg = "white" if self.theme_name == "light" else "#0b1120"
+            self.btn_add_to_sync.configure(
+                state="normal",
+                fg_color=t["primary"],
+                hover_color=t["primary_hover"],
+                text_color=sync_fg
+            )
+
+        if not drawer_was_open:
+            self.card_left.pack_forget()
+            self.drawer_open = False
+            if hasattr(self, "btn_hide_left"):
+                self.btn_hide_left.configure(text="▶ Show")
+
+        # Restore table items
+        for iid, data in existing_items.items():
+            vals = data.get("values", ()) if isinstance(data, dict) else tuple(data)
+            tag = data.get("tag", "row_online") if isinstance(data, dict) else "row_online"
+            self.tree.insert("", "end", iid=iid, values=vals, tags=(tag,))
+        self.table_items = existing_items
+        self.order_checkboxes = existing_cb
+
+        # Restore metrics & badges
+        self._update_vendor_btn_label()
+        self._update_storage_metrics()
+        self._update_leftover_badge()
+        self._update_notification_badge()
 
     def _toggle_drawer(self):
         """Toggles the Paste Order IDs left drawer between collapsed and visible."""
         if getattr(self, "drawer_open", True):
-            self.paned.forget(self.left_frame)
+            self.card_left.pack_forget()
             self.drawer_open = False
-            self.btn_toggle_drawer.config(bg="#252538", fg="#94a3b8")
+            self.btn_hide_left.configure(text="▶ Show")
             self.status_var.set("Order IDs drawer closed.")
         else:
-            if hasattr(self, "right_frame") and self.right_frame in self.paned.panes():
-                self.paned.add(self.left_frame, before=self.right_frame, minsize=270, width=290)
-            else:
-                self.paned.add(self.left_frame, minsize=270, width=290)
+            self.card_left.pack(side="left", fill="y", padx=(0, 8), before=self.card_right)
             self.drawer_open = True
-            self.btn_toggle_drawer.config(bg="#3b82f6", fg="white")
+            self.btn_hide_left.configure(text="◀ Hide")
             self.status_var.set("Order IDs drawer opened.")
 
     def _on_input_text_changed(self, event=None):
         self._update_order_count()
         self.input_cleaned = False
-        self.btn_clean_dedup.config(
-            text="🧹 Clean Duplicate",
-            bg="#ef4444",
-            activebackground="#dc2626"
+        t = self.theme
+        is_light = (self.theme_name == "light")
+        self.btn_clean_dedup.configure(
+            text="🧹 Clean & Deduplicate",
+            fg_color="#FFFFFF" if is_light else t["danger"],
+            hover_color="#F8FAFC" if is_light else t["danger_hover"],
+            text_color=t["text_main"] if is_light else "#FFFFFF"
         )
-        self.btn_add_to_sync.config(
-            state="disabled",
-            bg="#374151",
-            cursor="arrow"
+        self.btn_add_to_sync.configure(
+            state="normal" if is_light else "disabled",
+            fg_color=t["primary"] if is_light else t["border"],
+            text_color="#FFFFFF" if is_light else t["text_muted"]
         )
 
     def _clean_and_deduplicate(self):
-        unique_orders, total_lines = self._parse_order_ids()
-        if not unique_orders:
-            messagebox.showinfo("Clean Duplicate", "No valid Order IDs found to clean.", parent=self)
+        raw = self.input_text.get("1.0", "end-1c")
+        if not raw.strip():
+            messagebox.showinfo("Empty Input", "Please enter or paste Order IDs first.", parent=self)
             return
 
-        formatted = "\n".join([f"#{oid}" for oid in unique_orders])
+        orders, invalid = self._parse_order_ids()
+        if not orders:
+            messagebox.showwarning("No Valid Orders", "No valid Order IDs found in the input.", parent=self)
+            return
+
+        seen = set()
+        unique_orders = []
+        for o in orders:
+            if o not in seen:
+                seen.add(o)
+                unique_orders.append(o)
+
+        formatted = "\n".join(f"#{o}" for o in unique_orders)
         self.input_text.delete("1.0", "end")
         self.input_text.insert("1.0", formatted)
+        self.input_cleaned = True
         self._update_order_count()
 
-        self.input_cleaned = True
-        self.btn_clean_dedup.config(
-            text="✅ Clean Duplicate",
-            bg="#10b981",
-            activebackground="#059669"
+        t = self.theme
+        self.btn_clean_dedup.configure(
+            text="✔️ Clean & Deduplicate",
+            fg_color=t["success"],
+            hover_color=t["success_hover"],
+            text_color="#FFFFFF"
         )
-        self.btn_add_to_sync.config(
+        self.btn_add_to_sync.configure(
             state="normal",
-            bg="#10b981",
-            cursor="hand2"
+            fg_color=t["primary"],
+            hover_color=t["primary_hover"],
+            text_color="#FFFFFF"
         )
-        self.status_var.set(f"Deduplicated! {total_lines} lines cleaned into {len(unique_orders)} unique orders. Ready to Add.")
+        self.status_var.set(f"Cleaned & deduplicated: {len(unique_orders)} unique orders ready.")
 
     def _clean_dashboard(self):
         if self.is_running:
@@ -3320,18 +3505,19 @@ class QCBatchLoaderApp(tk.Tk):
         NotificationCenterDialog(self, available_update=self.available_update)
 
     def _update_notification_badge(self):
+        t = self.theme
         if getattr(self, "unread_notifications", 0) > 0 and self.available_update:
             self.notification_btn.config(
                 text="🔔 1",
-                bg="#f59e0b",
+                bg=t["accent"],
                 fg="#000000",
                 font=("Segoe UI", 8, "bold")
             )
         else:
             self.notification_btn.config(
                 text="🔔",
-                bg="#252538",
-                fg="#94a3b8",
+                bg=t["bg_card"],
+                fg=t["text_muted"],
                 font=("Segoe UI", 9)
             )
 
@@ -3395,10 +3581,10 @@ class QCBatchLoaderApp(tk.Tk):
                 item_key = f"{clean_id}_notfound"
                 chk = self.order_checkboxes.get(item_key, "☐")
                 if not self.tree.exists(item_key):
-                    row_vals = (chk, f"#{clean_id}", "-", "❌ Not Found", "0", "0 B", "-")
+                    row_vals = (chk, f"#{clean_id}", "-", "⚠️ Not Found", "0", "0 B", "-")
                     self.tree.insert("", "end", iid=item_key, values=row_vals, tags=("row_notfound",))
                     self.table_items[item_key] = row_vals
-                    info = {"order_id": clean_id, "vendor": "-", "path": None, "status": "❌ Not Found", "files": 0, "size_bytes": 0}
+                    info = {"order_id": clean_id, "vendor": "-", "path": None, "status": "⚠️ Not Found", "files": 0, "size_bytes": 0}
                     self.resolved_orders[item_key] = info
                     self.resolved_orders[clean_id] = info
                 added_count += 1
@@ -3425,7 +3611,7 @@ class QCBatchLoaderApp(tk.Tk):
                                 pass
 
                     if local_files == total_files and total_files > 0:
-                        status_text = "✅ Local (Ready)"
+                        status_text = "● Local"
                         disp_size = format_bytes(local_bytes)
                         action_text = "☁️ Make Online"
                         row_tag = "row_local"
@@ -3435,7 +3621,7 @@ class QCBatchLoaderApp(tk.Tk):
                         action_text = "☁️ Make Online"
                         row_tag = "row_local"
                     else:
-                        status_text = "☁️ Online-Only"
+                        status_text = "● Cloud Only"
                         disp_size = "0 B"
                         action_text = "📥 Make Local"
                         row_tag = "row_online"
@@ -3535,7 +3721,7 @@ class QCBatchLoaderApp(tk.Tk):
                 "☐",
                 f"#{oid}",
                 vendor,
-                "✅ Local (Ready)",
+                "● Local",
                 str(item["total_files"]),
                 format_bytes(item["local_bytes"]),
                 "☁️ Make Online"
@@ -3546,7 +3732,7 @@ class QCBatchLoaderApp(tk.Tk):
                 "order_id": oid,
                 "vendor": vendor,
                 "path": item["path"],
-                "status": "✅ Local (Ready)",
+                "status": "● Local",
                 "files": item["total_files"],
                 "size_bytes": item["local_bytes"]
             }
@@ -3575,10 +3761,10 @@ class QCBatchLoaderApp(tk.Tk):
         try:
             free_up_space_cfapi(folder_path)
             chk = self.order_checkboxes.get(item_id, "☐")
-            new_vals = (chk, f"#{order_id}", vendor, "☁️ Online-Only", str(file_count), "0 B", "📥 Make Local")
+            new_vals = (chk, f"#{order_id}", vendor, "● Cloud Only", str(file_count), "0 B", "📥 Make Local")
             self.tree.item(item_id, values=new_vals, tags=("row_online",))
             self.table_items[item_id] = new_vals
-            info["status"] = "☁️ Online-Only"
+            info["status"] = "● Cloud Only"
             info["size_bytes"] = 0
             mark_order_history(order_id, vendor, folder_path, "online", file_count, 0)
             self._update_leftover_badge()
@@ -3614,7 +3800,7 @@ class QCBatchLoaderApp(tk.Tk):
                 with ThreadPoolExecutor(max_workers=workers) as executor:
                     list(executor.map(_hydrate_single_file, file_list))
 
-                status_text = "✅ Local (Ready)"
+                status_text = "● Local"
                 new_vals = (chk, f"#{order_id}", vendor, status_text, str(len(file_list)), format_bytes(total_size), "☁️ Make Online")
                 self.after(0, lambda: [
                     self.tree.item(item_id, values=new_vals, tags=("row_local",)),
@@ -3651,7 +3837,7 @@ class QCBatchLoaderApp(tk.Tk):
 
             try:
                 free_up_space_cfapi(folder_path)
-                status_text = "☁️ Online-Only"
+                status_text = "● Cloud Only"
                 chk = self.order_checkboxes.get(item_id, "☐")
                 new_vals = (chk, f"#{order_id}", vendor, status_text, str(file_count), "0 B", "📥 Make Local")
                 self.tree.item(item_id, values=new_vals, tags=("row_online",))
@@ -3713,7 +3899,7 @@ class QCBatchLoaderApp(tk.Tk):
                 try:
                     free_up_space_cfapi(info["path"])
                     chk = self.order_checkboxes.get(iid, "☐")
-                    new_vals = (chk, f"#{info.get('order_id')}", info.get("vendor"), "☁️ Online-Only", str(info.get("files", 0)), "0 B", "📥 Make Local")
+                    new_vals = (chk, f"#{info.get('order_id')}", info.get("vendor"), "● Cloud Only", str(info.get("files", 0)), "0 B", "📥 Make Local")
                     self.tree.item(iid, values=new_vals, tags=("row_online",))
                     self.table_items[iid] = new_vals
                     mark_order_history(info.get("order_id"), info.get("vendor"), info["path"], "online", info.get("files", 0), 0)
@@ -3764,7 +3950,7 @@ class QCBatchLoaderApp(tk.Tk):
 
             clean_id = normalize_order_id(order_id)
             pct = int((i / max(total_orders, 1)) * 100)
-            self.total_lbl.config(text=f"Total Progress: {pct}% ({i} / {total_orders} Orders)")
+            self.total_lbl.config(text=f"Total Progress {pct}% ({i} / {total_orders} Orders)")
             self.total_progress["value"] = i
             self.status_var.set(f"Processing #{order_id} ({i+1}/{total_orders})...")
 
@@ -3775,7 +3961,7 @@ class QCBatchLoaderApp(tk.Tk):
                 matches = full_vendor_index.get(clean_id, [])
 
             if not matches:
-                status_text = "❌ Not Found"
+                status_text = "⚠️ Not Found"
                 item_key = f"{order_id}_notfound"
                 chk = self.order_checkboxes.get(item_key, "☐")
                 row_vals = (chk, f"#{order_id}", "-", status_text, "0", "0 B", "-")
@@ -3838,12 +4024,15 @@ class QCBatchLoaderApp(tk.Tk):
 
                                     completed_files += 1
                                     s_pct = int((completed_files / max(total_files, 1)) * 100)
-                                    prog_text = f"⏳ Syncing {s_pct}% ({completed_files}/{total_files})"
+                                    prog_text = f"● Syncing {s_pct}%"
                                     cur_vals = (chk, f"#{order_id}", vendor, prog_text, str(total_files), format_bytes(total_size), "⏳ Syncing")
                                     self.tree.item(item_key, values=cur_vals, tags=("row_syncing",))
-                                    self.status_var.set(f"Hydrating #{order_id} ({completed_files}/{total_files} files)")
+                                    self.single_progress["maximum"] = max(total_files, 1)
+                                    self.single_progress["value"] = completed_files
+                                    self.single_lbl.config(text=f"Single Order {s_pct}%")
+                                    self.status_var.set(f"⚡ Hydrating #{order_id} ({completed_files}/{total_files} files) • Parallel sync active")
 
-                        status_text = "✅ Local (Ready)"
+                        status_text = "● Local"
                         action_text = "☁️ Make Online"
                         success_count += 1
                         mark_order_history(order_id, vendor, folder_path, "local", total_files, total_size)
@@ -3893,17 +4082,21 @@ class QCBatchLoaderApp(tk.Tk):
             free_str = d_info.get("free_str", "N/A")
             total_str = d_info.get("total_str", "N/A")
             free_pct = int(d_info.get("free_pct", 0))
+            used_pct = int(100 - free_pct)
 
             if hasattr(self, "drive_metric_lbl"):
                 self.drive_metric_lbl.config(
-                    text=f"💾 Drive ({drive_letter}) Free: {free_str} / {total_str} ({free_pct}% free)"
+                    text=f"Drive {drive_letter}: {free_str} / {total_str} ({free_pct}% free)"
                 )
+            if hasattr(self, "drive_progress"):
+                self.drive_progress["maximum"] = 100
+                self.drive_progress["value"] = used_pct
 
             count, total_bytes, size_str = get_tracked_local_storage_stats()
             if hasattr(self, "local_metric_lbl"):
-                fg_color = "#f87171" if count > 0 else "#34d399"
+                fg_color = self.theme["danger"] if count > 0 else self.theme["success"]
                 self.local_metric_lbl.config(
-                    text=f"📦 Local: {size_str} ({count} Orders)",
+                    text=f"● Local QC Orders: {count} ({size_str} on disk)",
                     fg=fg_color
                 )
         except Exception:
@@ -4032,16 +4225,17 @@ class QCBatchLoaderApp(tk.Tk):
     def _update_leftover_badge(self):
         tracked = get_tracked_local_orders()
         count = len(tracked)
+        t = self.theme
         if count > 0:
             total_b = sum(it.get("size_bytes", 0) for it in tracked)
             self.leftover_btn.config(
-                text=f"📜 History: {count} Local ({format_bytes(total_b)})",
-                fg="#f87171"
+                text=f"🕒 History: {count} Local",
+                fg=t["danger"]
             )
         else:
             self.leftover_btn.config(
-                text="📜 History: 0 Local",
-                fg="#10b981"
+                text="🕒 History: 0 Local",
+                fg=t["success"]
             )
 
     def _open_history_tracker(self):
