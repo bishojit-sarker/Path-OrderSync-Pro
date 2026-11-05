@@ -76,7 +76,7 @@ if %ERRORLEVEL% equ 0 (
 ) else (
     echo [Notice] GitHub CLI (gh) not found. Standard Git push and tag completed.
     echo [*] Opening GitHub New Release page in your browser...
-    start https://github.com/bishojit-sarker/Smart-Dropbox-QC-Batch-Loader/releases/new?tag=v1.8.0
+    powershell -NoProfile -Command "Start-Process 'https://github.com/bishojit-sarker/Smart-Dropbox-QC-Batch-Loader/releases/new?tag=v1.8.0'"
     echo.
     echo Tip: On the opened webpage, attach "QC_Batch_Loader.exe" and click "Publish release"!
 )
