@@ -4,6 +4,15 @@ All notable changes, bug fixes, and feature additions to **Smart Dropbox QC Batc
 
 ---
 
+## [v1.7.0] - 2026-11-05
+
+### 🎨 Brand Identity, Modern UI Redesign & Settings Center:
+- **Clean Modern Interface:** Complete CustomTkinter light and dark theme overhaul with rounded pill cards.
+- **Dedicated Settings Center:** Non-blocking Settings dialog with custom Gear icon, automatic Dropbox root discovery, and instantaneous smooth theme mode switching (zero screen blink).
+- **Direct 1-Click Open Dropbox:** Added `📂 Open Dropbox` pill button directly on the dashboard control strip.
+- **Live Update Indicators:** Automatic alert with pulsating notification bell and red dot (`🔴`) on Settings button when a new release is detected.
+- **New Brand Assets:** High-definition brand logo and multi-size Windows app icon.
+
 ## [v1.6.0] - 2026-11-04
 ### 🚀 Path OrderSync Studio Overhaul, Smart File Review, Local Clean & Dynamic UI:
 - **🎨 Brand Identity & Modern Header:**
