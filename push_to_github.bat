@@ -57,6 +57,10 @@ if %ERRORLEVEL% neq 0 (
     git push -u origin main
 )
 
+echo [*] Creating and pushing Git tag v1.8.0...
+git tag -fa v1.8.0 -m "release: v1.8.0 - Path OrderSync Studio v1.8.0 release"
+git push origin v1.8.0 --force
+
 echo.
 where gh >nul 2>nul
 if %ERRORLEVEL% equ 0 (
@@ -70,13 +74,16 @@ if %ERRORLEVEL% equ 0 (
         )
     )
 ) else (
-    echo [Notice] GitHub CLI (gh) not found. Standard Git push completed.
-    echo To enable 1-click GitHub Release asset uploads, install gh CLI: https://cli.github.com
+    echo [Notice] GitHub CLI (gh) not found. Standard Git push and tag completed.
+    echo [*] Opening GitHub New Release page in your browser...
+    start https://github.com/bishojit-sarker/Smart-Dropbox-QC-Batch-Loader/releases/new?tag=v1.8.0
+    echo.
+    echo Tip: On the opened webpage, attach "QC_Batch_Loader.exe" and click "Publish release"!
 )
 
 echo.
 echo ========================================================
-echo   🎉 Done! Code pushed to GitHub!
+echo   🎉 Done! Code and v1.8.0 tag pushed to GitHub!
 echo ========================================================
 echo.
 pause

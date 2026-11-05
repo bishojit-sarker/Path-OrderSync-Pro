@@ -1164,7 +1164,7 @@ class WhatsNewDialog(tk.Toplevel):
 
 def check_for_updates(parent=None, silent=True):
 
-    """Checks GitHub Releases for new updates with real-time notifications."""
+    """Checks GitHub Releases and repository main branch for new updates with real-time notifications."""
 
     def _worker():
 
@@ -1178,19 +1178,82 @@ def check_for_updates(parent=None, silent=True):
 
             )
 
-            with urllib.request.urlopen(req, timeout=8) as resp:
+            data = None
 
-                data = json.loads(resp.read().decode("utf-8"))
+            try:
 
-            latest_tag = data.get("tag_name", "").strip()
+                with urllib.request.urlopen(req, timeout=8) as resp:
 
-            if not latest_tag:
+                    data = json.loads(resp.read().decode("utf-8"))
 
-                return
+            except Exception:
 
-            latest_ver = parse_version_tuple(latest_tag)
+                pass
+
+            latest_tag = data.get("tag_name", "").strip() if data else ""
+
+            download_url = None
+
+            release_body = ""
+
+            if latest_tag and data:
+
+                for asset in data.get("assets", []):
+
+                    if asset.get("name") == "QC_Batch_Loader.exe":
+
+                        download_url = asset.get("browser_download_url")
+
+                        break
+
+                release_body = data.get("body", "Bug fixes and performance improvements.")
 
             cur_ver = parse_version_tuple(CURRENT_VERSION)
+
+            latest_ver = parse_version_tuple(latest_tag) if latest_tag else (0, 0, 0)
+
+            # Fallback: If /releases/latest does not have a newer version or executable asset, check raw main branch
+            if latest_ver <= cur_ver or not download_url:
+
+                try:
+
+                    raw_req = urllib.request.Request(
+
+                        f"https://raw.githubusercontent.com/{GITHUB_REPO}/main/app.py",
+
+                        headers={"User-Agent": "QC-Batch-Loader-Updater"}
+
+                    )
+
+                    with urllib.request.urlopen(raw_req, timeout=6) as raw_resp:
+
+                        raw_code = raw_resp.read().decode("utf-8")
+
+                    for rline in raw_code.splitlines()[:160]:
+
+                        if rline.strip().startswith("CURRENT_VERSION"):
+
+                            parts = rline.split("=")
+
+                            if len(parts) == 2:
+
+                                remote_v = parts[1].strip().strip('"').strip("'")
+
+                                if parse_version_tuple(remote_v) > cur_ver:
+
+                                    latest_tag = remote_v
+
+                                    latest_ver = parse_version_tuple(remote_v)
+
+                                    download_url = f"https://github.com/{GITHUB_REPO}/raw/main/QC_Batch_Loader.exe"
+
+                                    release_body = f"🚀 Path OrderSync Studio {latest_tag}\n\nDownloaded directly from the official GitHub repository main branch."
+
+                                    break
+
+                except Exception:
+
+                    pass
 
             if latest_ver <= cur_ver:
 
@@ -1214,16 +1277,6 @@ def check_for_updates(parent=None, silent=True):
 
                 return
 
-            download_url = None
-
-            for asset in data.get("assets", []):
-
-                if asset.get("name") == "QC_Batch_Loader.exe":
-
-                    download_url = asset.get("browser_download_url")
-
-                    break
-
             if not download_url:
 
                 if not silent and parent:
@@ -1231,8 +1284,6 @@ def check_for_updates(parent=None, silent=True):
                     parent.after(0, lambda: messagebox.showwarning("Update Available", f"Version {latest_tag} is available on GitHub, but executable asset is not attached."))
 
                 return
-
-            release_body = data.get("body", "Bug fixes and performance improvements.")
 
             if parent:
 

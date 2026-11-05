@@ -168,7 +168,11 @@ def main():
             if push_res.returncode != 0:
                 print(f"  [Notice] Git push message:\n{push_res.stderr}")
 
-    # 6. Publish Official GitHub Release via `gh` CLI
+    print(f"\n[*] Creating and pushing Git tag {version}...")
+    run_cmd(f'git tag -fa {version} -m "release: {version} - Path OrderSync Studio {version}"', check=False)
+    run_cmd(f"git push origin {version} --force", check=False)
+
+    # 6. Publish Official GitHub Release via `gh` CLI or Web Browser
     print(f"\n[6/6] Publishing official GitHub Release {version}...")
     temp_notes_file = BASE_DIR / "_release_notes_tmp.md"
     with open(temp_notes_file, "w", encoding="utf-8") as f:
@@ -178,27 +182,47 @@ def main():
         f.write("### 📥 Download & Usage:\n")
         f.write("Download `QC_Batch_Loader.exe` below. Run directly on Windows 10/11. No installation required.\n")
 
+    rel_url = f"https://github.com/bishojit-sarker/Smart-Dropbox-QC-Batch-Loader/releases/new?tag={version}&title=Path+OrderSync+Studio+{version}"
     gh_check = run_cmd("gh --version", check=False)
     if gh_check.returncode != 0:
         print("  [Notice] GitHub CLI ('gh') is not installed or not in PATH.")
-        print("  Git commit & push was completed successfully.")
-        print("  To enable 1-click GitHub Release asset uploads, install gh CLI: https://cli.github.com")
+        print(f"  Tag {version} has been pushed to GitHub successfully.")
+        print("  Opening GitHub New Release page in your browser...")
+        try:
+            webbrowser.open(rel_url)
+        except Exception:
+            pass
+        print(f"  Release Web URL: {rel_url}")
+        print("  Tip: On the webpage, attach 'QC_Batch_Loader.exe' and click 'Publish release'!")
     else:
-        # Check if release already exists on GitHub
-        chk_rel = run_cmd(f'gh release view {version} --repo bishojit-sarker/Smart-Dropbox-QC-Batch-Loader', check=False)
-        # Use relative paths without '#' character so GitHub CLI doesn't treat '#' as an asset label delimiter
-        rel_exe_name = "QC_Batch_Loader.exe"
-        rel_notes_name = "_release_notes_tmp.md"
-
-        if chk_rel.returncode == 0:
-            print(f"  Release {version} already exists. Updating release notes and executable asset...")
-            run_cmd(f'gh release edit {version} --title "Path OrderSync Studio {version}" --notes-file "{rel_notes_name}" --repo bishojit-sarker/Smart-Dropbox-QC-Batch-Loader', check=False)
-            run_cmd(f'gh release upload {version} "{rel_exe_name}" --clobber --repo bishojit-sarker/Smart-Dropbox-QC-Batch-Loader', check=False)
+        auth_check = run_cmd("gh auth status", check=False)
+        if auth_check.returncode != 0:
+            print("  [Notice] GitHub CLI is installed but not authenticated.")
+            print("  Opening GitHub New Release page in your browser...")
+            try:
+                webbrowser.open(rel_url)
+            except Exception:
+                pass
+            print(f"  Release Web URL: {rel_url}")
+            print("  Tip: On the webpage, attach 'QC_Batch_Loader.exe' and click 'Publish release'!")
         else:
-            print(f"  Creating new official GitHub Release {version}...")
-            rel_res = run_cmd(f'gh release create {version} "{rel_exe_name}" --title "Path OrderSync Studio {version}" --notes-file "{rel_notes_name}" --repo bishojit-sarker/Smart-Dropbox-QC-Batch-Loader', check=False)
-            if rel_res.returncode != 0:
-                print(f"  [Notice] gh release create note:\n{rel_res.stderr}")
+            chk_rel = run_cmd(f'gh release view {version} --repo bishojit-sarker/Smart-Dropbox-QC-Batch-Loader', check=False)
+            rel_exe_name = "QC_Batch_Loader.exe"
+            rel_notes_name = "_release_notes_tmp.md"
+
+            if chk_rel.returncode == 0:
+                print(f"  Release {version} already exists. Updating release notes and executable asset...")
+                run_cmd(f'gh release edit {version} --title "Path OrderSync Studio {version}" --notes-file "{rel_notes_name}" --repo bishojit-sarker/Smart-Dropbox-QC-Batch-Loader', check=False)
+                run_cmd(f'gh release upload {version} "{rel_exe_name}" --clobber --repo bishojit-sarker/Smart-Dropbox-QC-Batch-Loader', check=False)
+            else:
+                print(f"  Creating new official GitHub Release {version}...")
+                rel_res = run_cmd(f'gh release create {version} "{rel_exe_name}" --title "Path OrderSync Studio {version}" --notes-file "{rel_notes_name}" --repo bishojit-sarker/Smart-Dropbox-QC-Batch-Loader', check=False)
+                if rel_res.returncode != 0:
+                    print(f"  [Notice] gh release create note:\n{rel_res.stderr}")
+                    try:
+                        webbrowser.open(rel_url)
+                    except Exception:
+                        pass
 
     if temp_notes_file.exists():
         try:
