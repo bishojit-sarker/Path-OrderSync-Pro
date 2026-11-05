@@ -680,7 +680,7 @@ class UpdateDialog(tk.Toplevel):
 
     """Modern interactive dialog displaying update details, release notes, and real-time 1-click update progress."""
 
-    def __init__(self, parent, latest_tag, current_ver, release_body, download_url):
+    def __init__(self, parent, latest_tag, current_ver, release_body, download_url=None, auto_start=False):
 
         super().__init__(parent)
 
@@ -692,13 +692,19 @@ class UpdateDialog(tk.Toplevel):
 
         self.release_body = release_body or "Bug fixes and performance improvements."
 
+        if not download_url:
+
+            download_url = f"https://github.com/{GITHUB_REPO}/releases/download/{latest_tag}/QC_Batch_Loader.exe"
+
         self.download_url = download_url
+
+        self.auto_start = auto_start
 
         self.title(f"🚀 Update Available: {latest_tag}")
 
-        self.geometry("680x560")
+        self.geometry("700x580")
 
-        self.minsize(580, 460)
+        self.minsize(600, 480)
 
         self.configure(bg="#1e1e2e")
 
@@ -708,9 +714,9 @@ class UpdateDialog(tk.Toplevel):
 
         try:
 
-            x = parent.winfo_x() + (parent.winfo_width() // 2) - 340
+            x = parent.winfo_x() + (parent.winfo_width() // 2) - 350
 
-            y = parent.winfo_y() + (parent.winfo_height() // 2) - 280
+            y = parent.winfo_y() + (parent.winfo_height() // 2) - 290
 
             self.geometry(f"+{max(x, 50)}+{max(y, 50)}")
 
@@ -720,17 +726,21 @@ class UpdateDialog(tk.Toplevel):
 
         self._create_widgets()
 
+        if self.auto_start:
+
+            self.after(300, self._start_download)
+
     def _create_widgets(self):
 
         # 1. Top Header Banner
 
         header = tk.Frame(self, bg="#252538", bd=1, relief="solid")
 
-        header.pack(fill="x", padx=16, pady=(16, 10))
+        header.pack(side="top", fill="x", padx=16, pady=(14, 10))
 
         title_box = tk.Frame(header, bg="#252538")
 
-        title_box.pack(fill="x", padx=14, pady=12)
+        title_box.pack(fill="x", padx=14, pady=10)
 
         tk.Label(title_box, text="🚀", font=("Segoe UI", 24), bg="#252538", fg="#38bdf8").pack(side="left", padx=(0, 10))
 
@@ -756,19 +766,95 @@ class UpdateDialog(tk.Toplevel):
 
         v_lbl.pack(anchor="w", pady=(2, 0))
 
-        # 2. Release Notes & How to Use Guide Card
+        # 2. Bottom Action Buttons Bar (Packed at bottom first so it is NEVER pushed off-screen!)
+
+        self.btn_box = tk.Frame(self, bg="#1e1e2e")
+
+        self.btn_box.pack(side="bottom", fill="x", padx=16, pady=(10, 16))
+
+        self.btn_update = tk.Button(
+
+            self.btn_box,
+
+            text="🚀 Update & Restart Now",
+
+            command=self._start_download,
+
+            bg="#10b981",
+
+            fg="white",
+
+            activebackground="#059669",
+
+            activeforeground="white",
+
+            relief="flat",
+
+            font=("Segoe UI", 10, "bold"),
+
+            cursor="hand2",
+
+            padx=16,
+
+            pady=6
+
+        )
+
+        self.btn_update.pack(side="right", padx=(8, 0))
+
+        self.btn_cancel = tk.Button(
+
+            self.btn_box,
+
+            text="✕ Remind Me Later",
+
+            command=self.destroy,
+
+            bg="#374151",
+
+            fg="white",
+
+            activebackground="#4b5563",
+
+            activeforeground="white",
+
+            relief="flat",
+
+            font=("Segoe UI", 9),
+
+            cursor="hand2",
+
+            padx=12,
+
+            pady=6
+
+        )
+
+        self.btn_cancel.pack(side="right")
+
+        # 3. Download Progress Area (Packed above btn_box)
+
+        self.progress_frame = tk.Frame(self, bg="#1e1e2e")
+
+        self.progress_lbl = tk.Label(self.progress_frame, text="", font=("Segoe UI", 9), bg="#1e1e2e", fg="#93c5fd")
+
+        self.progress_lbl.pack(anchor="w")
+
+        self.prog_bar = ttk.Progressbar(self.progress_frame, mode="determinate")
+
+        self.prog_bar.pack(fill="x", pady=(2, 0))
+
+        # 4. Release Notes & Feature Guide Card (Takes remaining vertical space in middle)
 
         card = tk.Frame(self, bg="#252538", bd=1, relief="solid")
 
-        card.pack(fill="both", expand=True, padx=16, pady=4)
+        card.pack(side="top", fill="both", expand=True, padx=16, pady=(0, 6))
 
         card_header = tk.Frame(card, bg="#252538")
 
         card_header.pack(fill="x", padx=14, pady=(10, 4))
 
         tk.Label(card_header, text="📋 What's New & Feature Guide:", font=("Segoe UI", 10, "bold"), bg="#252538", fg="#f8fafc").pack(side="left")
-
-        # Scrollable text widget
 
         txt_frame = tk.Frame(card, bg="#181825")
 
@@ -808,95 +894,11 @@ class UpdateDialog(tk.Toplevel):
 
         self.txt.config(state="disabled")
 
-        # 3. Download Progress Area
-
-        self.progress_frame = tk.Frame(self, bg="#1e1e2e")
-
-        self.progress_frame.pack(fill="x", padx=16, pady=(4, 6))
-
-        self.progress_lbl = tk.Label(self.progress_frame, text="", font=("Segoe UI", 9), bg="#1e1e2e", fg="#93c5fd")
-
-        self.progress_lbl.pack(anchor="w")
-
-        self.prog_bar = ttk.Progressbar(self.progress_frame, mode="determinate")
-
-        self.prog_bar.pack(fill="x", pady=(2, 0))
-
-        self.progress_frame.pack_forget()
-
-        # 4. Action Buttons
-
-        btn_box = tk.Frame(self, bg="#1e1e2e")
-
-        btn_box.pack(fill="x", padx=16, pady=(10, 16))
-
-        self.btn_update = tk.Button(
-
-            btn_box,
-
-            text="🚀 Update & Restart Now",
-
-            command=self._start_download,
-
-            bg="#10b981",
-
-            fg="white",
-
-            activebackground="#059669",
-
-            activeforeground="white",
-
-            relief="flat",
-
-            font=("Segoe UI", 10, "bold"),
-
-            cursor="hand2",
-
-            padx=16,
-
-            pady=6
-
-        )
-
-        self.btn_update.pack(side="right", padx=(8, 0))
-
-        self.btn_cancel = tk.Button(
-
-            btn_box,
-
-            text="✕ Remind Me Later",
-
-            command=self.destroy,
-
-            bg="#374151",
-
-            fg="white",
-
-            activebackground="#4b5563",
-
-            activeforeground="white",
-
-            relief="flat",
-
-            font=("Segoe UI", 9),
-
-            cursor="hand2",
-
-            padx=12,
-
-            pady=6
-
-        )
-
-        self.btn_cancel.pack(side="right")
-
     def _start_download(self):
 
         if not self.download_url:
 
-            messagebox.showerror("Error", "Download URL is not available.")
-
-            return
+            self.download_url = f"https://github.com/{GITHUB_REPO}/releases/download/{self.latest_tag}/QC_Batch_Loader.exe"
 
         cur_exe = sys.executable
 
@@ -912,7 +914,7 @@ class UpdateDialog(tk.Toplevel):
 
         self.btn_cancel.config(state="disabled")
 
-        self.progress_frame.pack(fill="x", padx=16, pady=(4, 6))
+        self.progress_frame.pack(side="bottom", fill="x", padx=16, pady=(4, 6), before=self.btn_box)
 
         self.prog_bar["value"] = 0
 
@@ -2056,6 +2058,8 @@ class NotificationCenterDialog(tk.Toplevel):
 
             self.destroy()
 
+            d_url = self.available_update.get("download_url") or self.available_update.get("url") or f"https://github.com/{GITHUB_REPO}/releases/download/{tag}/QC_Batch_Loader.exe"
+
             UpdateDialog(
 
                 self.parent,
@@ -2066,7 +2070,9 @@ class NotificationCenterDialog(tk.Toplevel):
 
                 self.available_update.get("body", ""),
 
-                self.available_update.get("url")
+                d_url,
+
+                auto_start=True
 
             )
 
@@ -7192,7 +7198,8 @@ class QCBatchLoaderApp(ctk.CTk):
         self.available_update = {
             "tag": latest_tag,
             "body": release_body,
-            "download_url": download_url
+            "download_url": download_url,
+            "url": download_url
         }
         self.unread_notifications = 1
         
