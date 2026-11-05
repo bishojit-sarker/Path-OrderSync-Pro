@@ -96,6 +96,8 @@ from tkinter import ttk, messagebox, filedialog
 
 from datetime import datetime
 
+from PIL import Image, ImageDraw, ImageTk
+
 def get_app_dir():
 
     if getattr(sys, "frozen", False):
@@ -130,7 +132,7 @@ APP_NAME = "Path OrderSync Studio"
 
 APP_TAGLINE = "Smart Batch Order Sync & Space Optimizer"
 
-CURRENT_VERSION = "v1.7.0"
+CURRENT_VERSION = "v1.8.0"
 
 GITHUB_REPO = "bishojit-sarker/Smart-Dropbox-QC-Batch-Loader"
 
@@ -1502,7 +1504,7 @@ def collect_folder_files(target_dir):
 
     return files, total_size
 
-def _hydrate_single_file(fp):
+def _hydrate_single_file(fp, chunk_callback=None):
 
     """Streams the file in chunks to ensure 100% complete local hydration without Photoshop hanging."""
 
@@ -1516,23 +1518,136 @@ def _hydrate_single_file(fp):
 
             if attrs != -1 and not (attrs & FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS) and not (attrs & FILE_ATTRIBUTE_OFFLINE):
 
+                if chunk_callback:
+
+                    try:
+
+                        sz = os.path.getsize(fp)
+
+                        chunk_callback(sz)
+
+                    except Exception:
+
+                        pass
+
                 return True
 
         with open(fp, "rb") as fh:
 
+            chunk_size = 128 * 1024  # 128 KB chunks for granular, smooth real-time decimal progress
+
             while True:
 
-                chunk = fh.read(4 * 1024 * 1024)
+                chunk = fh.read(chunk_size)
 
                 if not chunk:
 
                     break
+
+                if chunk_callback:
+
+                    try:
+
+                        chunk_callback(len(chunk))
+
+                    except Exception:
+
+                        pass
 
         return True
 
     except Exception:
 
         return False
+
+def free_up_space_cfapi(folder_path):
+    """
+    Reverts folder and all its contents back to Online-Only (0 bytes on disk)
+    using the exact native Windows Explorer / Dropbox context menu action ("Make online-only" / "Free up space").
+    Guarantees literal path handling without '#' comment truncation via an isolated .ps1 script.
+    """
+    if not folder_path or not os.path.exists(folder_path):
+        return False
+
+    shell32 = getattr(ctypes, "windll", None) and getattr(ctypes.windll, "shell32", None)
+
+    order_root = folder_path
+    base_name = os.path.basename(os.path.normpath(folder_path)).lower()
+    if base_name in ["completed", "complete"]:
+        parent_candidate = os.path.dirname(folder_path)
+        if os.path.isdir(parent_candidate):
+            order_root = parent_candidate
+
+    sys_root = os.environ.get("SystemRoot", r"C:\Windows")
+    ps_bin = os.path.join(sys_root, "System32", "WindowsPowerShell", "v1.0", "powershell.exe")
+    if not os.path.isfile(ps_bin):
+        ps_bin = "powershell.exe"
+
+    # 1. Native Windows Attribute Pass (-P +U to unpin)
+    try:
+        cmd_attr = f'attrib -P +U "{folder_path}\\*.*" /s & attrib -P +U "{folder_path}" /d'
+        if order_root != folder_path:
+            cmd_attr += f' & attrib -P +U "{order_root}\\*.*" /s & attrib -P +U "{order_root}" /d'
+        subprocess.run(cmd_attr, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except Exception:
+        pass
+
+    # 2. Native Windows Shell Context Menu Verb Invoker
+    # Executes the exact same action as Right-Click -> "Make online-only" / "Free up space" in File Explorer
+    ps1_code = f"""$ErrorActionPreference = 'SilentlyContinue'
+
+function Invoke-MakeOnline($itemPath) {{
+    if (-not (Test-Path -LiteralPath $itemPath)) {{ return }}
+    $parent = [System.IO.Path]::GetDirectoryName($itemPath)
+    $leaf = [System.IO.Path]::GetFileName($itemPath)
+    $shell = New-Object -ComObject Shell.Application
+    $folder = $shell.Namespace($parent)
+    if (-not $folder) {{ return }}
+    $item = $folder.ParseName($leaf)
+    if (-not $item) {{ return }}
+    foreach ($v in $item.Verbs()) {{
+        $name = $v.Name.Replace('&', '').Trim()
+        if ($name -match '(?i)free up space|make online|online-only|smart sync|online') {{
+            $v.DoIt()
+            break
+        }}
+    }}
+}}
+
+Invoke-MakeOnline '{order_root}'
+Invoke-MakeOnline '{folder_path}'
+
+# Also invoke directly on all files inside folder_path
+Get-ChildItem -LiteralPath '{folder_path}' -File -Recurse -ErrorAction SilentlyContinue | ForEach-Object {{
+    Invoke-MakeOnline $_.FullName
+}}
+"""
+    try:
+        temp_dir = os.environ.get("TEMP", os.path.dirname(folder_path))
+        temp_ps1 = os.path.join(temp_dir, f"_make_online_{int(time.time()*1000)}.ps1")
+        with open(temp_ps1, "w", encoding="utf-8") as f:
+            f.write(ps1_code)
+
+        cmd = f'"{ps_bin}" -NoProfile -ExecutionPolicy Bypass -File "{temp_ps1}"'
+        subprocess.run(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10)
+        try:
+            os.remove(temp_ps1)
+        except Exception:
+            pass
+    except Exception:
+        pass
+
+    # 3. Explorer Icon Refresh Notification
+    if shell32 and hasattr(shell32, "SHChangeNotify"):
+        try:
+            # SHCNE_UPDATEDIR = 0x00001000, SHCNF_PATHW = 0x0005
+            shell32.SHChangeNotify(0x00001000, 0x0005, folder_path, None)
+            if order_root != folder_path:
+                shell32.SHChangeNotify(0x00001000, 0x0005, order_root, None)
+        except Exception:
+            pass
+
+    return True
 
 # -*- coding: utf-8 -*-
 
@@ -3870,9 +3985,7 @@ class HistoryTrackerDialog(tk.Toplevel):
 
                 try:
 
-                    cmd = f'attrib -P +U "{p}\\*.*" /s & attrib -P +U "{p}" /d'
-
-                    subprocess.run(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    free_up_space_cfapi(p)
 
                 except Exception:
 
@@ -4166,7 +4279,7 @@ def fetch_all_releases():
 
     # Only include VERIFIED AVAILABLE releases (active build, local binary, or valid GitHub asset)
 
-    candidate_tags = [CURRENT_VERSION, "v1.5.0", "v1.4.0", "v1.3.0", "v1.2.0"]
+    candidate_tags = [CURRENT_VERSION, "v1.7.0", "v1.6.0", "v1.5.0", "v1.4.0", "v1.3.0", "v1.2.0"]
 
     for t in github_releases:
 
@@ -4569,9 +4682,9 @@ class QCBatchLoaderApp(ctk.CTk):
 
         self.title(f"{APP_NAME} {CURRENT_VERSION} — {APP_TAGLINE}")
 
-        self.geometry("1040x600")
+        self.geometry("1100x640")
 
-        self.minsize(940, 580)
+        self.minsize(960, 540)
 
         # Set taskbar/window icon
 
@@ -4649,6 +4762,8 @@ class QCBatchLoaderApp(ctk.CTk):
 
         self._setup_style()
 
+        self._create_checkbox_icons()
+
         self._create_widgets()
 
         self._update_order_count()
@@ -4665,6 +4780,65 @@ class QCBatchLoaderApp(ctk.CTk):
 
         self.after(1200, self._check_first_launch_whats_new)
 
+    def _create_checkbox_icons(self):
+        """
+        Generates modern rounded rectangle checkbox icons (18x18px)
+        with anti-aliasing (supersampled at 4x) matching the modern UI design.
+        """
+        is_light = (getattr(self, "theme_name", "light") == "light")
+        t = getattr(self, "theme", BRAND_THEMES["light"])
+
+        border_col = (203, 213, 225, 255) if is_light else (71, 85, 105, 255)
+        unchecked_bg = (255, 255, 255, 255) if is_light else (26, 36, 54, 255)
+        primary_hex = t.get("primary", "#1E2565") if is_light else t.get("success", "#10B981")
+
+        def _hex_to_rgba(h, alpha=255):
+            h = h.lstrip("#")
+            return (int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16), alpha)
+
+        checked_bg = _hex_to_rgba(primary_hex)
+        check_mark_col = (255, 255, 255, 255)
+
+        size = 18
+        scale = 4
+        canvas_size = (size * scale, size * scale)
+        r = int(3.5 * scale)
+        margin = int(1.5 * scale)
+        border_w = max(1, int(1.3 * scale))
+
+        resample_filter = getattr(getattr(Image, 'Resampling', None), 'LANCZOS', getattr(Image, 'LANCZOS', Image.BICUBIC))
+
+        # 1. Unchecked Box
+        img_un = Image.new("RGBA", canvas_size, (0, 0, 0, 0))
+        draw_un = ImageDraw.Draw(img_un)
+        box = [margin, margin, canvas_size[0] - margin, canvas_size[1] - margin]
+        draw_un.rounded_rectangle(box, radius=r, fill=unchecked_bg, outline=border_col, width=border_w)
+        img_un_scaled = img_un.resize((size, size), resample_filter)
+        self.chk_unchecked_img = ImageTk.PhotoImage(img_un_scaled)
+
+        # 2. Checked Box
+        img_ck = Image.new("RGBA", canvas_size, (0, 0, 0, 0))
+        draw_ck = ImageDraw.Draw(img_ck)
+        draw_ck.rounded_rectangle(box, radius=r, fill=checked_bg, outline=checked_bg, width=border_w)
+
+        # Crisp checkmark coordinates
+        p1 = (margin + 3.8 * scale, margin + 7.8 * scale)
+        p2 = (margin + 6.8 * scale, margin + 11.2 * scale)
+        p3 = (margin + 12.0 * scale, margin + 4.6 * scale)
+        ck_width = max(1, int(2.0 * scale))
+        draw_ck.line([p1, p2, p3], fill=check_mark_col, width=ck_width, joint="curve")
+        img_ck_scaled = img_ck.resize((size, size), resample_filter)
+        self.chk_checked_img = ImageTk.PhotoImage(img_ck_scaled)
+
+        # Master Checkbox Icons
+        header_bg = (248, 250, 252, 255) if is_light else (30, 41, 59, 255)
+        img_m_un = Image.new("RGBA", canvas_size, (0, 0, 0, 0))
+        draw_m_un = ImageDraw.Draw(img_m_un)
+        draw_m_un.rounded_rectangle(box, radius=r, fill=header_bg, outline=border_col, width=border_w)
+        img_m_un_scaled = img_m_un.resize((size, size), resample_filter)
+        self.chk_master_unchecked_img = ImageTk.PhotoImage(img_m_un_scaled)
+        self.chk_master_checked_img = self.chk_checked_img
+
     def _setup_style(self):
 
         t = self.theme
@@ -4676,6 +4850,28 @@ class QCBatchLoaderApp(ctk.CTk):
         self.style = ttk.Style(self)
 
         self.style.theme_use("clam")
+
+        # Custom Treeview Item layout without indicator arrow to keep flat checkbox alignment
+        self.style.layout("Custom.Treeview.Item", [
+            ('Treeitem.padding', {'sticky': 'nswe', 'children': [
+                ('Treeitem.image', {'side': 'left', 'sticky': ''}),
+                ('Treeitem.text', {'side': 'left', 'sticky': ''})
+            ]})
+        ])
+
+        # Custom Treeview Heading layout to ensure header checkbox is on the LEFT of the text
+        heading_layout = [
+            ('Treeheading.cell', {'sticky': 'nswe', 'children': [
+                ('Treeheading.border', {'sticky': 'nswe', 'children': [
+                    ('Treeheading.padding', {'sticky': 'nswe', 'children': [
+                        ('Treeheading.image', {'side': 'left', 'sticky': ''}),
+                        ('Treeheading.text', {'side': 'left', 'sticky': ''})
+                    ]})
+                ]})
+            ]})
+        ]
+        self.style.layout("Custom.Treeview.Heading", heading_layout)
+        self.style.layout("Treeview.Heading", heading_layout)
 
         # Configure Custom.Treeview
 
@@ -4693,7 +4889,9 @@ class QCBatchLoaderApp(ctk.CTk):
 
             font=("Segoe UI", 10),
 
-            borderwidth=0
+            borderwidth=0,
+
+            indent=0
 
         )
 
@@ -5486,7 +5684,7 @@ class QCBatchLoaderApp(ctk.CTk):
 
         # Left Card: Paste Order IDs Drawer
 
-        self.card_left = ctk.CTkFrame(self.body_container, fg_color=t["bg_card"], corner_radius=14, border_width=1, border_color=t["border"], width=290)
+        self.card_left = ctk.CTkFrame(self.body_container, fg_color=t["bg_card"], corner_radius=14, border_width=1, border_color=t["border"], width=250)
 
         self.card_left.pack(side="left", fill="y", padx=(0, 8))
 
@@ -5726,7 +5924,7 @@ class QCBatchLoaderApp(ctk.CTk):
 
             font=("Segoe UI", 11),
 
-            width=230,
+            width=150,
 
             height=28
 
@@ -5762,39 +5960,15 @@ class QCBatchLoaderApp(ctk.CTk):
 
         self.clear_search_btn.pack(side="left", padx=(0, 4))
 
-        # Header action buttons on right card
+        # Header action buttons on right card (wrapped in dedicated container to prevent squishing)
 
-        self.open_top_btn = ctk.CTkButton(
+        header_actions_right = ctk.CTkFrame(card_right_header, fg_color="transparent")
 
-            card_right_header,
-
-            text="📁 Open",
-
-            command=self._open_selected_folder,
-
-            fg_color="#FFFFFF" if is_light else "#1E293B",
-
-            hover_color="#F8FAFC" if is_light else "#334155",
-
-            text_color=t["text_main"],
-
-            border_width=1,
-
-            border_color=t["border"],
-
-            corner_radius=14,
-
-            height=30,
-
-            font=("Segoe UI", 11, "bold")
-
-        )
-
-        self.open_top_btn.pack(side="right", padx=(6, 0))
+        header_actions_right.pack(side="right")
 
         self.make_online_top_btn = ctk.CTkButton(
 
-            card_right_header,
+            header_actions_right,
 
             text="☁️ Make Online",
 
@@ -5818,11 +5992,11 @@ class QCBatchLoaderApp(ctk.CTk):
 
         )
 
-        self.make_online_top_btn.pack(side="right", padx=(6, 0))
+        self.make_online_top_btn.pack(side="right", padx=(4, 0))
 
         self.btn_scan_local = ctk.CTkButton(
 
-            card_right_header,
+            header_actions_right,
 
             text="🔍 Scan Local",
 
@@ -5846,11 +6020,11 @@ class QCBatchLoaderApp(ctk.CTk):
 
         )
 
-        self.btn_scan_local.pack(side="right", padx=(6, 0))
+        self.btn_scan_local.pack(side="right", padx=(4, 0))
 
         self.btn_clean_dashboard = ctk.CTkButton(
 
-            card_right_header,
+            header_actions_right,
 
             text="🗑️ Clean Dash",
 
@@ -5874,11 +6048,11 @@ class QCBatchLoaderApp(ctk.CTk):
 
         )
 
-        self.btn_clean_dashboard.pack(side="right", padx=(6, 0))
+        self.btn_clean_dashboard.pack(side="right", padx=(4, 0))
 
         self.btn_order_review = ctk.CTkButton(
 
-            card_right_header,
+            header_actions_right,
 
             text="🔍 Review",
 
@@ -5902,7 +6076,7 @@ class QCBatchLoaderApp(ctk.CTk):
 
         )
 
-        self.btn_order_review.pack(side="right", padx=(6, 0))
+        self.btn_order_review.pack(side="right", padx=(4, 0))
 
         # Table using styled ttk.Treeview inside card_right
 
@@ -5910,37 +6084,41 @@ class QCBatchLoaderApp(ctk.CTk):
 
         tree_frame.pack(fill="both", expand=True, padx=14, pady=(0, 10))
 
-        columns = ("sel", "order_id", "vendor", "status", "files", "size", "actions")
+        columns = ("vendor", "status", "files", "size", "make_local", "make_online", "open")
 
-        self.tree = ttk.Treeview(tree_frame, columns=columns, show="headings", selectmode="extended", style="Custom.Treeview")
+        self.tree = ttk.Treeview(tree_frame, columns=columns, show="tree headings", selectmode="extended", style="Custom.Treeview")
 
-        self.tree.heading("sel", text="☐", command=self._toggle_master_checkbox)
+        self.tree.heading("#0", text=" Order ID ˅", image=self.chk_master_unchecked_img, anchor="w", command=self._toggle_master_checkbox)
 
-        self.tree.heading("order_id", text="Order ID ˅")
+        self.tree.heading("vendor", text="Vendor", image="", anchor="w")
 
-        self.tree.heading("vendor", text="Vendor")
+        self.tree.heading("status", text="Sync Status", anchor="center")
 
-        self.tree.heading("status", text="Sync Status")
+        self.tree.heading("files", text="Files", anchor="center")
 
-        self.tree.heading("files", text="Files")
+        self.tree.heading("size", text="File Size", anchor="center")
 
-        self.tree.heading("size", text="Disk Size")
+        self.tree.heading("make_local", text="Make Local", anchor="center")
 
-        self.tree.heading("actions", text="Action")
+        self.tree.heading("make_online", text="Make Online", anchor="center")
 
-        self.tree.column("sel", width=40, anchor="center")
+        self.tree.heading("open", text="Open", anchor="center")
 
-        self.tree.column("order_id", width=120, anchor="w")
+        self.tree.column("#0", width=115, minwidth=90, stretch=True, anchor="w")
 
-        self.tree.column("vendor", width=140, anchor="w")
+        self.tree.column("vendor", width=130, minwidth=100, stretch=True, anchor="w")
 
-        self.tree.column("status", width=150, anchor="center")
+        self.tree.column("status", width=125, minwidth=95, stretch=True, anchor="center")
 
-        self.tree.column("files", width=65, anchor="center")
+        self.tree.column("files", width=75, minwidth=60, stretch=True, anchor="center")
 
-        self.tree.column("size", width=95, anchor="center")
+        self.tree.column("size", width=160, minwidth=135, stretch=True, anchor="center")
 
-        self.tree.column("actions", width=115, anchor="center")
+        self.tree.column("make_local", width=105, minwidth=85, stretch=True, anchor="center")
+
+        self.tree.column("make_online", width=105, minwidth=85, stretch=True, anchor="center")
+
+        self.tree.column("open", width=60, minwidth=48, stretch=True, anchor="center")
 
         # Status Tags configuration
 
@@ -5961,6 +6139,31 @@ class QCBatchLoaderApp(ctk.CTk):
         self.tree.pack(side="left", fill="both", expand=True)
 
         tree_scroll.pack(side="right", fill="y")
+
+        # Table Footer Bar inside card_right (Moved here directly below table per user request)
+        self.table_footer = ctk.CTkFrame(self.card_right, fg_color="transparent")
+        self.table_footer.pack(fill="x", padx=14, pady=(2, 10))
+
+        self.total_lbl = ctk.CTkLabel(
+            self.table_footer,
+            text="Total Orders in Dashboard: 0",
+            font=("Segoe UI", 10, "bold"),
+            text_color=t["text_main"]
+        )
+        self.total_lbl.pack(anchor="w", pady=(0, 3))
+
+        self.total_progress = ctk.CTkProgressBar(
+            self.table_footer,
+            fg_color="#DCE9F5" if is_light else "#253349",
+            progress_color=t["primary"],
+            corner_radius=6,
+            height=10
+        )
+        self.total_progress.set(0.0)
+        self.total_progress.pack(fill="x")
+
+        self.single_lbl = None
+        self.single_progress = None
 
         # Tree Bindings
 
@@ -6106,47 +6309,13 @@ class QCBatchLoaderApp(ctk.CTk):
 
         self.btn_stop.pack(side="left")
 
-        # Dual Progress Bars
-
-        prog_row = ctk.CTkFrame(dock, fg_color="transparent")
-
-        prog_row.pack(fill="x", pady=(0, 6))
-
-        p_left = ctk.CTkFrame(prog_row, fg_color="transparent")
-
-        p_left.pack(side="left", fill="x", expand=True, padx=(0, 10))
-
-        self.total_lbl = ctk.CTkLabel(p_left, text="Total Progress 0%", font=("Segoe UI", 10, "bold"), text_color=t["text_main"])
-
-        self.total_lbl.pack(anchor="w", pady=(0, 2))
-
-        self.total_progress = ctk.CTkProgressBar(p_left, fg_color="#DCE9F5" if is_light else "#253349", progress_color=t["primary"], corner_radius=6, height=10)
-
-        self.total_progress.set(0.0)
-
-        self.total_progress.pack(fill="x")
-
-        p_right = ctk.CTkFrame(prog_row, fg_color="transparent")
-
-        p_right.pack(side="left", fill="x", expand=True, padx=(10, 0))
-
-        self.single_lbl = ctk.CTkLabel(p_right, text="Single Order 0%", font=("Segoe UI", 10, "bold"), text_color=t["text_main"])
-
-        self.single_lbl.pack(anchor="w", pady=(0, 2))
-
-        self.single_progress = ctk.CTkProgressBar(p_right, fg_color="#DCE9F5" if is_light else "#253349", progress_color=t["primary"], corner_radius=6, height=10)
-
-        self.single_progress.set(0.0)
-
-        self.single_progress.pack(fill="x")
-
-        # Status Ticker line
+        # Status Ticker line (Clean & compact, dual progress bars moved into card_right footer)
 
         self.status_var = tk.StringVar(value="⚡ Ready • 0 orders in queue • High speed parallel sync active")
 
         self.status_pill_lbl = ctk.CTkLabel(dock, textvariable=self.status_var, font=("Segoe UI", 10), text_color=t["text_muted"])
 
-        self.status_pill_lbl.pack(anchor="w", pady=(2, 0))
+        self.status_pill_lbl.pack(anchor="w", pady=(4, 2))
 
     def _toggle_theme(self):
 
@@ -6256,13 +6425,27 @@ class QCBatchLoaderApp(ctk.CTk):
 
         # Restore table items
 
+        self._create_checkbox_icons()
+
+        m_img = self.chk_master_checked_img if getattr(self, "master_checked", False) else self.chk_master_unchecked_img
+
+        self.tree.heading("#0", text=" Order ID ˅", image=m_img, anchor="w")
+
         for iid, data in existing_items.items():
 
             vals = data.get("values", ()) if isinstance(data, dict) else tuple(data)
 
             tag = data.get("tag", "row_online") if isinstance(data, dict) else "row_online"
 
-            self.tree.insert("", "end", iid=iid, values=vals, tags=(tag,))
+            info = self.resolved_orders.get(iid, {})
+
+            order_id = info.get("order_id") or str(iid).split("_")[0]
+
+            chk = existing_cb.get(iid, "☐")
+
+            chk_img = self.chk_checked_img if chk == "☑" else self.chk_unchecked_img
+
+            self.tree.insert("", "end", iid=iid, text=f" #{order_id}", image=chk_img, values=vals, tags=(tag,))
 
         self.table_items = existing_items
 
@@ -6277,6 +6460,24 @@ class QCBatchLoaderApp(ctk.CTk):
         self._update_leftover_badge()
 
         self._update_notification_badge()
+
+        tot_cnt = len(self.table_items)
+
+        loc_cnt = sum(1 for v in self.table_items.values() if any("local" in str(x).lower() for x in (v if isinstance(v, (list, tuple)) else [])))
+
+        if hasattr(self, "total_lbl") and self.total_lbl:
+
+            if tot_cnt > 0 and loc_cnt > 0:
+
+                self.total_lbl.configure(text=f"Total Orders in Dashboard: {tot_cnt} ({loc_cnt} Local, {tot_cnt - loc_cnt} Cloud Only)")
+
+            else:
+
+                self.total_lbl.configure(text=f"Total Orders in Dashboard: {tot_cnt}")
+
+        if hasattr(self, "total_progress") and self.total_progress:
+
+            self.total_progress.set(loc_cnt / max(tot_cnt, 1) if tot_cnt > 0 else 0.0)
 
     def _toggle_drawer(self):
 
@@ -6438,11 +6639,13 @@ class QCBatchLoaderApp(ctk.CTk):
 
             self.order_file_whitelists.clear()
 
-            self.total_progress["value"] = 0
+            if hasattr(self, "total_progress") and self.total_progress:
 
-            self.single_progress["value"] = 0
+                self.total_progress.set(0.0)
 
-            self.total_lbl.config(text="Total Progress: 0% (0 / 0 Orders)")
+            if hasattr(self, "total_lbl") and self.total_lbl:
+
+                self.total_lbl.configure(text="Total Orders in Dashboard: 0")
 
             self.status_var.set("Dashboard cleared.")
 
@@ -6458,19 +6661,17 @@ class QCBatchLoaderApp(ctk.CTk):
 
         new_mark = "☑" if self.master_checked else "☐"
 
-        self.tree.heading("sel", text=new_mark)
+        m_img = self.chk_master_checked_img if self.master_checked else self.chk_master_unchecked_img
+
+        row_img = self.chk_checked_img if self.master_checked else self.chk_unchecked_img
+
+        self.tree.heading("#0", text=" Order ID ˅", image=m_img, anchor="w")
 
         for iid in all_iids:
 
             self.order_checkboxes[iid] = new_mark
 
-            vals = list(self.tree.item(iid, "values"))
-
-            if vals:
-
-                vals[0] = new_mark
-
-                self.tree.item(iid, values=vals)
+            self.tree.item(iid, image=row_img)
 
         self.status_var.set(f"{'Selected' if self.master_checked else 'Deselected'} all {len(all_iids)} orders.")
 
@@ -6482,13 +6683,21 @@ class QCBatchLoaderApp(ctk.CTk):
 
         self.order_checkboxes[item_id] = new_val
 
-        vals = list(self.tree.item(item_id, "values"))
+        new_img = self.chk_checked_img if new_val == "☑" else self.chk_unchecked_img
 
-        if vals:
+        self.tree.item(item_id, image=new_img)
 
-            vals[0] = new_val
+        all_iids = self.tree.get_children()
 
-            self.tree.item(item_id, values=vals)
+        if all_iids:
+
+            all_checked = all(self.order_checkboxes.get(i, "☐") == "☑" for i in all_iids)
+
+            self.master_checked = all_checked
+
+            m_img = self.chk_master_checked_img if all_checked else self.chk_master_unchecked_img
+
+            self.tree.heading("#0", text=" Order ID ˅", image=m_img, anchor="w")
 
     def _on_tree_click(self, event):
 
@@ -6500,25 +6709,59 @@ class QCBatchLoaderApp(ctk.CTk):
 
             return
 
-        if col == "#1":
+        if col == "#0":
 
-            self._toggle_row_checkbox(row_id)
+            elem = self.tree.identify_element(event.x, event.y)
+
+            if elem in ("Treeitem.image", "image") or event.x <= 40:
+
+                self._toggle_row_checkbox(row_id)
+
+                return "break"
+
+            return
+
+        elif col == "#5":
+
+            # Column 5: 'Make Local'
+
+            vals = self.tree.item(row_id, "values")
+
+            btn_text = vals[4] if len(vals) > 4 else ""
+
+            if "local" in btn_text.lower():
+
+                self._make_single_order_local(row_id)
+
+            return "break"
+
+        elif col == "#6":
+
+            # Column 6: 'Make Online'
+
+            vals = self.tree.item(row_id, "values")
+
+            btn_text = vals[5] if len(vals) > 5 else ""
+
+            if "online" in btn_text.lower():
+
+                self._make_single_order_online(row_id)
 
             return "break"
 
         elif col == "#7":
 
+            # Column 7: 'Open'
+
             vals = self.tree.item(row_id, "values")
 
-            action_text = vals[6] if len(vals) > 6 else ""
+            btn_text = vals[6] if len(vals) > 6 else ""
 
-            if "Make Online" in action_text:
+            if "open" in btn_text.lower():
 
-                self._make_single_order_online(row_id)
+                self.tree.selection_set(row_id)
 
-            elif "Make Local" in action_text:
-
-                self._make_single_order_local(row_id)
+                self._open_single_order_folder(row_id)
 
             return "break"
 
@@ -6558,11 +6801,11 @@ class QCBatchLoaderApp(ctk.CTk):
 
             else:
 
-                vals = self.tree.item(iid, "values")
+                item_text = self.tree.item(iid, "text")
 
-                if vals and len(vals) > 1:
+                if item_text:
 
-                    oid = str(vals[1]).strip().lstrip("#")
+                    oid = str(item_text).strip().lstrip("#")
 
                 else:
 
@@ -6798,9 +7041,6 @@ class QCBatchLoaderApp(ctk.CTk):
         if hasattr(self, "clear_search_btn") and self.clear_search_btn.winfo_exists():
             self.clear_search_btn.configure(text_color=t["text_muted"], hover_color="#F1F5F9" if is_light else "#253349")
 
-        if hasattr(self, "open_top_btn") and self.open_top_btn.winfo_exists():
-            self.open_top_btn.configure(fg_color=btn_bg, hover_color=btn_hover_subtle, text_color=t["text_main"], border_color=t["border"])
-
         if hasattr(self, "make_online_top_btn") and self.make_online_top_btn.winfo_exists():
             self.make_online_top_btn.configure(fg_color=btn_bg, hover_color=btn_hover_subtle, text_color=t["text_main"], border_color=t["border"])
 
@@ -6833,7 +7073,15 @@ class QCBatchLoaderApp(ctk.CTk):
                 foreground=[("selected", "#1E40AF" if is_light else "#38BDF8")]
             )
 
+        self._create_checkbox_icons()
         if hasattr(self, "tree") and self.tree.winfo_exists():
+            m_img = self.chk_master_checked_img if getattr(self, "master_checked", False) else self.chk_master_unchecked_img
+            self.tree.heading("#0", text=" Order ID ˅", image=m_img, anchor="w")
+            self.tree.heading("vendor", text="Vendor", image="", anchor="w")
+            for iid in self.tree.get_children():
+                chk = self.order_checkboxes.get(iid, "☐")
+                row_img = self.chk_checked_img if chk == "☑" else self.chk_unchecked_img
+                self.tree.item(iid, image=row_img)
             self.tree.tag_configure("row_local", background=t["status_local_bg"], foreground=t["status_local_fg"])
             self.tree.tag_configure("row_syncing", background=t["status_sync_bg"], foreground=t["status_sync_fg"])
             self.tree.tag_configure("row_online", background=t["status_cloud_bg"], foreground=t["status_cloud_fg"])
@@ -6873,17 +7121,11 @@ class QCBatchLoaderApp(ctk.CTk):
                 text_color=t["action_btn_stop_fg"]
             )
 
-        if hasattr(self, "total_lbl") and self.total_lbl.winfo_exists():
+        if hasattr(self, "total_lbl") and self.total_lbl and self.total_lbl.winfo_exists():
             self.total_lbl.configure(text_color=t["text_main"])
 
-        if hasattr(self, "total_progress") and self.total_progress.winfo_exists():
+        if hasattr(self, "total_progress") and self.total_progress and self.total_progress.winfo_exists():
             self.total_progress.configure(fg_color="#DCE9F5" if is_light else "#253349", progress_color=t["primary"])
-
-        if hasattr(self, "single_lbl") and self.single_lbl.winfo_exists():
-            self.single_lbl.configure(text_color=t["text_main"])
-
-        if hasattr(self, "single_progress") and self.single_progress.winfo_exists():
-            self.single_progress.configure(fg_color="#DCE9F5" if is_light else "#253349", progress_color=t["primary"])
 
         if hasattr(self, "status_pill_lbl") and self.status_pill_lbl.winfo_exists():
             self.status_pill_lbl.configure(text_color=t["text_muted"])
@@ -7021,17 +7263,23 @@ class QCBatchLoaderApp(ctk.CTk):
 
         for key, vals in self.table_items.items():
 
-            order_id = str(vals[1]).lower() if len(vals) > 1 else ""
+            order_info = self.resolved_orders.get(key, {})
 
-            vendor = str(vals[2]).lower() if len(vals) > 2 else ""
+            order_id = str(order_info.get("order_id") or str(key).split("_")[0]).lower()
 
-            status = str(vals[3]).lower() if len(vals) > 3 else ""
+            vendor = str(vals[0]).lower() if len(vals) > 0 else ""
+
+            status = str(vals[1]).lower() if len(vals) > 1 else ""
 
             if not query or query in order_id or query in vendor or query in status:
 
                 tag = "row_syncing" if "Syncing" in status or "%" in status else ("row_local" if "Local" in status else ("row_notfound" if "Not Found" in status else "row_online"))
 
-                self.tree.insert("", "end", iid=key, values=vals, tags=(tag,))
+                chk = self.order_checkboxes.get(key, "☐")
+
+                chk_img = self.chk_checked_img if chk == "☑" else self.chk_unchecked_img
+
+                self.tree.insert("", "end", iid=key, text=f" #{order_id}", image=chk_img, values=vals, tags=(tag,))
 
     def _clear_main_search(self):
 
@@ -7099,11 +7347,13 @@ class QCBatchLoaderApp(ctk.CTk):
 
                 chk = self.order_checkboxes.get(item_key, "☐")
 
+                chk_img = self.chk_checked_img if chk == "☑" else self.chk_unchecked_img
+
                 if not self.tree.exists(item_key):
 
-                    row_vals = (chk, f"#{clean_id}", "-", "⚠️ Not Found", "0", "0 B", "-")
+                    row_vals = ("-", "⚠️ Not Found", "0 / 0", "0 B / 0 B", "-", "-", "-")
 
-                    self.tree.insert("", "end", iid=item_key, values=row_vals, tags=("row_notfound",))
+                    self.tree.insert("", "end", iid=item_key, text=f" #{clean_id}", image=chk_img, values=row_vals, tags=("row_notfound",))
 
                     self.table_items[item_key] = row_vals
 
@@ -7155,13 +7405,13 @@ class QCBatchLoaderApp(ctk.CTk):
 
                                 pass
 
+                    files_disp = f"{local_files} / {total_files}"
+
+                    disp_size = f"{format_bytes(local_bytes)} / {format_bytes(total_size)}"
+
                     if local_files == total_files and total_files > 0:
 
                         status_text = "● Local"
-
-                        disp_size = format_bytes(local_bytes)
-
-                        action_text = "☁️ Make Online"
 
                         row_tag = "row_local"
 
@@ -7169,19 +7419,11 @@ class QCBatchLoaderApp(ctk.CTk):
 
                         status_text = f"⚠️ Local ({local_files}/{total_files})"
 
-                        disp_size = format_bytes(local_bytes)
-
-                        action_text = "☁️ Make Online"
-
                         row_tag = "row_local"
 
                     else:
 
                         status_text = "● Cloud Only"
-
-                        disp_size = "0 B"
-
-                        action_text = "📥 Make Local"
 
                         row_tag = "row_online"
 
@@ -7189,15 +7431,17 @@ class QCBatchLoaderApp(ctk.CTk):
 
                     chk = self.order_checkboxes.get(item_key, "☐")
 
-                    row_vals = (chk, f"#{clean_id}", vendor, status_text, str(total_files), disp_size, action_text)
+                    chk_img = self.chk_checked_img if chk == "☑" else self.chk_unchecked_img
+
+                    row_vals = (vendor, status_text, files_disp, disp_size, "📥 Make Local", "☁️ Make Online", "📁 Open")
 
                     if self.tree.exists(item_key):
 
-                        self.tree.item(item_key, values=row_vals, tags=(row_tag,))
+                        self.tree.item(item_key, text=f" #{clean_id}", image=chk_img, values=row_vals, tags=(row_tag,))
 
                     else:
 
-                        self.tree.insert("", "end", iid=item_key, values=row_vals, tags=(row_tag,))
+                        self.tree.insert("", "end", iid=item_key, text=f" #{clean_id}", image=chk_img, values=row_vals, tags=(row_tag,))
 
                     self.table_items[item_key] = row_vals
 
@@ -7213,7 +7457,7 @@ class QCBatchLoaderApp(ctk.CTk):
 
                         "files": total_files,
 
-                        "size_bytes": local_bytes if local_files > 0 else 0
+                        "size_bytes": total_size
 
                     }
 
@@ -7225,7 +7469,23 @@ class QCBatchLoaderApp(ctk.CTk):
 
                     added_count += 1
 
-        self.total_lbl.config(text=f"Total Orders in Dashboard: {len(self.table_items)}")
+        total_cnt = len(self.table_items)
+
+        local_cnt = sum(1 for v in self.table_items.values() if any("local" in str(x).lower() for x in (v if isinstance(v, (list, tuple)) else [])))
+
+        if hasattr(self, "total_lbl") and self.total_lbl:
+
+            if total_cnt > 0 and local_cnt > 0:
+
+                self.total_lbl.configure(text=f"Total Orders in Dashboard: {total_cnt} ({local_cnt} Local, {total_cnt - local_cnt} Cloud Only)")
+
+            else:
+
+                self.total_lbl.configure(text=f"Total Orders in Dashboard: {total_cnt}")
+
+        if hasattr(self, "total_progress") and self.total_progress:
+
+            self.total_progress.set(local_cnt / max(total_cnt, 1) if total_cnt > 0 else 0.0)
 
         self.status_var.set(f"Added/updated {added_count} order item(s) in sync list.")
 
@@ -7353,27 +7613,35 @@ class QCBatchLoaderApp(ctk.CTk):
 
             item_key = f"{oid}_{vendor}"
 
+            chk = self.order_checkboxes.get(item_key, "☐")
+
+            chk_img = self.chk_checked_img if chk == "☑" else self.chk_unchecked_img
+
+            tot_f = item["total_files"]
+
+            tot_b_str = format_bytes(item["local_bytes"])
+
             row_vals = (
-
-                "☐",
-
-                f"#{oid}",
 
                 vendor,
 
                 "● Local",
 
-                str(item["total_files"]),
+                f"{tot_f} / {tot_f}",
 
-                format_bytes(item["local_bytes"]),
+                f"{tot_b_str} / {tot_b_str}",
 
-                "☁️ Make Online"
+                "📥 Make Local",
+
+                "☁️ Make Online",
+
+                "📁 Open"
 
             )
 
             self.table_items[item_key] = row_vals
 
-            self.tree.insert("", "end", iid=item_key, values=row_vals, tags=("row_local",))
+            self.tree.insert("", "end", iid=item_key, text=f" #{oid}", image=chk_img, values=row_vals, tags=("row_local",))
 
             info = {
 
@@ -7407,11 +7675,76 @@ class QCBatchLoaderApp(ctk.CTk):
 
         self._update_storage_metrics()
 
-        self.total_lbl.config(text=f"Total Orders in Dashboard: {len(found_items)}")
+        if hasattr(self, "total_lbl") and self.total_lbl:
+
+            self.total_lbl.configure(text=f"Total Orders in Dashboard: {len(found_items)} ({len(found_items)} Local • Ready for QC)")
+
+        if hasattr(self, "total_progress") and self.total_progress:
+
+            self.total_progress.set(1.0 if found_items else 0.0)
+
+    def _get_order_info(self, item_id):
+        """
+        Reliably resolves order metadata (path, order_id, vendor, files, size)
+        from memory or filesystem using item_id, row values, and Dropbox root.
+        """
+        info = self.resolved_orders.get(item_id)
+        if not info or not info.get("path") or not os.path.isdir(info.get("path", "")):
+            if self.tree.exists(item_id):
+                vals = self.tree.item(item_id, "values")
+                item_text = self.tree.item(item_id, "text")
+                raw_id = item_text.strip().lstrip("#") if item_text else ""
+                clean_id = normalize_order_id(raw_id)
+                vendor = str(vals[0]).strip() if vals and len(vals) > 0 else ""
+                item_key = f"{clean_id}_{vendor}"
+                alt = (
+                    self.resolved_orders.get(item_key)
+                    or self.resolved_orders.get(clean_id)
+                    or self.resolved_orders.get(f"#{clean_id}")
+                    or self.resolved_orders.get(raw_id)
+                )
+                if alt and alt.get("path") and os.path.isdir(alt["path"]):
+                    self.resolved_orders[item_id] = alt
+                    return alt
+
+                if vendor and vendor != "-":
+                    base_path = self.path_var.get()
+                    if base_path and os.path.isdir(base_path):
+                        candidates = [
+                            os.path.join(base_path, vendor, f"#{clean_id}"),
+                            os.path.join(base_path, vendor, clean_id),
+                            os.path.join(base_path, vendor, f"#{raw_id}"),
+                            os.path.join(base_path, vendor, raw_id)
+                        ]
+                        for cand in candidates:
+                            if os.path.isdir(cand):
+                                target_p = resolve_target_folder(cand)
+                                files_raw = str(vals[2]).strip() if len(vals) > 2 else "0"
+                                if "/" in files_raw:
+                                    try:
+                                        files_cnt = int(files_raw.split("/")[-1].strip())
+                                    except Exception:
+                                        files_cnt = 0
+                                elif files_raw.isdigit():
+                                    files_cnt = int(files_raw)
+                                else:
+                                    files_cnt = 0
+                                new_info = {
+                                    "order_id": clean_id,
+                                    "vendor": vendor,
+                                    "path": target_p,
+                                    "status": vals[1] if len(vals) > 1 else "● Local",
+                                    "files": files_cnt,
+                                    "size_bytes": 0
+                                }
+                                self.resolved_orders[item_id] = new_info
+                                self.resolved_orders[item_key] = new_info
+                                return new_info
+        return info
 
     def _make_single_order_online(self, item_id):
 
-        info = self.resolved_orders.get(item_id)
+        info = self._get_order_info(item_id)
 
         if not info or not info.get("path") or not os.path.isdir(info["path"]):
 
@@ -7427,37 +7760,77 @@ class QCBatchLoaderApp(ctk.CTk):
 
         file_count = info.get("files", 0)
 
-        try:
+        # 1. Update row immediately to indicate offloading in progress (zero UI freeze)
+        chk = self.order_checkboxes.get(item_id, "☐")
+        chk_img = self.chk_checked_img if chk == "☑" else self.chk_unchecked_img
 
-            free_up_space_cfapi(folder_path)
+        self.tree.item(item_id, text=f" #{order_id}", image=chk_img, values=(vendor, "⏳ Offloading...", f"0 / {file_count}", "Freeing...", "📥 Make Local", "⏳ Offloading", "📁 Open"), tags=("row_syncing",))
 
-            chk = self.order_checkboxes.get(item_id, "☐")
+        self.status_var.set(f"☁️ Offloading #{order_id} ({vendor}) to Online-Only...")
 
-            new_vals = (chk, f"#{order_id}", vendor, "● Cloud Only", str(file_count), "0 B", "📥 Make Local")
+        if hasattr(self, "total_lbl") and self.total_lbl:
 
-            self.tree.item(item_id, values=new_vals, tags=("row_online",))
+            self.total_lbl.configure(text=f"Offloading #{order_id} ({vendor}) to Online-Only...")
 
-            self.table_items[item_id] = new_vals
+        def _worker():
 
-            info["status"] = "● Cloud Only"
+            try:
 
-            info["size_bytes"] = 0
+                free_up_space_cfapi(folder_path)
 
-            mark_order_history(order_id, vendor, folder_path, "online", file_count, 0)
+                cur_vals = self.tree.item(item_id, "values")
 
-            self._update_leftover_badge()
+                raw_sz = cur_vals[3] if len(cur_vals) > 3 and cur_vals[3] not in ("Freeing...", "0 B") else format_bytes(info.get("size_bytes", 0))
 
-            self._update_storage_metrics()
+                tot_sz_str = raw_sz.split(" / ")[-1].strip() if " / " in raw_sz else raw_sz
 
-            self.status_var.set(f"☁️ Order #{order_id} ({vendor}) is now Online-Only.")
+                file_sz_str = f"0 B / {tot_sz_str}"
 
-        except Exception as e:
+                files_str = f"0 / {file_count}"
 
-            messagebox.showerror("Error", f"Failed to make order online:\n{e}", parent=self)
+                new_vals = (vendor, "● Cloud Only", files_str, file_sz_str, "📥 Make Local", "☁️ Make Online", "📁 Open")
+
+                def _on_done():
+
+                    self.tree.item(item_id, text=f" #{order_id}", image=chk_img, values=new_vals, tags=("row_online",))
+
+                    self.table_items.update({item_id: new_vals})
+
+                    mark_order_history(order_id, vendor, folder_path, "online", file_count, 0)
+
+                    self._update_leftover_badge()
+
+                    self._update_storage_metrics()
+
+                    tot_cnt = len(self.table_items)
+
+                    loc_cnt = sum(1 for v in self.table_items.values() if any("local" in str(x).lower() for x in (v if isinstance(v, (list, tuple)) else [])))
+
+                    if hasattr(self, "total_lbl") and self.total_lbl:
+
+                        self.total_lbl.configure(text=f"Total Orders in Dashboard: {tot_cnt} ({loc_cnt} Local, {tot_cnt - loc_cnt} Cloud Only)")
+
+                    if hasattr(self, "total_progress") and self.total_progress:
+
+                        self.total_progress.set(loc_cnt / max(tot_cnt, 1) if tot_cnt > 0 else 0.0)
+
+                    self.status_var.set(f"☁️ Order #{order_id} ({vendor}) is now Online-Only (0 B on disk).")
+
+                self.after(0, _on_done)
+
+                info["status"] = "● Cloud Only"
+
+                info["size_bytes"] = 0
+
+            except Exception as e:
+
+                self.after(0, lambda: messagebox.showerror("Error", f"Failed to make order online:\n{e}", parent=self))
+
+        threading.Thread(target=_worker, daemon=True).start()
 
     def _make_single_order_local(self, item_id):
 
-        info = self.resolved_orders.get(item_id)
+        info = self._get_order_info(item_id)
 
         if not info or not info.get("path") or not os.path.isdir(info["path"]):
 
@@ -7477,7 +7850,7 @@ class QCBatchLoaderApp(ctk.CTk):
 
                 chk = self.order_checkboxes.get(item_id, "☐")
 
-                self.after(0, lambda: self.tree.item(item_id, values=(chk, f"#{order_id}", vendor, "⏳ Syncing...", str(info.get("files", 0)), format_bytes(info.get("size_bytes", 0)), "⏳ Syncing"), tags=("row_syncing",)))
+                chk_img = self.chk_checked_img if chk == "☑" else self.chk_unchecked_img
 
                 file_list, total_size = collect_folder_files(folder_path)
 
@@ -7489,35 +7862,142 @@ class QCBatchLoaderApp(ctk.CTk):
 
                     total_size = sum(os.path.getsize(fp) for fp in file_list if os.path.exists(fp))
 
+                total_files = len(file_list)
+
+                total_sz_str = format_bytes(total_size)
+
+                init_files = f"0 / {total_files}"
+
+                init_size = f"0 B / {total_sz_str}"
+
+                self.after(0, lambda: self.tree.item(
+                    item_id,
+                    text=f" #{order_id}",
+                    image=chk_img,
+                    values=(vendor, "● Syncing 0.0%", init_files, init_size, "⏳ Syncing", "☁️ Make Online", "📁 Open"),
+                    tags=("row_syncing",)
+                ))
+
+                self.status_var.set(f"⏳ Syncing order #{order_id} ({vendor})...")
+
                 cmd = f'attrib +P -U "{folder_path}\\*.*" /s & attrib +P -U "{folder_path}" /d'
 
                 subprocess.run(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-                workers = min(8, max(len(file_list), 1))
+                completed_files = 0
+                downloaded_bytes = 0
+                bytes_lock = threading.Lock()
+                last_ui_time = [0.0]
 
-                with ThreadPoolExecutor(max_workers=workers) as executor:
+                def on_chunk(bytes_read):
+                    nonlocal downloaded_bytes
+                    with bytes_lock:
+                        downloaded_bytes = min(downloaded_bytes + bytes_read, total_size)
+                        now = time.time()
+                        if now - last_ui_time[0] < 0.04 and downloaded_bytes < total_size:
+                            return
+                        last_ui_time[0] = now
+                        cur_b = downloaded_bytes
+                        cur_f = completed_files
+                    pct = (cur_b / max(total_size, 1)) * 100.0
+                    if pct > 99.9 and cur_b < total_size:
+                        pct = 99.9
+                    prog_text = f"● Syncing {pct:.1f}%"
+                    files_prog = f"{cur_f} / {total_files}"
+                    size_prog = f"{format_bytes(cur_b)} / {total_sz_str}"
+                    cur_vals = (vendor, prog_text, files_prog, size_prog, "⏳ Syncing", "☁️ Make Online", "📁 Open")
+                    self.after(0, lambda r=cur_vals, p=prog_text, f=files_prog, s=size_prog: [
+                        self.tree.item(
+                            item_id,
+                            text=f" #{order_id}",
+                            image=chk_img,
+                            values=r,
+                            tags=("row_syncing",)
+                        ),
+                        self.table_items.update({item_id: r}),
+                        self.status_var.set(f"⚡ Syncing #{order_id} ({f} files • {s} - {p.replace('● ', '')})")
+                    ])
 
-                    list(executor.map(_hydrate_single_file, file_list))
+                workers = min(8, max(total_files, 1))
+
+                if file_list:
+
+                    with ThreadPoolExecutor(max_workers=workers) as executor:
+
+                        futures = {executor.submit(_hydrate_single_file, fp, on_chunk): fp for fp in file_list}
+
+                        for fut in as_completed(futures):
+
+                            with bytes_lock:
+                                completed_files += 1
+                                cur_f = completed_files
+                                cur_b = downloaded_bytes
+
+                            pct = (cur_b / max(total_size, 1)) * 100.0
+                            if pct > 99.9 and completed_files < total_files:
+                                pct = 99.9
+
+                            prog_text = f"● Syncing {pct:.1f}%"
+
+                            files_prog = f"{cur_f} / {total_files}"
+
+                            size_prog = f"{format_bytes(cur_b)} / {total_sz_str}"
+
+                            cur_vals = (vendor, prog_text, files_prog, size_prog, "⏳ Syncing", "☁️ Make Online", "📁 Open")
+
+                            self.after(0, lambda r=cur_vals, p=prog_text, f=files_prog, s=size_prog: [
+                                self.tree.item(
+                                    item_id,
+                                    text=f" #{order_id}",
+                                    image=chk_img,
+                                    values=r,
+                                    tags=("row_syncing",)
+                               ),
+                                self.table_items.update({item_id: r}),
+                                self.status_var.set(f"⚡ Syncing #{order_id} ({f} files • {s} - {p.replace('● ', '')})")
+                            ])
 
                 status_text = "● Local"
 
-                new_vals = (chk, f"#{order_id}", vendor, status_text, str(len(file_list)), format_bytes(total_size), "☁️ Make Online")
+                final_files = f"{total_files} / {total_files}"
 
-                self.after(0, lambda: [
+                final_size = f"{total_sz_str} / {total_sz_str}"
 
-                    self.tree.item(item_id, values=new_vals, tags=("row_local",)),
+                new_vals = (vendor, status_text, final_files, final_size, "📥 Make Local", "☁️ Make Online", "📁 Open")
 
-                    self.table_items.update({item_id: new_vals}),
+                def _on_local_done():
 
-                    mark_order_history(order_id, vendor, folder_path, "local", len(file_list), total_size),
+                    self.tree.item(item_id, text=f" #{order_id}", image=chk_img, values=new_vals, tags=("row_local",))
 
-                    self._update_leftover_badge(),
+                    self.table_items.update({item_id: new_vals})
 
-                    self._update_storage_metrics(),
+                    info["status"] = status_text
 
-                    self.status_var.set(f"✅ Order #{order_id} ({vendor}) is now Local and ready for QC.")
+                    info["size_bytes"] = total_size
 
-                ])
+                    info["files"] = len(file_list)
+
+                    mark_order_history(order_id, vendor, folder_path, "local", len(file_list), total_size)
+
+                    self._update_leftover_badge()
+
+                    self._update_storage_metrics()
+
+                    tot_cnt = len(self.table_items)
+
+                    loc_cnt = sum(1 for v in self.table_items.values() if any("local" in str(x).lower() for x in (v if isinstance(v, (list, tuple)) else [])))
+
+                    if hasattr(self, "total_lbl") and self.total_lbl:
+
+                        self.total_lbl.configure(text=f"Total Orders in Dashboard: {tot_cnt} ({loc_cnt} Local, {tot_cnt - loc_cnt} Cloud Only)")
+
+                    if hasattr(self, "total_progress") and self.total_progress:
+
+                        self.total_progress.set(loc_cnt / max(tot_cnt, 1) if tot_cnt > 0 else 0.0)
+
+                    self.status_var.set(f"✅ Order #{order_id} ({vendor}) is now Local ({format_bytes(total_size)}).")
+
+                self.after(0, _on_local_done)
 
             except Exception as e:
 
@@ -7539,59 +8019,95 @@ class QCBatchLoaderApp(ctk.CTk):
 
             return
 
-        freed_count = 0
+        def _worker():
 
-        for item_id in target_iids:
+            freed_count = 0
 
-            info = self.resolved_orders.get(item_id)
+            for item_id in target_iids:
 
-            if not info or not info.get("path") or not os.path.isdir(info["path"]):
+                info = self._get_order_info(item_id)
 
-                continue
+                if not info or not info.get("path") or not os.path.isdir(info["path"]):
 
-            folder_path = info["path"]
+                    continue
 
-            order_id = normalize_order_id(str(info.get("order_id", "")))
+                folder_path = info["path"]
 
-            vendor = info.get("vendor", "")
+                order_id = normalize_order_id(str(info.get("order_id", "")))
 
-            file_count = info.get("files", 0)
+                vendor = info.get("vendor", "")
 
-            try:
-
-                free_up_space_cfapi(folder_path)
-
-                status_text = "● Cloud Only"
+                file_count = info.get("files", 0)
 
                 chk = self.order_checkboxes.get(item_id, "☐")
 
-                new_vals = (chk, f"#{order_id}", vendor, status_text, str(file_count), "0 B", "📥 Make Local")
+                chk_img = self.chk_checked_img if chk == "☑" else self.chk_unchecked_img
 
-                self.tree.item(item_id, values=new_vals, tags=("row_online",))
+                self.after(0, lambda iid=item_id, img=chk_img, oid=order_id, v=vendor, fc=file_count: self.tree.item(iid, text=f" #{oid}", image=img, values=(v, "⏳ Offloading...", f"0 / {fc}", "Freeing...", "📥 Make Local", "⏳ Offloading", "📁 Open"), tags=("row_syncing",)))
 
-                self.table_items[item_id] = new_vals
+                try:
 
-                info["status"] = status_text
+                    free_up_space_cfapi(folder_path)
 
-                info["size_bytes"] = 0
+                    status_text = "● Cloud Only"
 
-                mark_order_history(order_id, vendor, folder_path, "online", file_count, 0)
+                    cur_vals = self.tree.item(item_id, "values")
 
-                freed_count += 1
+                    raw_sz = cur_vals[3] if len(cur_vals) > 3 and cur_vals[3] not in ("Freeing...", "0 B") else format_bytes(info.get("size_bytes", 0))
 
-            except Exception:
+                    tot_sz_str = raw_sz.split(" / ")[-1].strip() if " / " in raw_sz else raw_sz
 
-                pass
+                    file_sz_str = f"0 B / {tot_sz_str}"
 
-        self._update_leftover_badge()
+                    files_str = f"0 / {file_count}"
 
-        self._update_storage_metrics()
+                    new_vals = (vendor, status_text, files_str, file_sz_str, "📥 Make Local", "☁️ Make Online", "📁 Open")
 
-        if freed_count > 0:
+                    self.after(0, lambda iid=item_id, img=chk_img, oid=order_id, vals=new_vals: [
 
-            self.status_var.set(f"☁️ Made {freed_count} order(s) Online-Only. Disk space freed!")
+                        self.tree.item(iid, text=f" #{oid}", image=img, values=vals, tags=("row_online",)),
 
-            messagebox.showinfo("Space Freed", f"Successfully made {freed_count} order(s) Online-Only!\nDisk space has been freed.", parent=self)
+                        self.table_items.update({iid: vals})
+
+                    ])
+
+                    info["status"] = status_text
+
+                    mark_order_history(order_id, vendor, folder_path, "online", file_count, 0)
+
+                    freed_count += 1
+
+                except Exception:
+
+                    pass
+
+            def _on_all_freed():
+
+                self._update_leftover_badge()
+
+                self._update_storage_metrics()
+
+                tot_cnt = len(self.table_items)
+
+                loc_cnt = sum(1 for v in self.table_items.values() if any("local" in str(x).lower() for x in (v if isinstance(v, (list, tuple)) else [])))
+
+                if hasattr(self, "total_lbl") and self.total_lbl:
+
+                    self.total_lbl.configure(text=f"Total Orders in Dashboard: {tot_cnt} ({loc_cnt} Local, {tot_cnt - loc_cnt} Cloud Only)")
+
+                if hasattr(self, "total_progress") and self.total_progress:
+
+                    self.total_progress.set(loc_cnt / max(tot_cnt, 1) if tot_cnt > 0 else 0.0)
+
+                self.status_var.set(f"☁️ Made {freed_count} order(s) Online-Only. Disk space freed!")
+
+            self.after(0, _on_all_freed)
+
+            if freed_count > 0:
+
+                self.after(0, lambda: messagebox.showinfo("Space Freed", f"Successfully made {freed_count} order(s) Online-Only!\nDisk space has been freed.", parent=self))
+
+        threading.Thread(target=_worker, daemon=True).start()
 
     def _make_selected_local(self):
 
@@ -7625,11 +8141,19 @@ class QCBatchLoaderApp(ctk.CTk):
 
         for iid in all_iids:
 
-            vals = self.tree.item(iid, "values")
+            item_text = self.tree.item(iid, "text")
 
-            if vals and len(vals) > 1:
+            if item_text:
 
-                orders_to_sync.append(str(vals[1]).lstrip("#"))
+                orders_to_sync.append(item_text.strip().lstrip("#"))
+
+            else:
+
+                info = self.resolved_orders.get(iid)
+
+                if info and info.get("order_id"):
+
+                    orders_to_sync.append(info["order_id"])
 
         if orders_to_sync:
 
@@ -7659,39 +8183,79 @@ class QCBatchLoaderApp(ctk.CTk):
 
             return
 
-        freed = 0
+        def _worker():
 
-        for iid in all_iids:
+            freed = 0
 
-            info = self.resolved_orders.get(iid)
+            for iid in all_iids:
 
-            if info and info.get("path") and os.path.isdir(info["path"]):
+                info = self._get_order_info(iid)
 
-                try:
-
-                    free_up_space_cfapi(info["path"])
+                if info and info.get("path") and os.path.isdir(info["path"]):
 
                     chk = self.order_checkboxes.get(iid, "☐")
 
-                    new_vals = (chk, f"#{info.get('order_id')}", info.get("vendor"), "● Cloud Only", str(info.get("files", 0)), "0 B", "📥 Make Local")
+                    chk_img = self.chk_checked_img if chk == "☑" else self.chk_unchecked_img
 
-                    self.tree.item(iid, values=new_vals, tags=("row_online",))
+                    self.after(0, lambda i=iid, img=chk_img, inf=info: self.tree.item(i, text=f" #{inf.get('order_id')}", image=img, values=(inf.get("vendor"), "⏳ Offloading...", f"0 / {inf.get('files', 0)}", "Freeing...", "📥 Make Local", "⏳ Offloading", "📁 Open"), tags=("row_syncing",)))
 
-                    self.table_items[iid] = new_vals
+                    try:
 
-                    mark_order_history(info.get("order_id"), info.get("vendor"), info["path"], "online", info.get("files", 0), 0)
+                        free_up_space_cfapi(info["path"])
 
-                    freed += 1
+                        cur_vals = self.tree.item(i, "values")
 
-                except Exception:
+                        raw_sz = cur_vals[3] if len(cur_vals) > 3 and cur_vals[3] not in ("Freeing...", "0 B") else format_bytes(info.get("size_bytes", 0))
 
-                    pass
+                        tot_sz_str = raw_sz.split(" / ")[-1].strip() if " / " in raw_sz else raw_sz
 
-        self._update_leftover_badge()
+                        file_sz_str = f"0 B / {tot_sz_str}"
 
-        self._update_storage_metrics()
+                        files_str = f"0 / {info.get('files', 0)}"
 
-        self.status_var.set(f"Made {freed} order(s) Online-Only.")
+                        new_vals = (info.get("vendor"), "● Cloud Only", files_str, file_sz_str, "📥 Make Local", "☁️ Make Online", "📁 Open")
+
+                        self.after(0, lambda i=iid, img=chk_img, oid=info.get("order_id"), vals=new_vals: [
+
+                            self.tree.item(i, text=f" #{oid}", image=img, values=vals, tags=("row_online",)),
+
+                            self.table_items.update({i: vals})
+
+                        ])
+
+                        info["status"] = "● Cloud Only"
+
+                        mark_order_history(info.get("order_id"), info.get("vendor"), info["path"], "online", info.get("files", 0), 0)
+
+                        freed += 1
+
+                    except Exception:
+
+                        pass
+
+            def _on_all_freed_batch():
+
+                self._update_leftover_badge()
+
+                self._update_storage_metrics()
+
+                tot_cnt = len(self.table_items)
+
+                loc_cnt = sum(1 for v in self.table_items.values() if any("local" in str(x).lower() for x in (v if isinstance(v, (list, tuple)) else [])))
+
+                if hasattr(self, "total_lbl") and self.total_lbl:
+
+                    self.total_lbl.configure(text=f"Total Orders in Dashboard: {tot_cnt} ({loc_cnt} Local, {tot_cnt - loc_cnt} Cloud Only)")
+
+                if hasattr(self, "total_progress") and self.total_progress:
+
+                    self.total_progress.set(loc_cnt / max(tot_cnt, 1) if tot_cnt > 0 else 0.0)
+
+                self.status_var.set(f"Made {freed} order(s) Online-Only.")
+
+            self.after(0, _on_all_freed_batch)
+
+        threading.Thread(target=_worker, daemon=True).start()
 
     def _start_make_local_from_list(self, orders):
 
@@ -7725,9 +8289,13 @@ class QCBatchLoaderApp(ctk.CTk):
 
         total_orders = len(orders)
 
-        self.total_progress["maximum"] = max(total_orders, 1)
+        if hasattr(self, "total_progress") and self.total_progress:
 
-        self.total_progress["value"] = 0
+            self.total_progress.set(0.0)
+
+        if hasattr(self, "total_lbl") and self.total_lbl:
+
+            self.total_lbl.configure(text=f"Total Progress: 0% (0 / {total_orders} Orders)")
 
         selected_v = set(self.selected_vendors) if hasattr(self, "selected_vendors") and self.selected_vendors else None
 
@@ -7755,11 +8323,17 @@ class QCBatchLoaderApp(ctk.CTk):
 
             clean_id = normalize_order_id(order_id)
 
-            pct = int((i / max(total_orders, 1)) * 100)
+            overall_frac = i / max(total_orders, 1)
 
-            self.total_lbl.config(text=f"Total Progress {pct}% ({i} / {total_orders} Orders)")
+            pct = overall_frac * 100.0
 
-            self.total_progress["value"] = i
+            if hasattr(self, "total_lbl") and self.total_lbl:
+
+                self.total_lbl.configure(text=f"Total Progress: {pct:.1f}% ({i} / {total_orders} Orders)")
+
+            if hasattr(self, "total_progress") and self.total_progress:
+
+                self.total_progress.set(overall_frac)
 
             self.status_var.set(f"Processing #{order_id} ({i+1}/{total_orders})...")
 
@@ -7781,7 +8355,9 @@ class QCBatchLoaderApp(ctk.CTk):
 
                 chk = self.order_checkboxes.get(item_key, "☐")
 
-                row_vals = (chk, f"#{order_id}", "-", status_text, "0", "0 B", "-")
+                chk_img = self.chk_checked_img if chk == "☑" else self.chk_unchecked_img
+
+                row_vals = ("-", status_text, "0 / 0", "0 B / 0 B", "-", "-", "-")
 
                 self.resolved_orders[item_key] = {"order_id": order_id, "vendor": "-", "path": None, "status": status_text, "files": 0, "size_bytes": 0}
 
@@ -7791,11 +8367,11 @@ class QCBatchLoaderApp(ctk.CTk):
 
                 if self.tree.exists(item_key):
 
-                    self.tree.item(item_key, values=row_vals, tags=("row_notfound",))
+                    self.tree.item(item_key, text=f" #{order_id}", image=chk_img, values=row_vals, tags=("row_notfound",))
 
                 else:
 
-                    self.tree.insert("", "end", iid=item_key, values=row_vals, tags=("row_notfound",))
+                    self.tree.insert("", "end", iid=item_key, text=f" #{order_id}", image=chk_img, values=row_vals, tags=("row_notfound",))
 
                 not_found_count += 1
 
@@ -7837,17 +8413,25 @@ class QCBatchLoaderApp(ctk.CTk):
 
                     chk = self.order_checkboxes.get(item_key, "☐")
 
-                    row_vals = (chk, f"#{order_id}", vendor, "⏳ Syncing 0%", str(total_files), format_bytes(total_size), "⏳ Syncing")
+                    chk_img = self.chk_checked_img if chk == "☑" else self.chk_unchecked_img
+
+                    total_sz_str = format_bytes(total_size)
+
+                    init_files = f"0 / {total_files}"
+
+                    init_size = f"0 B / {total_sz_str}"
+
+                    row_vals = (vendor, "● Syncing 0.0%", init_files, init_size, "⏳ Syncing", "☁️ Make Online", "📁 Open")
 
                     self.table_items[item_key] = row_vals
 
                     if self.tree.exists(item_key):
 
-                        self.tree.item(item_key, values=row_vals, tags=("row_syncing",))
+                        self.tree.item(item_key, text=f" #{order_id}", image=chk_img, values=row_vals, tags=("row_syncing",))
 
                     else:
 
-                        self.tree.insert("", "end", iid=item_key, values=row_vals, tags=("row_syncing",))
+                        self.tree.insert("", "end", iid=item_key, text=f" #{order_id}", image=chk_img, values=row_vals, tags=("row_syncing",))
 
                     self.tree.see(item_key)
 
@@ -7858,6 +8442,36 @@ class QCBatchLoaderApp(ctk.CTk):
                         subprocess.run(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
                         completed_files = 0
+                        downloaded_bytes = 0
+                        bytes_lock = threading.Lock()
+                        last_ui_time = [0.0]
+
+                        def on_chunk(bytes_read):
+                            nonlocal downloaded_bytes
+                            with bytes_lock:
+                                downloaded_bytes = min(downloaded_bytes + bytes_read, total_size)
+                                now = time.time()
+                                if now - last_ui_time[0] < 0.04 and downloaded_bytes < total_size:
+                                    return
+                                last_ui_time[0] = now
+                                cur_b = downloaded_bytes
+                                cur_f = completed_files
+                            s_pct = (cur_b / max(total_size, 1)) * 100.0
+                            if s_pct > 99.9 and cur_b < total_size:
+                                s_pct = 99.9
+                            prog_text = f"● Syncing {s_pct:.1f}%"
+                            files_prog = f"{cur_f} / {total_files}"
+                            size_prog = f"{format_bytes(cur_b)} / {total_sz_str}"
+                            cur_vals = (vendor, prog_text, files_prog, size_prog, "⏳ Syncing", "☁️ Make Online", "📁 Open")
+                            overall_frac = (i + (cur_b / max(total_size, 1))) / max(total_orders, 1)
+                            overall_pct = overall_frac * 100.0
+                            self.after(0, lambda r=cur_vals, p=prog_text, b=size_prog, f=files_prog, pct_val=s_pct, o_pct=overall_pct, o_frac=overall_frac: [
+                                self.tree.item(item_key, values=r),
+                                self.table_items.update({item_key: r}),
+                                self.status_var.set(f"⚡ Hydrating #{order_id} ({f} files • {b} - {pct_val:.1f}%) • Parallel sync active"),
+                                self.total_progress.set(o_frac) if hasattr(self, "total_progress") and self.total_progress else None,
+                                self.total_lbl.configure(text=f"Total Progress: {o_pct:.1f}% (Order {i+1}/{total_orders} • #{order_id} {pct_val:.1f}%)") if hasattr(self, "total_lbl") and self.total_lbl else None
+                            ])
 
                         if file_list:
 
@@ -7865,7 +8479,7 @@ class QCBatchLoaderApp(ctk.CTk):
 
                             with ThreadPoolExecutor(max_workers=workers) as executor:
 
-                                futures = {executor.submit(_hydrate_single_file, fp): fp for fp in file_list}
+                                futures = {executor.submit(_hydrate_single_file, fp, on_chunk): fp for fp in file_list}
 
                                 for fut in as_completed(futures):
 
@@ -7883,27 +8497,41 @@ class QCBatchLoaderApp(ctk.CTk):
 
                                         break
 
-                                    completed_files += 1
+                                    with bytes_lock:
+                                        completed_files += 1
+                                        cur_f = completed_files
+                                        cur_b = downloaded_bytes
 
-                                    s_pct = int((completed_files / max(total_files, 1)) * 100)
+                                    s_pct = (cur_b / max(total_size, 1)) * 100.0
+                                    if s_pct > 99.9 and completed_files < total_files:
+                                        s_pct = 99.9
 
-                                    prog_text = f"● Syncing {s_pct}%"
+                                    prog_text = f"● Syncing {s_pct:.1f}%"
 
-                                    cur_vals = (chk, f"#{order_id}", vendor, prog_text, str(total_files), format_bytes(total_size), "⏳ Syncing")
+                                    files_prog = f"{cur_f} / {total_files}"
 
-                                    self.tree.item(item_key, values=cur_vals, tags=("row_syncing",))
+                                    size_prog = f"{format_bytes(cur_b)} / {total_sz_str}"
 
-                                    self.single_progress["maximum"] = max(total_files, 1)
+                                    cur_vals = (vendor, prog_text, files_prog, size_prog, "⏳ Syncing", "☁️ Make Online", "📁 Open")
 
-                                    self.single_progress["value"] = completed_files
+                                    self.tree.item(item_key, text=f" #{order_id}", image=chk_img, values=cur_vals, tags=("row_syncing",))
+                                    self.table_items.update({item_key: cur_vals})
 
-                                    self.single_lbl.config(text=f"Single Order {s_pct}%")
+                                    overall_frac = (i + (cur_b / max(total_size, 1))) / max(total_orders, 1)
 
-                                    self.status_var.set(f"⚡ Hydrating #{order_id} ({completed_files}/{total_files} files) • Parallel sync active")
+                                    overall_pct = overall_frac * 100.0
+
+                                    if hasattr(self, "total_progress") and self.total_progress:
+
+                                        self.total_progress.set(overall_frac)
+
+                                    if hasattr(self, "total_lbl") and self.total_lbl:
+
+                                        self.total_lbl.configure(text=f"Total Progress: {overall_pct:.1f}% (Order {i+1}/{total_orders} • #{order_id} {s_pct:.1f}%)")
+
+                                    self.status_var.set(f"⚡ Hydrating #{order_id} ({files_prog} files • {size_prog} - {s_pct:.1f}%) • Parallel sync active")
 
                         status_text = "● Local"
-
-                        action_text = "☁️ Make Online"
 
                         success_count += 1
 
@@ -7913,13 +8541,15 @@ class QCBatchLoaderApp(ctk.CTk):
 
                         status_text = f"⚠️ Error: {str(e)[:15]}"
 
-                        action_text = "📥 Make Local"
+                    final_files = f"{total_files} / {total_files}" if "Local" in status_text else f"0 / {total_files}"
 
-                    final_vals = (chk, f"#{order_id}", vendor, status_text, str(total_files), format_bytes(total_size), action_text)
+                    final_size = f"{total_sz_str} / {total_sz_str}" if "Local" in status_text else f"0 B / {total_sz_str}"
+
+                    final_vals = (vendor, status_text, final_files, final_size, "📥 Make Local", "☁️ Make Online", "📁 Open")
 
                     self.table_items[item_key] = final_vals
 
-                    self.tree.item(item_key, values=final_vals, tags=("row_local" if "Local" in status_text else "row_online",))
+                    self.tree.item(item_key, text=f" #{order_id}", image=chk_img, values=final_vals, tags=("row_local" if "Local" in status_text else "row_online",))
 
                     order_info = {
 
@@ -7951,9 +8581,13 @@ class QCBatchLoaderApp(ctk.CTk):
 
         else:
 
-            self.total_lbl.config(text=f"Total Progress: 100% ({total_orders} / {total_orders} Orders)")
+            if hasattr(self, "total_lbl") and self.total_lbl:
 
-            self.total_progress["value"] = total_orders
+                self.total_lbl.configure(text=f"Total Orders in Dashboard: {total_orders} ({success_count} Local • Ready for QC)")
+
+            if hasattr(self, "total_progress") and self.total_progress:
+
+                self.total_progress.set(1.0)
 
             self.status_var.set(f"Done! {success_count} folders ready locally, {not_found_count} not found.")
 
@@ -8109,7 +8743,7 @@ class QCBatchLoaderApp(ctk.CTk):
 
             self.tree.selection_set(row_id)
 
-            self._open_selected_folder()
+            self._open_single_order_folder(row_id)
 
     def _open_selected_folder(self):
 
@@ -8121,21 +8755,17 @@ class QCBatchLoaderApp(ctk.CTk):
 
             return
 
-        item_id = selected[0]
+        self._open_single_order_folder(selected[0])
+
+    def _open_single_order_folder(self, item_id):
+
+        if not item_id:
+
+            return
 
         item = self.tree.item(item_id)
 
-        info = self.resolved_orders.get(item_id)
-
-        if not info:
-
-            vals = item.get("values", [])
-
-            raw_id = str(vals[1] if len(vals) > 1 else vals[0]).strip()
-
-            clean_id = normalize_order_id(raw_id)
-
-            info = self.resolved_orders.get(clean_id) or self.resolved_orders.get(f"#{clean_id}")
+        info = self._get_order_info(item_id)
 
         if info and info.get("path") and os.path.isdir(info["path"]):
 
@@ -8143,13 +8773,19 @@ class QCBatchLoaderApp(ctk.CTk):
 
                 os.startfile(info["path"])
 
+                order_name = info.get("order_id", "")
+
+                self.status_var.set(f"📂 Opened folder for order #{order_name}.")
+
             except Exception as e:
 
                 messagebox.showerror("Error", f"Failed to open folder:\n{e}", parent=self)
 
         else:
 
-            order_name = item["values"][1] if (item.get("values") and len(item["values"]) > 1) else "selected"
+            item_text = self.tree.item(item_id, "text")
+
+            order_name = item_text.strip().lstrip("#") if item_text else "selected"
 
             messagebox.showwarning("Not Found", f"Folder path for order {order_name} is not available on disk.", parent=self)
 

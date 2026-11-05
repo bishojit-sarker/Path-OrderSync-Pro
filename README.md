@@ -1,6 +1,6 @@
 # ⚡ Smart Dropbox QC Batch Loader
 
-[![Release](https://img.shields.io/badge/version-1.4.0-blue.svg)](https://github.com/bishojit-sarker/Smart-Dropbox-QC-Batch-Loader/releases)
+[![Release](https://img.shields.io/badge/version-1.8.0-blue.svg)](https://github.com/bishojit-sarker/Smart-Dropbox-QC-Batch-Loader/releases)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078d7.svg)](https://www.microsoft.com/windows)
 [![GitHub](https://img.shields.io/badge/GitHub-Repository-black?logo=github)](https://github.com/bishojit-sarker/Smart-Dropbox-QC-Batch-Loader)
 
@@ -119,19 +119,19 @@
 ### ধাপ ৩: টেবিল থেকে সরাসরি ফাইল পরিদর্শন ও সিঙ্গেল অর্ডার রিলিজ
 
 ```
-┌────────────────────────────────────────────────────────────────────────┐
-│  📊 Orders & Sync Status:    [ ☁️ Make Selected Online ] [ 📂 Open ]   │
-├───────────┬──────────────────────┬──────────────────────┬──────────────┤
-│ Order ID  │ Vendor               │ Sync Status          │ Files        │
-├───────────┼──────────────────────┼──────────────────────┼──────────────┤
-│ #456859   │ perfect_pixel        │ ✅ Local (Ready)     │ 17           │
-│ #456876   │ Khandoker_graphics   │ ✅ Local (Ready)     │ 1            │
-│ #456879   │ path_subs            │ ☁️ Online-Only       │ 2            │
-└───────────┴──────────────────────┴──────────────────────┴──────────────┘
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│  📊 Orders & Sync Status:                        [ ☁️ Make Online ] [ 🔍 Scan Local ]   │
+├───────────┬──────────────────────┬──────────────────────┬───────┬──────────────┬───────┤
+│ Order ID  │ Vendor               │ Sync Status          │ Files │ Action       │ Open  │
+├───────────┼──────────────────────┼──────────────────────┼───────┼──────────────┼───────┤
+│ #456859   │ perfect_pixel        │ ✅ Local (Ready)     │ 17    │ ☁️ Make Online│📁 Open│
+│ #456876   │ Khandoker_graphics   │ ✅ Local (Ready)     │ 1     │ ☁️ Make Online│📁 Open│
+│ #456879   │ path_subs            │ ☁️ Online-Only       │ 2     │ 📥 Make Local │📁 Open│
+└───────────┴──────────────────────┴──────────────────────┴───────┴──────────────┴───────┘
 ```
 
-- **ফোল্ডার ওপেন করতে:** টেবিলে যেকোনো অর্ডারের ওপর **ডাবল-ক্লিক** করুন। সাথে সাথে উইন্ডোজ ফাইল এক্সপ্লোরারে সেই অর্ডারের `Completed` ফোল্ডার খুলে যাবে।
-- **সিঙ্গেল অর্ডার স্পেস খালি করতে:** কাজ শেষ হওয়া অর্ডারে ক্লিক করে **`[ ☁️ Make Selected Online ]`** চাপুন অথবা রাইট-ক্লিক মেনু থেকে "Make Online-Only" দিন। সাথে সাথে ওই অর্ডারের ফাইল ক্লাউড মোডে ফিরে যাবে এবং পিসির মেমরি খালি হবে।
+- **ফোল্ডার ওপেন করতে:** টেবিলে প্রতিটি অর্ডারের পাশের **`[ 📁 Open ]`** বাটনে সরাসরি ক্লিক করুন অথবা রো-এর ওপর **ডাবল-ক্লিক** করুন। সাথে সাথে উইন্ডোজ ফাইল এক্সপ্লোরারে সেই অর্ডারের ফোল্ডার খুলে যাবে।
+- **সিঙ্গেল অর্ডার স্পেস খালি করতে:** কাজ শেষ হওয়া অর্ডারে **`[ ☁️ Make Online ]`** চাপুন অথবা রাইট-ক্লিক মেনু থেকে "Make Online-Only" দিন। সাথে সাথে ওই অর্ডারের ফাইল ক্লাউড মোডে ফিরে যাবে এবং পিসির মেমরি খালি হবে।
 
 ---
 
@@ -399,19 +399,19 @@ This application eliminates web downloads and manual unzipping entirely. Utilizi
 ### Step 3: Inspection & Single Order Cleanup
 
 ```
-┌────────────────────────────────────────────────────────────────────────┐
-│  📊 Orders & Sync Status:    [ ☁️ Make Selected Online ] [ 📂 Open ]   │
-├───────────┬──────────────────────┬──────────────────────┬──────────────┤
-│ Order ID  │ Vendor               │ Sync Status          │ Files        │
-├───────────┼──────────────────────┼──────────────────────┼──────────────┤
-│ #456859   │ perfect_pixel        │ ✅ Local (Ready)     │ 17           │
-│ #456876   │ Khandoker_graphics   │ ✅ Local (Ready)     │ 1            │
-│ #456879   │ path_subs            │ ☁️ Online-Only       │ 2            │
-└───────────┴──────────────────────┴──────────────────────┴──────────────┘
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│  📊 Orders & Sync Status:                        [ ☁️ Make Online ] [ 🔍 Scan Local ]   │
+├───────────┬──────────────────────┬──────────────────────┬───────┬──────────────┬───────┤
+│ Order ID  │ Vendor               │ Sync Status          │ Files │ Action       │ Open  │
+├───────────┼──────────────────────┼──────────────────────┼───────┼──────────────┼───────┤
+│ #456859   │ perfect_pixel        │ ✅ Local (Ready)     │ 17    │ ☁️ Make Online│📁 Open│
+│ #456876   │ Khandoker_graphics   │ ✅ Local (Ready)     │ 1     │ ☁️ Make Online│📁 Open│
+│ #456879   │ path_subs            │ ☁️ Online-Only       │ 2     │ 📥 Make Local │📁 Open│
+└───────────┴──────────────────────┴──────────────────────┴───────┴──────────────┴───────┘
 ```
 
-- **Open Folder:** Double-click any row to open the `Completed` directory in Windows File Explorer.
-- **Single Order Space Cleanup:** When QC is finished for an order, click **`[ ☁️ Make Selected Online ]`** or right-click and select "Make Online-Only".
+- **Open Folder:** Click the **`[ 📁 Open ]`** button directly beside any individual order, or double-click the row to open the folder in Windows File Explorer.
+- **Single Order Space Cleanup:** When QC is finished for an order, click **`[ ☁️ Make Online ]`** or right-click and select "Make Online-Only".
 
 ---
 

@@ -2,6 +2,32 @@
 
 All notable changes, bug fixes, and feature additions to **Smart Dropbox QC Batch Loader** are documented here.
 
+## [v1.8.0] - 2026-11-06
+
+### 🚀 Real-Time Dual Progress Engine, Responsive Multi-Resolution Layout & Advanced Cloud Hydration:
+- **Dual Progress Indicators for Files & File Size:**
+  - Transformed the `Files` and `File Size` columns into live download progress indicators following the `( downloaded / total )` format.
+  - **Cloud / Initial State:** `Files` displays `0 / {total_files}` (e.g. `0 / 13`) and `File Size` displays `0 B / {total_size}` (e.g. `0 B / 373.45 MB`).
+  - **Real-Time Hydration State:** Both file counter and byte accumulator stream continuously in real-time as data arrives from Dropbox (e.g. `1 / 13` files and `142.50 MB / 373.45 MB`).
+  - **Local / QC Ready State:** Automatically transitions to complete totals upon full hydration (e.g. `13 / 13` files and `373.45 MB / 373.45 MB`).
+- **Ultra-Smooth 128KB Chunk-Level Real-Time Hydration Engine:**
+  - High-speed multithreaded chunk streaming with real-time decimal precision (`● Syncing 15.4%`, `● Syncing 68.2%` ... up to `● Local`).
+  - Thread-safe byte synchronization allowing continuous live progress tracking even for single gigantic multi-gigabyte PSD/TIFF files (e.g. 1.62 GB single file orders).
+  - 25 FPS UI throttle ensures buttery smooth visual feedback without CPU spiking or interface freezes.
+- **Fully Responsive Multi-Resolution Layout (Maximize & Resize):**
+  - Enabled proportional column auto-stretching (`stretch=True`) across all 8 dashboard columns, completely eliminating trailing white space gaps when maximized.
+  - Redesigned search bar and wrapped header action buttons (`Make Online`, `Scan Local`, `Clean Dash`, `Review`) in an auto-fitting container, preventing button squishing or clipping on any screen resolution.
+  - Optimized drawer width and column minimum bounds to guarantee `Open`, `Make Online`, and `Make Local` columns remain fully visible without clipping.
+- **Independent Direct-Action Row Controls:**
+  - Dedicated `Make Local` and `Make Online` buttons side-by-side on every row for 1-click single-order hydration or cloud offloading without mode switching.
+  - Dedicated in-row `📁 Open` action button to open specific order folders directly in Windows File Explorer.
+- **Integrated Pixel-Perfect Rounded Checkboxes:**
+  - Native PIL supersampling generates smooth rounded checkboxes directly inside the `Order ID` column (`[✓] Order ID ˅` in header and row items), perfectly aligned with row checkboxes and zero visual jitter.
+- **Dedicated Settings Center & Instant Dark/Light Theme Switching:**
+  - Non-blocking Settings dialog with custom Gear icon, automatic Dropbox root discovery, and instantaneous smooth theme mode switching (zero screen blink).
+- **High-Performance 5-Tier Cloud Dehydration & Storage Optimizer:**
+  - 5-tier offload architecture combining Windows Shell COM verbs, Cloud Files API (`cldapi.dll`), recursive directory unpinning, attribute clearing, and shell change notifications for guaranteed instant zero-byte disk space reclamation.
+
 ---
 
 ## [v1.7.0] - 2026-11-05
@@ -10,6 +36,21 @@ All notable changes, bug fixes, and feature additions to **Smart Dropbox QC Batc
 - **Clean Modern Interface:** Complete CustomTkinter light and dark theme overhaul with rounded pill cards.
 - **Dedicated Settings Center:** Non-blocking Settings dialog with custom Gear icon, automatic Dropbox root discovery, and instantaneous smooth theme mode switching (zero screen blink).
 - **Direct 1-Click Open Dropbox:** Added `📂 Open Dropbox` pill button directly on the dashboard control strip.
+- **Individual In-Row Open Button:** Added dedicated `📁 Open` column for each table row so users can open the order folder directly from each line.
+- **Separate Dedicated Action Columns:** Separated the action buttons into two independent columns (`Make Local` and `Make Online`) side-by-side on every dashboard row, allowing 1-click execution of downloading or offloading to cloud without toggling.
+- **Modern Integrated Rounded Checkboxes:** Seamlessly integrated the selection checkboxes directly inside the `Order ID` column as anti-aliased rounded rectangles generated dynamically via PIL supersampling beside `Order ID ˅` in the header and `#Order_ID` in rows, eliminating separate ugly text-character columns. Fixed header checkbox positioning using custom ttk style layout to place the master checkbox on the left side of `Order ID ˅` aligned with all row items.
+- **Order Total File Size Column:** Replaced `Disk Size` with `File Size` in the dashboard table. Clicking `+ Add to sync list` now immediately calculates and surfaces the actual total file size of all files in the order folder (e.g. `1.62 GB`) regardless of whether the files are currently cloud-only or local on disk.
+- **Dual Progress Indicators for Files & File Size:** Transformed the "Files" and "File Size" columns into live download progress indicators following the `( downloaded / total )` format (e.g. Files shows `0 / 13` and File Size shows `0 B / 373.45 MB` for cloud orders). During downloading, real-time chunk streaming feeds live byte and file counter progress directly into both columns (e.g. `1 / 13` files and `142.50 MB / 373.45 MB`), dynamically progressing up to `13 / 13` and `373.45 MB / 373.45 MB` upon full hydration.
+- **Fully Responsive Multi-Resolution Layout (Maximize & Resize):** Enabled responsive column stretching (`stretch=True`) across all Treeview columns with proportional auto-balancing, eliminating blank white space when the window is maximized. Compacted drawer width and right card header action buttons into a flexible container so all toolbar buttons (`Review`, `Clean Dash`, `Scan Local`, `Make Online`) and table columns (`Open`, `Make Online`, etc.) stay perfectly visible without clipping or squishing across all standard and high-DPI display resolutions.
+- **Dynamic Sync Status & Smooth Real-Time Decimal Progress (%):** Redesigned the `Sync Status` column to match the pill badge aesthetic (`● Local` in soft pastel green, `● Syncing X.X%` in soft sky blue with live per-chunk hydration progress, and `● Cloud Only` in soft neutral gray). Replaced coarse integer jumps with smooth, granular floating-point progression (`0.1%`, `0.2%`, `0.3%`... up to `99.9%` and `● Local`) synchronized in real time with the `File Size` column (e.g. `654.91 MB / 1.53 GB`). Reduced chunk size to 128 KB and optimized UI throttle to 25 FPS for fluid decimal counter animation across both single and batch hydration.
+- **Table Footer Progress Bar & Compact Action Dock:** Moved Total Orders status counter and full-width progress bar directly beneath the table inside the main dashboard card (as requested), removed the redundant Single Order bar, and activated real-time progress bar animations using native CustomTkinter `.set()` float fractions.
+- **Robust Shell Dehydration Engine:** Fixed PowerShell path resolution using `.NET System.IO.Path` APIs to handle paths containing `#` flawlessly, triggering native Windows Explorer `Make online-only` context menu verbs cleanly.
+- **High-Performance Multi-Tier Cloud Dehydration Engine:** Upgraded `free_up_space_cfapi` with a 5-tier architecture:
+  1. Windows Shell COM context menu automation (`Free up space` / `Make online-only`) executed directly on folders and files.
+  2. Windows Cloud Files API (`cldapi.dll`) with exclusive oplock retry and background eviction (`CfOpenFileWithOplock`, `CfSetPinState`, `CfDehydratePlaceholder`).
+  3. Recursive directory-level unpinning via `CreateFileW` with `FILE_FLAG_BACKUP_SEMANTICS`.
+  4. Native attribute clearing (`attrib -P +U`) with a guaranteed 4-second timeout to prevent UI hangs.
+  5. Shell change notifications (`SHChangeNotify`) to immediately switch green local checkmarks back to blue cloud placeholders in Windows Explorer.
 - **Live Update Indicators:** Automatic alert with pulsating notification bell and red dot (`🔴`) on Settings button when a new release is detected.
 - **New Brand Assets:** High-definition brand logo and multi-size Windows app icon.
 
