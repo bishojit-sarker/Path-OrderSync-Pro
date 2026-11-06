@@ -208,15 +208,22 @@ def main():
         else:
             chk_rel = run_cmd(f'gh release view {version} --repo bishojit-sarker/Path-OrderSync-Pro', check=False)
             rel_exe_name = "Path_OrderSync_Pro.exe"
+            legacy_exe_name = "QC_Batch_Loader.exe"
             rel_notes_name = "_release_notes_tmp.md"
 
+            # Create legacy copy to dual-upload for backward compatibility
+            try:
+                shutil.copyfile(BASE_DIR / rel_exe_name, BASE_DIR / legacy_exe_name)
+            except Exception:
+                pass
+
             if chk_rel.returncode == 0:
-                print(f"  Release {version} already exists. Updating release notes and executable asset...")
+                print(f"  Release {version} already exists. Updating release notes and dual executable assets...")
                 run_cmd(f'gh release edit {version} --title "Path OrderSync Pro {version}" --notes-file "{rel_notes_name}" --repo bishojit-sarker/Path-OrderSync-Pro', check=False)
-                run_cmd(f'gh release upload {version} "{rel_exe_name}" --clobber --repo bishojit-sarker/Path-OrderSync-Pro', check=False)
+                run_cmd(f'gh release upload {version} "{rel_exe_name}" "{legacy_exe_name}" --clobber --repo bishojit-sarker/Path-OrderSync-Pro', check=False)
             else:
-                print(f"  Creating new official GitHub Release {version}...")
-                rel_res = run_cmd(f'gh release create {version} "{rel_exe_name}" --title "Path OrderSync Pro {version}" --notes-file "{rel_notes_name}" --repo bishojit-sarker/Path-OrderSync-Pro', check=False)
+                print(f"  Creating new official GitHub Release {version} with dual assets...")
+                rel_res = run_cmd(f'gh release create {version} "{rel_exe_name}" "{legacy_exe_name}" --title "Path OrderSync Pro {version}" --notes-file "{rel_notes_name}" --repo bishojit-sarker/Path-OrderSync-Pro', check=False)
                 if rel_res.returncode != 0:
                     print(f"  [Notice] gh release create note:\n{rel_res.stderr}")
                     try:

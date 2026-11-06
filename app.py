@@ -4525,7 +4525,7 @@ class SettingsDialog(ctk.CTkToplevel):
         self.theme_segment.pack(fill="x")
 
         # ==============================================================
-        # CARD 3: Version & Updates (Clean status, update alerts)
+        # CARD 3: Version & Updates (Forward Update & Backward Rollback)
         # ==============================================================
         self.card_ver = ctk.CTkFrame(self.scroll_body, fg_color=t["bg_card"], corner_radius=12, border_width=1, border_color=t["border"])
         self.card_ver.pack(fill="x")
@@ -4533,8 +4533,9 @@ class SettingsDialog(ctk.CTkToplevel):
         v_inner = ctk.CTkFrame(self.card_ver, fg_color="transparent")
         v_inner.pack(fill="x", padx=16, pady=14)
 
+        # Header of Card 3
         v_top = ctk.CTkFrame(v_inner, fg_color="transparent")
-        v_top.pack(fill="x", pady=(0, 8))
+        v_top.pack(fill="x", pady=(0, 10))
 
         lbl_v = ctk.CTkLabel(v_top, text="Version & Updates", font=("Segoe UI", 12, "bold"), text_color=t["text_main"])
         lbl_v.pack(side="left")
@@ -4548,24 +4549,24 @@ class SettingsDialog(ctk.CTkToplevel):
         )
         self.ver_status_badge.pack(side="right")
 
-        # Release details textbox
-        self.txt_notes = ctk.CTkTextbox(
-            v_inner,
-            fg_color=t["bg_input"],
+        # Action Buttons Row (Check for updates, View on GitHub, Update Now)
+        action_row = ctk.CTkFrame(v_inner, fg_color="transparent")
+        action_row.pack(fill="x", pady=(0, 10))
+
+        self.btn_check_update = ctk.CTkButton(
+            action_row,
+            text="🔍 Check for Updates",
+            command=self._on_check_update_clicked,
+            fg_color="#FFFFFF" if is_light else "#253349",
+            hover_color="#F1F5F9" if is_light else "#334155",
             text_color=t["text_main"],
-            corner_radius=8,
             border_width=1,
             border_color=t["border"],
-            font=("Segoe UI", 10),
-            wrap="word",
-            height=110
+            corner_radius=8,
+            height=32,
+            font=("Segoe UI", 11)
         )
-        self.txt_notes.pack(fill="x", pady=(0, 10))
-        self._load_current_notes()
-
-        # Action Buttons Row
-        action_row = ctk.CTkFrame(v_inner, fg_color="transparent")
-        action_row.pack(fill="x")
+        self.btn_check_update.pack(side="left", padx=(0, 8))
 
         self.gh_btn = ctk.CTkButton(
             action_row,
@@ -4582,7 +4583,7 @@ class SettingsDialog(ctk.CTkToplevel):
         )
         self.gh_btn.pack(side="left")
 
-        # Check if parent has an available update detected
+        # Status / Update Available Button
         has_update = bool(getattr(self.parent, "available_update", None))
         update_info = getattr(self.parent, "available_update", {}) if has_update else {}
         update_tag = update_info.get("tag", "")
@@ -4594,7 +4595,7 @@ class SettingsDialog(ctk.CTkToplevel):
                 state="normal",
                 fg_color=t["primary"],
                 hover_color=t["primary_hover"],
-                text_color="#FFFFFF",
+                text_color="#FFFFFF" if is_light else "#0B1120",
                 corner_radius=8,
                 height=32,
                 font=("Segoe UI", 11, "bold"),
@@ -4603,7 +4604,7 @@ class SettingsDialog(ctk.CTkToplevel):
         else:
             self.btn_status = ctk.CTkButton(
                 action_row,
-                text="✔️ Up to Date (Current Active Version)",
+                text="✔️ Up to Date",
                 state="disabled",
                 fg_color=t["success"],
                 hover_color=t["success_hover"],
@@ -4613,6 +4614,159 @@ class SettingsDialog(ctk.CTkToplevel):
                 font=("Segoe UI", 11, "bold")
             )
         self.btn_status.pack(side="right")
+
+        # Release details textbox
+        self.txt_notes = ctk.CTkTextbox(
+            v_inner,
+            fg_color=t["bg_input"],
+            text_color=t["text_main"],
+            corner_radius=8,
+            border_width=1,
+            border_color=t["border"],
+            font=("Segoe UI", 10),
+            wrap="word",
+            height=90
+        )
+        self.txt_notes.pack(fill="x", pady=(0, 12))
+        self._load_current_notes()
+
+        # --- Emergency Rollback Sub-section ---
+        divider = ctk.CTkFrame(v_inner, height=1, fg_color=t["border"])
+        divider.pack(fill="x", pady=(0, 10))
+
+        lbl_rb = ctk.CTkLabel(
+            v_inner,
+            text="⏪ Rollback to Previous Version (Emergency Safety Hatch)",
+            font=("Segoe UI", 11, "bold"),
+            text_color=t["text_main"]
+        )
+        lbl_rb.pack(anchor="w", pady=(0, 6))
+        self._section_labels.append(lbl_rb)
+
+        row_rb = ctk.CTkFrame(v_inner, fg_color="transparent")
+        row_rb.pack(fill="x")
+
+        rollback_options = self._scan_rollback_versions()
+        self.rollback_var = tk.StringVar(value=rollback_options[0])
+
+        self.rollback_menu = ctk.CTkOptionMenu(
+            row_rb,
+            variable=self.rollback_var,
+            values=rollback_options,
+            fg_color="#FFFFFF" if is_light else "#253349",
+            text_color=t["text_main"],
+            button_color=t["primary"],
+            button_hover_color=t["primary_hover"],
+            corner_radius=8,
+            height=32,
+            font=("Segoe UI", 11)
+        )
+        self.rollback_menu.pack(side="left", fill="x", expand=True, padx=(0, 8))
+
+        has_valid_rollback = any("Verified Cache" in opt for opt in rollback_options)
+
+        self.btn_rollback = ctk.CTkButton(
+            row_rb,
+            text="⏪ Switch to Selected Version",
+            command=self._on_rollback_clicked,
+            state="normal" if has_valid_rollback else "disabled",
+            fg_color="#F59E0B" if is_light else "#D97706",
+            hover_color="#D97706" if is_light else "#B45309",
+            text_color="#FFFFFF",
+            corner_radius=8,
+            height=32,
+            font=("Segoe UI", 11, "bold")
+        )
+        self.btn_rollback.pack(side="left")
+
+    def _scan_rollback_versions(self):
+        v_dir = os.path.join(APP_DIR, "versions")
+        found = set()
+        if os.path.exists(v_dir):
+            for fname in os.listdir(v_dir):
+                if fname.lower().endswith(".exe"):
+                    m = re.search(r"v\d+\.\d+(?:\.\d+)?", fname, re.IGNORECASE)
+                    if m:
+                        tag = m.group(0).lower()
+                        if tag != CURRENT_VERSION.lower():
+                            found.add(tag)
+        sorted_tags = sorted(list(found), key=lambda x: [int(p) for p in re.findall(r"\d+", x)], reverse=True)
+        return [f"{tag} (Verified Cache)" for tag in sorted_tags] if sorted_tags else ["No previous versions cached"]
+
+    def _on_rollback_clicked(self):
+        choice = self.rollback_var.get()
+        m = re.search(r"v\d+\.\d+(?:\.\d+)?", choice, re.IGNORECASE)
+        if not m:
+            messagebox.showwarning("Invalid Selection", "Please select a valid cached version.", parent=self)
+            return
+        tag = m.group(0).lower()
+
+        v_dir = os.path.join(APP_DIR, "versions")
+        matched_path = None
+        if os.path.exists(v_dir):
+            for fname in os.listdir(v_dir):
+                if fname.lower().endswith(".exe") and tag in fname.lower():
+                    matched_path = os.path.join(v_dir, fname)
+                    break
+
+        if not matched_path or not os.path.exists(matched_path):
+            messagebox.showerror("Error", f"Executable for {tag} not found in versions folder.", parent=self)
+            return
+
+        confirm = messagebox.askyesno(
+            "Confirm Rollback",
+            f"Are you sure you want to rollback to {tag}?\n\n"
+            f"Path OrderSync Pro will replace the active executable and immediately restart into {tag}.",
+            parent=self
+        )
+        if not confirm:
+            return
+
+        target_exe = os.path.join(APP_DIR, "Path_OrderSync_Pro.exe")
+        legacy_exe = os.path.join(APP_DIR, "QC_Batch_Loader.exe")
+        swap_bat = os.path.join(APP_DIR, "_swap_version.bat")
+
+        try:
+            with open(swap_bat, "w", encoding="utf-8") as f:
+                f.write(f"""@echo off
+timeout /t 1 /nobreak >nul
+copy /Y "{matched_path}" "{target_exe}" >nul
+copy /Y "{matched_path}" "{legacy_exe}" >nul
+start "" "{target_exe}"
+del "%~f0"
+""")
+            subprocess.Popen(["cmd.exe", "/c", swap_bat], creationflags=0x08000000 if os.name == "nt" else 0)
+            self.parent.destroy()
+        except Exception as e:
+            messagebox.showerror("Rollback Failed", f"Failed to perform rollback:\n{e}", parent=self)
+
+    def _on_check_update_clicked(self):
+        self.btn_check_update.configure(state="disabled", text="⏳ Checking...")
+        def _done():
+            if self.winfo_exists():
+                self.btn_check_update.configure(state="normal", text="🔍 Check for Updates")
+                has_update = bool(getattr(self.parent, "available_update", None))
+                update_info = getattr(self.parent, "available_update", {}) if has_update else {}
+                update_tag = update_info.get("tag", "")
+                t = self.theme
+                is_light = (getattr(self.parent, "theme_name", "light") == "light")
+                if has_update and update_tag:
+                    self.btn_status.configure(
+                        text=f"🚀 Update Available: {update_tag}",
+                        state="normal",
+                        fg_color=t["primary"],
+                        text_color="#FFFFFF" if is_light else "#0B1120",
+                        command=self._open_update_dialog
+                    )
+                else:
+                    self.btn_status.configure(
+                        text="✔️ Up to Date",
+                        state="disabled",
+                        fg_color=t["success"],
+                        text_color="#FFFFFF"
+                    )
+        check_for_updates(self.parent, silent=False)
+        self.after(2000, _done)
 
     def _browse_path(self):
         cur = self.path_entry_var.get()
@@ -4688,6 +4842,12 @@ class SettingsDialog(ctk.CTkToplevel):
 
         if hasattr(self, "gh_btn") and self.gh_btn.winfo_exists():
             self.gh_btn.configure(fg_color=btn_bg, hover_color=btn_hover, text_color=t["text_main"], border_color=t["border"])
+
+        if hasattr(self, "btn_check_update") and self.btn_check_update.winfo_exists():
+            self.btn_check_update.configure(fg_color=btn_bg, hover_color=btn_hover, text_color=t["text_main"], border_color=t["border"])
+
+        if hasattr(self, "rollback_menu") and self.rollback_menu.winfo_exists():
+            self.rollback_menu.configure(fg_color=btn_bg, text_color=t["text_main"], button_color=t["primary"], button_hover_color=t["primary_hover"])
 
     def _load_current_notes(self):
         self.txt_notes.delete("1.0", "end")
@@ -5515,6 +5675,8 @@ class QCBatchLoaderApp(ctk.CTk):
 
         self.app_ver_lbl = ctk.CTkLabel(title_head, text=CURRENT_VERSION, font=("Segoe UI", 9, "bold"), text_color="#FFFFFF" if is_light else "#0B1120", fg_color=t["primary"], corner_radius=6, padx=6, pady=1)
         self.app_ver_lbl.pack(side="left", padx=8)
+        self.app_ver_lbl.configure(cursor="hand2")
+        self.app_ver_lbl.bind("<Button-1>", lambda e: WhatsNewDialog(self, CURRENT_VERSION))
 
         self.app_tagline_lbl = ctk.CTkLabel(text_col, text=APP_TAGLINE, font=("Segoe UI", 10), text_color=t["text_muted"])
         self.app_tagline_lbl.pack(anchor="w")
@@ -5526,32 +5688,33 @@ class QCBatchLoaderApp(ctk.CTk):
         header_actions.pack(side="right")
 
         self.settings_btn = ctk.CTkButton(
-
             header_actions,
-
             text="⚙️ Settings",
-
             command=self._open_settings,
-
             fg_color="#FFFFFF" if is_light else "#1E293B",
-
             hover_color="#F1F5F9" if is_light else "#334155",
-
             text_color=t["text_main"],
-
             border_width=1,
-
             border_color=t["border"],
-
             corner_radius=14,
-
             height=30,
-
             font=("Segoe UI", 11, "bold")
-
         )
-
         self.settings_btn.pack(side="right")
+
+        # Prominent Header Update Pill (Visible only when an update is available)
+        self.header_update_btn = ctk.CTkButton(
+            header_actions,
+            text="🚀 Update Ready",
+            command=self._open_update_from_header,
+            fg_color=t["primary"],
+            hover_color=t["primary_hover"],
+            text_color="#FFFFFF" if is_light else "#0B1120",
+            corner_radius=14,
+            height=30,
+            font=("Segoe UI", 11, "bold")
+        )
+        # Initially hidden until update is detected
 
         self.notification_btn = ctk.CTkButton(
 
@@ -6969,6 +7132,13 @@ class QCBatchLoaderApp(ctk.CTk):
         has_unread = bool(getattr(self, "unread_notifications", 0) > 0)
         has_update = bool(getattr(self, "available_update", None))
 
+        if hasattr(self, "header_update_btn") and self.header_update_btn.winfo_exists():
+            self.header_update_btn.configure(
+                fg_color=t["primary"],
+                hover_color=t["primary_hover"],
+                text_color="#FFFFFF" if is_light else "#0B1120"
+            )
+
         if hasattr(self, "settings_btn") and self.settings_btn.winfo_exists():
             s_text = "⚙️ Settings 🔴" if (has_update or has_unread) else "⚙️ Settings"
             self.settings_btn.configure(
@@ -7194,6 +7364,17 @@ class QCBatchLoaderApp(ctk.CTk):
             except Exception:
                 pass
 
+    def _open_update_from_header(self):
+        if hasattr(self, "available_update") and self.available_update:
+            u = self.available_update
+            UpdateDialog(
+                self,
+                latest_tag=u.get("tag", CURRENT_VERSION),
+                current_ver=CURRENT_VERSION,
+                release_body=u.get("body", "Bug fixes and improvements."),
+                download_url=u.get("download_url") or u.get("url") or ""
+            )
+
     def _show_update_available(self, latest_tag, release_body, download_url, silent=False):
         self.available_update = {
             "tag": latest_tag,
@@ -7202,17 +7383,45 @@ class QCBatchLoaderApp(ctk.CTk):
             "url": download_url
         }
         self.unread_notifications = 1
-        
-        # 1. Red Dot on Settings Button
-        if hasattr(self, "settings_btn"):
-            self.settings_btn.configure(text="⚙️ Settings 🔴")
-            
-        # 2. Start Blinking Notification Button
-        self._start_notification_blink()
-        
-        if not silent:
-            NotificationCenterDialog(self, available_update=self.available_update)
 
+        t = self.theme
+        is_light = (self.theme_name == "light")
+
+        # 1. Show elegant 1-Click Update Pill directly in the Header
+        if hasattr(self, "header_update_btn") and self.header_update_btn.winfo_exists():
+            self.header_update_btn.configure(
+                text=f"🚀 Update Ready: {latest_tag}",
+                fg_color=t["primary"],
+                hover_color=t["primary_hover"],
+                text_color="#FFFFFF" if is_light else "#0B1120"
+            )
+            self.header_update_btn.pack(side="right", padx=(0, 8), before=self.settings_btn)
+
+        # 2. Update Settings button badge gently without intrusive blinking
+        if hasattr(self, "header_update_btn") and self.header_update_btn.winfo_exists():
+            self.header_update_btn.configure(
+                fg_color=t["primary"],
+                hover_color=t["primary_hover"],
+                text_color="#FFFFFF" if is_light else "#0B1120"
+            )
+
+        if hasattr(self, "settings_btn") and self.settings_btn.winfo_exists():
+            self.settings_btn.configure(text="⚙️ Settings 🔴")
+
+        # 3. Synchronize open SettingsDialog if alive
+        if hasattr(self, "settings_dialog") and self.settings_dialog and self.settings_dialog.winfo_exists():
+            try:
+                self.settings_dialog.btn_status.configure(
+                    text=f"🚀 Update Available: {latest_tag}",
+                    state="normal",
+                    fg_color=t["primary"],
+                    command=self.settings_dialog._open_update_dialog
+                )
+            except Exception:
+                pass
+
+        if not silent:
+            UpdateDialog(self, latest_tag, CURRENT_VERSION, release_body, download_url)
     def _start_notification_blink(self):
         self._is_blinking = True
         self._blink_state = False
