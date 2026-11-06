@@ -1,8 +1,10 @@
-# ⚡ Smart Dropbox QC Batch Loader
+# ⚡ Path OrderSync Pro
 
-[![Release](https://img.shields.io/badge/version-1.8.0-blue.svg)](https://github.com/bishojit-sarker/Smart-Dropbox-QC-Batch-Loader/releases)
+> **Sync Smarter. Work Faster. Better Quality.**
+
+[![Release](https://img.shields.io/badge/version-1.8.0-blue.svg)](https://github.com/bishojit-sarker/Path-OrderSync-Pro/releases)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078d7.svg)](https://www.microsoft.com/windows)
-[![GitHub](https://img.shields.io/badge/GitHub-Repository-black?logo=github)](https://github.com/bishojit-sarker/Smart-Dropbox-QC-Batch-Loader)
+[![GitHub](https://img.shields.io/badge/GitHub-Repository-black?logo=github)](https://github.com/bishojit-sarker/Path-OrderSync-Pro)
 
 > **Automated Multi-Vendor Offline Sync & Cloud Storage Cleaner for E-Commerce Photo Quality Control (QC).**
 
@@ -18,7 +20,7 @@
 
 ## 📌 পরিচিতি ও উদ্দেশ্য
 
-**Smart Dropbox QC Batch Loader** হলো একটি Windows ডেস্কটপ অ্যাপ্লিকেশন যা ই-কমার্স ফটো এডিটিং স্টুডিওতে প্রতিদিনের ১০০-১৫০টি সম্পন্ন হওয়া অর্ডারের কোয়ালিটি কন্ট্রোল (QC) প্রক্রিয়াকে সম্পূর্ণ সহজ ও দ্রুততর করে। 
+**Path OrderSync Pro** হলো একটি Windows ডেস্কটপ অ্যাপ্লিকেশন যা ই-কমার্স ফটো এডিটিং স্টুডিওতে প্রতিদিনের ১০০-১৫০টি সম্পন্ন হওয়া অর্ডারের কোয়ালিটি কন্ট্রোল (QC) প্রক্রিয়াকে সম্পূর্ণ সহজ ও দ্রুততর করে। 
 
 পূর্বে ড্রপবক্স ওয়েবসাইট থেকে প্রতিটি কমপ্লিট ফোল্ডার ডাউনলোড করতে হতো, যার ফলে প্রতিটি অর্ডার `.zip` ফাইল হয়ে যেত এবং বারবার আনজিপ করে ফটোশপে খুলতে প্রচুর সময় নষ্ট হতো। পাশাপাশি শত শত ভারী ইমেজ পিসিতে জমা হয়ে হার্ডডিস্কের জায়গা শেষ হয়ে যেত।
 
@@ -180,8 +182,8 @@
 ### ডেভেলপারদের জন্য (Python 3.10+):
 ```bash
 # গিট ক্লোন করুন
-git clone https://github.com/bishojit-sarker/Smart-Dropbox-QC-Batch-Loader.git
-cd Smart-Dropbox-QC-Batch-Loader
+git clone https://github.com/bishojit-sarker/Path-OrderSync-Pro.git
+cd Path-OrderSync-Pro
 
 # সরাসরি রান করুন
 python app.py
@@ -192,9 +194,9 @@ python app.py
 ## 📁 ফোল্ডার স্ট্রাকচার
 
 ```
-Smart-Dropbox-QC-Batch-Loader/
+Path-OrderSync-Pro/
 ├── app.py                   ← মূল অ্যাপ্লিকেশন ও GUI (সব কোড এখানে)
-├── QC_Batch_Loader.exe      ← ডাবল-ক্লিকযোগ্য স্ট্যান্ডঅ্যালোন এক্সিকিউটেবল (.exe)
+├── Path_OrderSync_Pro.exe      ← ডাবল-ক্লিকযোগ্য স্ট্যান্ডঅ্যালোন এক্সিকিউটেবল (.exe)
 ├── Install_Shortcut.bat     ← ১-ক্লিকে ডেস্কটপ শর্টকাট তৈরির স্ক্রিপ্ট
 ├── publish_update.bat       ← ১-ক্লিকে গিটহাবে অটো-বিল্ড ও রিলিজ পুশ স্ক্রিপ্ট
 ├── config.json              ← অটো-ডিটেক্টেড ড্রপবক্স পাথ সংরক্ষিত ফাইল
@@ -282,7 +284,7 @@ AI-কে নিচের তথ্যগুলো দিলে সে নিখ
 | **ফোল্ডার ওপেন হচ্ছে না** | ড্রপবক্স রুট পাথ ভুল সিলেক্ট করা আছে। | উপরে `Browse...` বাটনে চাপ দিয়ে সঠিক ড্রপবক্স ফোল্ডারটি দেখিয়ে দিন। |
 | **ডাবল ক্লিকে ফোল্ডার খুলছে না** | ফোল্ডারটি এখনও কম্পিউটারের ড্রাইভে তৈরি হয়নি। | আগে `Make Local` বাটনে চাপ দিয়ে ফাইলগুলো প্রস্তুত করে নিন। |
 | **ডাউনলোড অনেক স্লো** | ড্রপবক্স ডেস্কটপ অ্যাপ ব্যাকগ্রাউন্ডে পজ করা আছে। | টাস্কবার থেকে ড্রপবক্স আইকন দেখে নিশ্চিত করুন ড্রপবক্স সিঙ্ক চালু আছে। |
-| **অটো-আপডেট কাজ করছে না** | ইন্টারনেট সংযোগ নেই বা গিটহাব এপিআই ব্লকেড। | ম্যানুয়ালি গিটহাব রিলিজ পেজ থেকে নতুন `QC_Batch_Loader.exe` ডাউনলোড করে নিন। |
+| **অটো-আপডেট কাজ করছে না** | ইন্টারনেট সংযোগ নেই বা গিটহাব এপিআই ব্লকেড। | ম্যানুয়ালি গিটহাব রিলিজ পেজ থেকে নতুন `Path_OrderSync_Pro.exe` ডাউনলোড করে নিন। |
 
 ---
 
@@ -294,7 +296,7 @@ AI-কে নিচের তথ্যগুলো দিলে সে নিখ
 
 ## 📌 Overview & Purpose
 
-**Smart Dropbox QC Batch Loader** is a specialized Windows desktop utility designed for e-commerce photo retouching and editing production houses handling 100-150 completed orders daily.
+**Path OrderSync Pro** is a specialized Windows desktop utility designed for e-commerce photo retouching and editing production houses handling 100-150 completed orders daily.
 
 Previously, quality control (QC) operators had to navigate to the Dropbox web interface for every single order and download folders manually. This process caused immense operational friction:
 - Web downloads generate `.zip` archives that require repetitive manual extraction.
@@ -460,8 +462,8 @@ This application eliminates web downloads and manual unzipping entirely. Utilizi
 
 ### For Developers (Python 3.10+):
 ```bash
-git clone https://github.com/bishojit-sarker/Smart-Dropbox-QC-Batch-Loader.git
-cd Smart-Dropbox-QC-Batch-Loader
+git clone https://github.com/bishojit-sarker/Path-OrderSync-Pro.git
+cd Path-OrderSync-Pro
 python app.py
 ```
 
@@ -470,9 +472,9 @@ python app.py
 ## 📁 Folder Structure
 
 ```
-Smart-Dropbox-QC-Batch-Loader/
+Path-OrderSync-Pro/
 ├── app.py                   ← Main application & GUI source code
-├── QC_Batch_Loader.exe      ← Standalone double-clickable Windows executable
+├── Path_OrderSync_Pro.exe      ← Standalone double-clickable Windows executable
 ├── Install_Shortcut.bat     ← 1-Click desktop shortcut installer
 ├── publish_update.bat       ← 1-Click auto-build and GitHub push script
 ├── config.json              ← Stores auto-detected Dropbox configuration
@@ -526,7 +528,7 @@ Example 3: "Play an alert sound when a batch finishes processing."
 - Periodically check `self.pause_event.wait()` and `self.stop_requested` to ensure responsive UI controls.
 
 ### 5. Auto-Updater Engine
-- Windows prevents deleting or overwriting running executables. The updater renames `QC_Batch_Loader.exe` to `QC_Batch_Loader.exe.old`, downloads the new binary, spawns it, and cleans up `.old` upon launch.
+- Windows prevents deleting or overwriting running executables. The updater renames `Path_OrderSync_Pro.exe` to `Path_OrderSync_Pro.exe.old`, downloads the new binary, spawns it, and cleans up `.old` upon launch.
 
 ---
 
@@ -537,7 +539,7 @@ Example 3: "Play an alert sound when a batch finishes processing."
 | **❌ Not Found** | Vendor has not uploaded files yet or folder name differs. | Check the vendor folder in Dropbox manually. |
 | **Folder Doesn't Open** | Dropbox root path is incorrect. | Click `Browse...` and select the correct Dropbox root directory. |
 | **Slow Sync** | Dropbox client is paused. | Check the Windows taskbar and ensure Dropbox sync is active. |
-| **Auto-Update Fails** | Network restriction or GitHub blocked. | Download the latest `QC_Batch_Loader.exe` directly from GitHub Releases. |
+| **Auto-Update Fails** | Network restriction or GitHub blocked. | Download the latest `Path_OrderSync_Pro.exe` directly from GitHub Releases. |
 
 ---
 

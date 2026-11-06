@@ -3,7 +3,7 @@ setlocal
 cd /d "%~dp0"
 
 echo ========================================================
-echo   🚀 QC Batch Loader - 1-Click GitHub Release Publisher
+echo   🚀 Path OrderSync Pro - 1-Click GitHub Release Publisher
 echo ========================================================
 echo.
 

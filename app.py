@@ -128,13 +128,13 @@ CONFIG_FILE = os.path.join(APP_DIR, "config.json")
 
 HISTORY_FILE = os.path.join(APP_DIR, "history.json")
 
-APP_NAME = "Path OrderSync Studio"
+APP_NAME = "Path OrderSync Pro"
 
-APP_TAGLINE = "Smart Batch Order Sync & Space Optimizer"
+APP_TAGLINE = "Sync Smarter. Work Faster. Better Quality."
 
 CURRENT_VERSION = "v1.8.0"
 
-GITHUB_REPO = "bishojit-sarker/Smart-Dropbox-QC-Batch-Loader"
+GITHUB_REPO = "bishojit-sarker/Path-OrderSync-Pro"
 
 ASSETS_DIR = get_assets_dir()
 
@@ -694,7 +694,7 @@ class UpdateDialog(tk.Toplevel):
 
         if not download_url:
 
-            download_url = f"https://github.com/{GITHUB_REPO}/releases/download/{latest_tag}/QC_Batch_Loader.exe"
+            download_url = f"https://github.com/{GITHUB_REPO}/releases/download/{latest_tag}/Path_OrderSync_Pro.exe"
 
         self.download_url = download_url
 
@@ -898,11 +898,11 @@ class UpdateDialog(tk.Toplevel):
 
         if not self.download_url:
 
-            self.download_url = f"https://github.com/{GITHUB_REPO}/releases/download/{self.latest_tag}/QC_Batch_Loader.exe"
+            self.download_url = f"https://github.com/{GITHUB_REPO}/releases/download/{self.latest_tag}/Path_OrderSync_Pro.exe"
 
         cur_exe = sys.executable
 
-        if not cur_exe.lower().endswith("qc_batch_loader.exe"):
+        if not (cur_exe.lower().endswith("path_ordersync_pro.exe") or cur_exe.lower().endswith("qc_batch_loader.exe")):
 
             webbrowser.open(self.download_url)
 
@@ -1080,7 +1080,7 @@ class WhatsNewDialog(tk.Toplevel):
 
         tk.Label(title_box, text="✨", font=("Segoe UI", 22), bg="#252538", fg="#facc15").pack(side="left", padx=(0, 10))
 
-        t_lbl = tk.Label(title_box, text=f"Welcome to Smart Dropbox QC Batch Loader {self.version}!", font=("Segoe UI", 11, "bold"), bg="#252538", fg="#f8fafc")
+        t_lbl = tk.Label(title_box, text=f"Welcome to Path OrderSync Pro {self.version}!", font=("Segoe UI", 11, "bold"), bg="#252538", fg="#f8fafc")
 
         t_lbl.pack(anchor="w")
 
@@ -1202,7 +1202,7 @@ def check_for_updates(parent=None, silent=True):
 
                 for asset in data.get("assets", []):
 
-                    if asset.get("name") == "QC_Batch_Loader.exe":
+                    if asset.get("name") in ["Path_OrderSync_Pro.exe", "QC_Batch_Loader.exe"]:
 
                         download_url = asset.get("browser_download_url")
 
@@ -1247,9 +1247,9 @@ def check_for_updates(parent=None, silent=True):
 
                                     latest_ver = parse_version_tuple(remote_v)
 
-                                    download_url = f"https://github.com/{GITHUB_REPO}/raw/main/QC_Batch_Loader.exe"
+                                    download_url = f"https://github.com/{GITHUB_REPO}/raw/main/Path_OrderSync_Pro.exe"
 
-                                    release_body = f"🚀 Path OrderSync Studio {latest_tag}\n\nDownloaded directly from the official GitHub repository main branch."
+                                    release_body = f"🚀 Path OrderSync Pro {latest_tag}\n\nDownloaded directly from the official GitHub repository main branch."
 
                                     break
 
@@ -2046,7 +2046,7 @@ class NotificationCenterDialog(tk.Toplevel):
 
             "Confirm Update",
 
-            f"Do you want to update Path OrderSync Studio to {tag} now?\n\n"
+            f"Do you want to update Path OrderSync Pro to {tag} now?\n\n"
 
             f"The application will download the update and automatically restart.",
 
@@ -2058,7 +2058,7 @@ class NotificationCenterDialog(tk.Toplevel):
 
             self.destroy()
 
-            d_url = self.available_update.get("download_url") or self.available_update.get("url") or f"https://github.com/{GITHUB_REPO}/releases/download/{tag}/QC_Batch_Loader.exe"
+            d_url = self.available_update.get("download_url") or self.available_update.get("url") or f"https://github.com/{GITHUB_REPO}/releases/download/{tag}/Path_OrderSync_Pro.exe"
 
             UpdateDialog(
 
@@ -4376,7 +4376,7 @@ def fetch_all_releases():
 
         if not download_url:
 
-            download_url = f"https://github.com/{GITHUB_REPO}/releases/download/{tag}/QC_Batch_Loader.exe"
+            download_url = f"https://github.com/{GITHUB_REPO}/releases/download/{tag}/Path_OrderSync_Pro.exe"
 
         releases.append({
 

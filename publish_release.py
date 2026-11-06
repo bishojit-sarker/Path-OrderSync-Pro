@@ -14,8 +14,8 @@ if hasattr(sys.stdout, "reconfigure"):
 BASE_DIR = Path(__file__).parent.resolve()
 APP_PY = BASE_DIR / "app.py"
 CHANGELOG_MD = BASE_DIR / "CHANGELOG.md"
-EXE_FILE = BASE_DIR / "QC_Batch_Loader.exe"
-DIST_EXE = BASE_DIR / "dist" / "QC_Batch_Loader.exe"
+EXE_FILE = BASE_DIR / "Path_OrderSync_Pro.exe"
+DIST_EXE = BASE_DIR / "dist" / "Path_OrderSync_Pro.exe"
 
 def run_cmd(cmd, cwd=BASE_DIR, check=True):
     print(f"  > {cmd}")
@@ -26,14 +26,14 @@ def run_cmd(cmd, cwd=BASE_DIR, check=True):
     return res
 
 def kill_running_app():
-    """Stops any running QC_Batch_Loader instance so Windows does not lock the file."""
+    """Stops any running Path_OrderSync_Pro instance so Windows does not lock the file."""
     try:
-        subprocess.run("taskkill /F /IM QC_Batch_Loader.exe /T", shell=True, capture_output=True)
+        subprocess.run("taskkill /F /IM Path_OrderSync_Pro.exe /T", shell=True, capture_output=True)
     except Exception:
         pass
     try:
         subprocess.run(
-            ["powershell", "-NoProfile", "-Command", "Get-Process QC_Batch_Loader* -ErrorAction SilentlyContinue | Stop-Process -Force"],
+            ["powershell", "-NoProfile", "-Command", "Get-Process Path_OrderSync_Pro* -ErrorAction SilentlyContinue | Stop-Process -Force"],
             shell=True,
             capture_output=True
         )
@@ -62,7 +62,7 @@ def extract_release_notes(version):
 
 def main():
     print("=" * 60)
-    print("  🚀 Path OrderSync Studio - 1-Click GitHub Release Publisher")
+    print("  🚀 Path OrderSync Pro - 1-Click GitHub Release Publisher")
     print("=" * 60)
 
     # 1. Detect Version
@@ -74,22 +74,22 @@ def main():
     print(f"[2/6] Extracted Release Notes ({len(notes)} chars)")
 
     # 3. Compile Executable with PyInstaller
-    print("\n[3/6] Compiling standalone QC_Batch_Loader.exe with PyInstaller...")
+    print("\n[3/6] Compiling standalone Path_OrderSync_Pro.exe with PyInstaller...")
     kill_running_app()
 
     pyinstaller_exe = BASE_DIR / ".venv" / "Scripts" / "pyinstaller.exe"
     if not pyinstaller_exe.exists():
         pyinstaller_exe = "pyinstaller"
     
-    spec_file = BASE_DIR / "QC_Batch_Loader.spec"
+    spec_file = BASE_DIR / "Path_OrderSync_Pro.spec"
     if spec_file.exists():
-        cmd = f'"{pyinstaller_exe}" QC_Batch_Loader.spec --noconfirm'
+        cmd = f'"{pyinstaller_exe}" Path_OrderSync_Pro.spec --noconfirm'
     else:
-        cmd = f'"{pyinstaller_exe}" --onefile --windowed --name "QC_Batch_Loader" app.py --noconfirm'
+        cmd = f'"{pyinstaller_exe}" --onefile --windowed --name "Path_OrderSync_Pro" app.py --noconfirm'
     run_cmd(cmd)
 
-    # 4. Update root QC_Batch_Loader.exe
-    print("\n[4/6] Updating root QC_Batch_Loader.exe...")
+    # 4. Update root Path_OrderSync_Pro.exe
+    print("\n[4/6] Updating root Path_OrderSync_Pro.exe...")
     if not DIST_EXE.exists():
         print(f"[ERROR] Compiled binary not found at {DIST_EXE}")
         sys.exit(1)
@@ -101,7 +101,7 @@ def main():
             if EXE_FILE.exists():
                 try:
                     # Windows NTFS allows renaming locked running executables
-                    old_backup = BASE_DIR / f"QC_Batch_Loader.exe.{int(time.time())}.old"
+                    old_backup = BASE_DIR / f"Path_OrderSync_Pro.exe.{int(time.time())}.old"
                     EXE_FILE.rename(old_backup)
                     try:
                         old_backup.unlink(missing_ok=True)
@@ -122,7 +122,7 @@ def main():
     print(f"  ✓ Updated {EXE_FILE.name} ({EXE_FILE.stat().st_size / (1024*1024):.2f} MB)")
 
     # 5. Git Commit & Push
-    repo_url = "https://github.com/bishojit-sarker/Smart-Dropbox-QC-Batch-Loader.git"
+    repo_url = "https://github.com/bishojit-sarker/Path-OrderSync-Pro.git"
     git_dir = BASE_DIR / ".git"
 
     if not git_dir.exists():
@@ -151,7 +151,7 @@ def main():
     run_cmd("git add -A")
     status_res = run_cmd("git status --porcelain", check=False)
     if status_res.stdout.strip():
-        commit_msg = f"release: {version} - Path OrderSync Studio release and binary build"
+        commit_msg = f"release: {version} - Path OrderSync Pro release and binary build"
         run_cmd(f'git commit -m "{commit_msg}"', check=False)
     else:
         print("  ✓ Working tree clean, no new changes to commit.")
@@ -169,20 +169,20 @@ def main():
                 print(f"  [Notice] Git push message:\n{push_res.stderr}")
 
     print(f"\n[*] Creating and pushing Git tag {version}...")
-    run_cmd(f'git tag -fa {version} -m "release: {version} - Path OrderSync Studio {version}"', check=False)
+    run_cmd(f'git tag -fa {version} -m "release: {version} - Path OrderSync Pro {version}"', check=False)
     run_cmd(f"git push origin {version} --force", check=False)
 
     # 6. Publish Official GitHub Release via `gh` CLI or Web Browser
     print(f"\n[6/6] Publishing official GitHub Release {version}...")
     temp_notes_file = BASE_DIR / "_release_notes_tmp.md"
     with open(temp_notes_file, "w", encoding="utf-8") as f:
-        f.write(f"# 🚀 Path OrderSync Studio {version}\n\n")
+        f.write(f"# 🚀 Path OrderSync Pro {version}\n\n")
         f.write(notes + "\n\n")
         f.write("---\n")
         f.write("### 📥 Download & Usage:\n")
-        f.write("Download `QC_Batch_Loader.exe` below. Run directly on Windows 10/11. No installation required.\n")
+        f.write("Download `Path_OrderSync_Pro.exe` below. Run directly on Windows 10/11. No installation required.\n")
 
-    rel_url = f"https://github.com/bishojit-sarker/Smart-Dropbox-QC-Batch-Loader/releases/new?tag={version}&title=Path+OrderSync+Studio+{version}"
+    rel_url = f"https://github.com/bishojit-sarker/Path-OrderSync-Pro/releases/new?tag={version}&title=Path+OrderSync+Studio+{version}"
     gh_check = run_cmd("gh --version", check=False)
     if gh_check.returncode != 0:
         print("  [Notice] GitHub CLI ('gh') is not installed or not in PATH.")
@@ -193,7 +193,7 @@ def main():
         except Exception:
             pass
         print(f"  Release Web URL: {rel_url}")
-        print("  Tip: On the webpage, attach 'QC_Batch_Loader.exe' and click 'Publish release'!")
+        print("  Tip: On the webpage, attach 'Path_OrderSync_Pro.exe' and click 'Publish release'!")
     else:
         auth_check = run_cmd("gh auth status", check=False)
         if auth_check.returncode != 0:
@@ -204,19 +204,19 @@ def main():
             except Exception:
                 pass
             print(f"  Release Web URL: {rel_url}")
-            print("  Tip: On the webpage, attach 'QC_Batch_Loader.exe' and click 'Publish release'!")
+            print("  Tip: On the webpage, attach 'Path_OrderSync_Pro.exe' and click 'Publish release'!")
         else:
-            chk_rel = run_cmd(f'gh release view {version} --repo bishojit-sarker/Smart-Dropbox-QC-Batch-Loader', check=False)
-            rel_exe_name = "QC_Batch_Loader.exe"
+            chk_rel = run_cmd(f'gh release view {version} --repo bishojit-sarker/Path-OrderSync-Pro', check=False)
+            rel_exe_name = "Path_OrderSync_Pro.exe"
             rel_notes_name = "_release_notes_tmp.md"
 
             if chk_rel.returncode == 0:
                 print(f"  Release {version} already exists. Updating release notes and executable asset...")
-                run_cmd(f'gh release edit {version} --title "Path OrderSync Studio {version}" --notes-file "{rel_notes_name}" --repo bishojit-sarker/Smart-Dropbox-QC-Batch-Loader', check=False)
-                run_cmd(f'gh release upload {version} "{rel_exe_name}" --clobber --repo bishojit-sarker/Smart-Dropbox-QC-Batch-Loader', check=False)
+                run_cmd(f'gh release edit {version} --title "Path OrderSync Pro {version}" --notes-file "{rel_notes_name}" --repo bishojit-sarker/Path-OrderSync-Pro', check=False)
+                run_cmd(f'gh release upload {version} "{rel_exe_name}" --clobber --repo bishojit-sarker/Path-OrderSync-Pro', check=False)
             else:
                 print(f"  Creating new official GitHub Release {version}...")
-                rel_res = run_cmd(f'gh release create {version} "{rel_exe_name}" --title "Path OrderSync Studio {version}" --notes-file "{rel_notes_name}" --repo bishojit-sarker/Smart-Dropbox-QC-Batch-Loader', check=False)
+                rel_res = run_cmd(f'gh release create {version} "{rel_exe_name}" --title "Path OrderSync Pro {version}" --notes-file "{rel_notes_name}" --repo bishojit-sarker/Path-OrderSync-Pro', check=False)
                 if rel_res.returncode != 0:
                     print(f"  [Notice] gh release create note:\n{rel_res.stderr}")
                     try:
@@ -232,7 +232,7 @@ def main():
 
     print("\n" + "=" * 60)
     print(f"  🎉 SUCCESS! {version} build and release process completed!")
-    print(f"  URL: https://github.com/bishojit-sarker/Smart-Dropbox-QC-Batch-Loader/releases/tag/{version}")
+    print(f"  URL: https://github.com/bishojit-sarker/Path-OrderSync-Pro/releases/tag/{version}")
     print("  Users running the app will now immediately receive real-time update notifications!")
     print("=" * 60)
 

@@ -3,7 +3,7 @@ setlocal
 cd /d "%~dp0"
 
 echo ========================================================
-echo   🔨 Building Path OrderSync Studio (QC_Batch_Loader.exe)
+echo   🔨 Building Path OrderSync Pro (Path_OrderSync_Pro.exe)
 echo ========================================================
 echo.
 

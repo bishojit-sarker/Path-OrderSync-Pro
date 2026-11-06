@@ -1,6 +1,6 @@
 # 📝 Changelog & Version History
 
-All notable changes, bug fixes, and feature additions to **Smart Dropbox QC Batch Loader** are documented here.
+All notable changes, bug fixes, and feature additions to **Path OrderSync Pro** are documented here.
 
 ## [v1.8.0] - 2026-11-06
 
@@ -55,9 +55,9 @@ All notable changes, bug fixes, and feature additions to **Smart Dropbox QC Batc
 - **New Brand Assets:** High-definition brand logo and multi-size Windows app icon.
 
 ## [v1.6.0] - 2026-11-04
-### 🚀 Path OrderSync Studio Overhaul, Smart File Review, Local Clean & Dynamic UI:
+### 🚀 Path OrderSync Pro Overhaul, Smart File Review, Local Clean & Dynamic UI:
 - **🎨 Brand Identity & Modern Header:**
-  - Renamed application to **Path OrderSync Studio** with official tagline *"Smart Batch Order Sync & Space Optimizer"*.
+  - Renamed application to **Path OrderSync Pro** with official tagline *"Smart Batch Order Sync & Space Optimizer"*.
   - Embedded infinity Dropbox brand logo into the app header and multi-resolution Windows executable icon.
   - Unified Dropbox Root path selector and hard drive space metrics into a single compact header row with a live `[ 🔄 Refresh ]` button.
 - **🔔 Notification & Update Center:**
