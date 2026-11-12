@@ -5,6 +5,7 @@ import json
 import time
 import shutil
 import subprocess
+import webbrowser
 from pathlib import Path
 
 # Ensure UTF-8 output
@@ -85,7 +86,7 @@ def main():
     if spec_file.exists():
         cmd = f'"{pyinstaller_exe}" Path_OrderSync_Pro.spec --noconfirm'
     else:
-        cmd = f'"{pyinstaller_exe}" --onefile --windowed --name "Path_OrderSync_Pro" app.py --noconfirm'
+        cmd = f'"{pyinstaller_exe}" --onefile --windowed --name "Path_OrderSync_Pro" --icon "assets/app_icon.ico" --add-data "assets;assets" app.py --noconfirm'
     run_cmd(cmd)
 
     # 4. Update root Path_OrderSync_Pro.exe
@@ -182,7 +183,7 @@ def main():
         f.write("### 📥 Download & Usage:\n")
         f.write("Download `Path_OrderSync_Pro.exe` below. Run directly on Windows 10/11. No installation required.\n")
 
-    rel_url = f"https://github.com/bishojit-sarker/Path-OrderSync-Pro/releases/new?tag={version}&title=Path+OrderSync+Studio+{version}"
+    rel_url = f"https://github.com/bishojit-sarker/Path-OrderSync-Pro/releases/new?tag={version}&title=Path+OrderSync+Pro+{version}"
     gh_check = run_cmd("gh --version", check=False)
     if gh_check.returncode != 0:
         print("  [Notice] GitHub CLI ('gh') is not installed or not in PATH.")

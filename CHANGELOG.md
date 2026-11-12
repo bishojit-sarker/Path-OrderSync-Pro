@@ -2,6 +2,41 @@
 
 All notable changes, bug fixes, and feature additions to **Path OrderSync Pro** are documented here.
 
+## [v1.9.0] - 2026-11-12
+
+### 🚀 Real-Time Speed & ETA, Drag Selection, Dedicated Checkboxes & Complete UI Modernization:
+- **Live Download Speed & Estimated Time Remaining (ETA):**
+  - Integrated real-time transfer throughput monitor calculating speed dynamically (`KB/s` or `MB/s`) and estimated completion countdown (`ETA: Xs` or `Xm Ys`).
+  - Positioned beside the total orders counter and full-width progress bar in the bottom footer.
+- **Dedicated Independent Centered Checkbox Column (`#0`):**
+  - Decoupled selection checkboxes into a dedicated `#0` column with centered anti-aliased 18x18 rounded icons on a 38px width.
+  - Master select-all checkbox centered in the `#0` header.
+  - Decoupling allows users to freely drag-select and highlight Order IDs without accidentally triggering checkbox toggles.
+- **Natural Text Highlighting & Clipboard Copying for Order IDs:**
+  - Mouse left-button drag selection enabled on Order IDs for natural text highlighting.
+  - Full keyboard `Ctrl+C` copy support directly from the dashboard table.
+- **Smart Order Input Panel & Dynamic Paste / Reset Button:**
+  - Blue text "Paste" button when input field is empty; dynamically switches to red text "Reset" when IDs are present.
+  - `Ctrl+F` global shortcut added to instantly focus and activate the search box.
+  - "Clean Duplicate" button remains disabled until data is pasted, automatically activating upon entry.
+- **Refined Column Nomenclature & Structure:**
+  - Reordered columns: `Status` positioned logically before `Files`.
+  - Clean nomenclature: Renamed `Sync Status` -> `Status`, `Make Online` -> `Make Cloud`, and row actions to concise `Local` and `Cloud`.
+  - Dynamic table header metrics: displays real-time total order counts, files, sizes, and local/cloud distribution in headers (e.g. `Files (140)`, `File Size (34.10 GB)`, `Make Local (5)`, `Make Cloud (6)`).
+- **Proportional Button Distribution & Visual Balance:**
+  - `Clean Duplicate` and `+ Add to sync list` buttons positioned side-by-side with 50/50 equal width distribution.
+  - Eliminated emoji variation selectors (`\ufe0f`) across all action buttons, achieving uniform, tight icon-to-text gap spacing matching `Pause` and `Stop`.
+  - Harmonized button sizing across `Pause`, `Stop`, and `Remove`.
+  - Moved `Open Dropbox` pill button to top bar next to `Local QC Orders` badge.
+- **Polished Typography & High-Contrast Readability:**
+  - Bold styled text for all control buttons, headings, drive metrics, and toolbar actions.
+  - Regular crisp font preserved for table data rows for fatigue-free scanning.
+- **Auto-Fit Responsive Multi-Resolution Layout & Symmetric Padding:**
+  - Auto-fit responsive window sizing (`1240x720`, minsize `1160x580`) preventing column squishing or horizontal scrollbar clipping on any display.
+  - Added symmetric 16px bottom padding matching the side containers for a balanced visual frame.
+
+---
+
 ## [v1.8.0] - 2026-11-06
 
 ### 🚀 Real-Time Dual Progress Engine, Responsive Multi-Resolution Layout & Advanced Cloud Hydration:

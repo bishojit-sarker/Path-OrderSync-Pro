@@ -89,9 +89,9 @@ import urllib.request
 import webbrowser
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
-
+from collections import deque
 import tkinter as tk
-
+import tkinter.font as tkFont
 from tkinter import ttk, messagebox, filedialog
 
 from datetime import datetime
@@ -132,7 +132,7 @@ APP_NAME = "Path OrderSync Pro"
 
 APP_TAGLINE = "Sync Smarter. Work Faster. Better Quality."
 
-CURRENT_VERSION = "v1.8.0"
+CURRENT_VERSION = "v1.9.0"
 
 GITHUB_REPO = "bishojit-sarker/Path-OrderSync-Pro"
 
@@ -367,6 +367,53 @@ def format_bytes(num_bytes):
         return f"{int(size)} B"
 
     return f"{size:.2f} {units[unit_idx]}"
+
+def parse_bytes_str(s):
+    """Parses a formatted size string like '634.04 MB' or '1.22 GB' back into byte integer."""
+    if not s or not isinstance(s, str):
+        return 0
+    s = s.strip()
+    match = re.match(r"^([\d.]+)\s*([KMGTP]?B?)$", s, re.IGNORECASE)
+    if not match:
+        return 0
+    val, unit = match.groups()
+    try:
+        val = float(val)
+    except ValueError:
+        return 0
+    unit = unit.upper()
+    factors = {"B": 1, "KB": 1024, "MB": 1024**2, "GB": 1024**3, "TB": 1024**4, "PB": 1024**5}
+    if unit not in factors and unit:
+        unit = unit + "B" if not unit.endswith("B") else unit
+    return int(val * factors.get(unit, 1))
+
+def format_eta(seconds):
+    """Formats estimated seconds remaining into a human-readable string (e.g. 45s, 1m 24s, 2h 15m)."""
+    if seconds is None or seconds <= 0:
+        return "0s"
+    s = int(seconds)
+    if s < 60:
+        return f"{s}s"
+    m = s // 60
+    rem_s = s % 60
+    if m < 60:
+        return f"{m}m {rem_s}s" if rem_s > 0 else f"{m}m"
+    h = m // 60
+    rem_m = m % 60
+    return f"{h}h {rem_m}m"
+
+def format_speed(bps):
+    """Formats bytes per second into human-readable speed (e.g. 850 KB/s, 12.4 MB/s)."""
+    if bps is None or bps <= 0:
+        return "0 KB/s"
+    if bps >= 1024 * 1024 * 1024:
+        return f"{bps / (1024 * 1024 * 1024):.2f} GB/s"
+    elif bps >= 1024 * 1024:
+        return f"{bps / (1024 * 1024):.1f} MB/s"
+    elif bps >= 1024:
+        return f"{bps / 1024:.1f} KB/s"
+    else:
+        return f"{bps:.0f} B/s"
 
 def get_drive_space_info(path):
 
@@ -1046,7 +1093,7 @@ class WhatsNewDialog(tk.Toplevel):
 
         self.title(f"✨ What's New in {version}")
 
-        self.geometry("680x540")
+        self.geometry("700x560")
 
         self.minsize(580, 440)
 
@@ -1056,9 +1103,9 @@ class WhatsNewDialog(tk.Toplevel):
 
         try:
 
-            x = parent.winfo_x() + (parent.winfo_width() // 2) - 340
+            x = parent.winfo_x() + (parent.winfo_width() // 2) - 350
 
-            y = parent.winfo_y() + (parent.winfo_height() // 2) - 270
+            y = parent.winfo_y() + (parent.winfo_height() // 2) - 280
 
             self.geometry(f"+{max(x, 50)}+{max(y, 50)}")
 
@@ -1070,9 +1117,10 @@ class WhatsNewDialog(tk.Toplevel):
 
     def _create_widgets(self):
 
+        # 1. Top Header Banner
         header = tk.Frame(self, bg="#252538", bd=1, relief="solid")
 
-        header.pack(fill="x", padx=16, pady=(16, 10))
+        header.pack(side="top", fill="x", padx=16, pady=(14, 10))
 
         title_box = tk.Frame(header, bg="#252538")
 
@@ -1088,9 +1136,45 @@ class WhatsNewDialog(tk.Toplevel):
 
         sub_lbl.pack(anchor="w", pady=(2, 0))
 
+        # 2. Bottom Action Buttons Bar (Packed at bottom first so it is NEVER pushed off-screen!)
+        btn_box = tk.Frame(self, bg="#1e1e2e")
+
+        btn_box.pack(side="bottom", fill="x", padx=16, pady=(10, 16))
+
+        ok_btn = tk.Button(
+
+            btn_box,
+
+            text="👍 Got It! (Start QC)",
+
+            command=self.destroy,
+
+            bg="#3b82f6",
+
+            fg="white",
+
+            activebackground="#2563eb",
+
+            activeforeground="white",
+
+            relief="flat",
+
+            font=("Segoe UI", 9, "bold"),
+
+            cursor="hand2",
+
+            padx=18,
+
+            pady=7
+
+        )
+
+        ok_btn.pack(side="right")
+
+        # 3. Release Notes Text Card (Expands in middle)
         card = tk.Frame(self, bg="#252538", bd=1, relief="solid")
 
-        card.pack(fill="both", expand=True, padx=16, pady=4)
+        card.pack(side="top", fill="both", expand=True, padx=16, pady=4)
 
         txt_frame = tk.Frame(card, bg="#181825")
 
@@ -1129,40 +1213,6 @@ class WhatsNewDialog(tk.Toplevel):
         txt.insert("1.0", self.notes_text)
 
         txt.config(state="disabled")
-
-        btn_box = tk.Frame(self, bg="#1e1e2e")
-
-        btn_box.pack(fill="x", padx=16, pady=(10, 16))
-
-        ok_btn = tk.Button(
-
-            btn_box,
-
-            text="👍 Got It! (Start QC)",
-
-            command=self.destroy,
-
-            bg="#3b82f6",
-
-            fg="white",
-
-            activebackground="#2563eb",
-
-            activeforeground="white",
-
-            relief="flat",
-
-            font=("Segoe UI", 9, "bold"),
-
-            cursor="hand2",
-
-            padx=16,
-
-            pady=6
-
-        )
-
-        ok_btn.pack(side="right")
 
 def check_for_updates(parent=None, silent=True):
 
@@ -1414,6 +1464,18 @@ def normalize_order_id(s):
     c = re.split(r"[-_]", c)[0].strip()
 
     return c.lower()
+
+def format_order_id_display(s):
+
+    """Formats an Order ID cleanly with a single leading # and space for Treeview display."""
+
+    if not s:
+
+        return ""
+
+    clean = str(s).strip().lstrip("#").strip()
+
+    return f" #{clean}"
 
 def build_vendor_index(base_path, selected_vendors=None):
 
@@ -2426,7 +2488,7 @@ class LocalCleanDialog(tk.Toplevel):
 
             btn_bar,
 
-            text="☁️ Make Online (Free Space)",
+            text="☁ Make Online (Free Space)",
 
             command=self._make_selected_online,
 
@@ -2536,7 +2598,7 @@ class LocalCleanDialog(tk.Toplevel):
 
         self.btn_free.config(
 
-            text=f"☁️ Free Up {format_bytes(selected_bytes)} ({sel_count} Orders)" if sel_count > 0 else "☁️ Make Online (Free Space)"
+            text=f"☁ Free Up {format_bytes(selected_bytes)} ({sel_count} Orders)" if sel_count > 0 else "☁ Make Online (Free Space)"
 
         )
 
@@ -3634,7 +3696,7 @@ class HistoryTrackerDialog(tk.Toplevel):
 
         self.context_menu.add_command(label="📂 Open in File Explorer", command=self._open_selected_folder)
 
-        self.context_menu.add_command(label="☁️ Make this Order Online-Only", command=self._free_selected)
+        self.context_menu.add_command(label="☁ Make this Order Online-Only", command=self._free_selected)
 
         self.context_menu.add_command(label="📋 Load into Main QC Table", command=self._load_to_main_table)
 
@@ -3774,7 +3836,7 @@ class HistoryTrackerDialog(tk.Toplevel):
 
             right_btns,
 
-            text="☁️ Make Selected Online",
+            text="☁ Make Selected Online",
 
             command=self._free_selected,
 
@@ -4336,7 +4398,7 @@ def fetch_all_releases():
 
     # Only include VERIFIED AVAILABLE releases (active build, local binary, or valid GitHub asset)
 
-    candidate_tags = [CURRENT_VERSION, "v1.7.0", "v1.6.0", "v1.5.0", "v1.4.0", "v1.3.0", "v1.2.0"]
+    candidate_tags = [CURRENT_VERSION, "v1.8.0", "v1.7.0", "v1.6.0", "v1.5.0", "v1.4.0", "v1.3.0", "v1.2.0"]
 
     for t in github_releases:
 
@@ -4425,6 +4487,7 @@ class SettingsDialog(ctk.CTkToplevel):
         # Track active dialog on parent to prevent multiple instances or event locks
         parent.settings_dialog = self
         self._section_labels = []
+        self.vendor_expanded = False
 
         # Gear Icon for Settings window
         gear_ico = os.path.join(ASSETS_DIR, "gear_icon.ico")
@@ -4443,6 +4506,70 @@ class SettingsDialog(ctk.CTkToplevel):
             pass
 
         self._create_widgets()
+        self._bind_mousewheel_recursive(self)
+        try:
+            self.focus_force()
+        except Exception:
+            pass
+
+    def _on_mousewheel(self, event):
+        if not hasattr(self, "scroll_body") or not self.scroll_body.winfo_exists():
+            return
+        canvas = getattr(self.scroll_body, "_parent_canvas", None)
+        if not canvas or not canvas.winfo_exists():
+            return
+        if getattr(event, "num", None) == 4:
+            canvas.yview_scroll(-35, "units")
+            return "break"
+        elif getattr(event, "num", None) == 5:
+            canvas.yview_scroll(35, "units")
+            return "break"
+        elif getattr(event, "delta", 0):
+            amount = -int(event.delta / 120) * 35
+            canvas.yview_scroll(amount, "units")
+            return "break"
+
+    def _bind_mousewheel_recursive(self, widget):
+        if not widget or not hasattr(widget, "bind"):
+            return
+        try:
+            widget.bind("<MouseWheel>", self._on_mousewheel, add=True)
+            widget.bind("<Button-4>", self._on_mousewheel, add=True)
+            widget.bind("<Button-5>", self._on_mousewheel, add=True)
+        except Exception:
+            pass
+        for attr in ("_canvas", "_label", "_entry", "_parent_canvas", "_textbox"):
+            inner = getattr(widget, attr, None)
+            if inner and hasattr(inner, "bind"):
+                try:
+                    inner.bind("<MouseWheel>", self._on_mousewheel, add=True)
+                    inner.bind("<Button-4>", self._on_mousewheel, add=True)
+                    inner.bind("<Button-5>", self._on_mousewheel, add=True)
+                except Exception:
+                    pass
+        try:
+            for child in widget.winfo_children():
+                self._bind_mousewheel_recursive(child)
+        except Exception:
+            pass
+
+    def _toggle_vendor_section(self, event=None):
+        self.vendor_expanded = not getattr(self, "vendor_expanded", False)
+        if self.vendor_expanded:
+            if hasattr(self, "vnd_collapsible") and self.vnd_collapsible.winfo_exists():
+                self.vnd_collapsible.pack(fill="x", pady=(6, 0))
+            if hasattr(self, "vnd_toggle_btn") and self.vnd_toggle_btn.winfo_exists():
+                self.vnd_toggle_btn.configure(text="▼")
+        else:
+            if hasattr(self, "vnd_collapsible") and self.vnd_collapsible.winfo_exists():
+                self.vnd_collapsible.pack_forget()
+            if hasattr(self, "vnd_toggle_btn") and self.vnd_toggle_btn.winfo_exists():
+                self.vnd_toggle_btn.configure(text="▶")
+        if hasattr(self, "card_vendor") and self.card_vendor.winfo_exists():
+            self._bind_mousewheel_recursive(self.card_vendor)
+        self.update_idletasks()
+        if hasattr(self, "scroll_body") and hasattr(self.scroll_body, "_parent_canvas"):
+            self.scroll_body._parent_canvas.configure(scrollregion=self.scroll_body._parent_canvas.bbox("all"))
 
     def _create_widgets(self):
         t = self.theme
@@ -4497,7 +4624,23 @@ class SettingsDialog(ctk.CTkToplevel):
             height=30,
             font=("Segoe UI", 11)
         )
-        self.browse_btn.pack(side="left")
+        self.browse_btn.pack(side="left", padx=(0, 6))
+
+        self.open_dropbox_btn = ctk.CTkButton(
+            row_p,
+            text="📂 Open Dropbox",
+            command=self._open_dropbox_folder,
+            fg_color="#FFFFFF" if is_light else "#253349",
+            hover_color="#F1F5F9" if is_light else "#334155",
+            text_color=t["text_main"],
+            border_width=1,
+            border_color=t["border"],
+            corner_radius=8,
+            width=120,
+            height=30,
+            font=("Segoe UI", 11)
+        )
+        self.open_dropbox_btn.pack(side="left")
 
         # ==============================================================
         # CARD 2: Theme Mode (Clean heading, no extra icons)
@@ -4525,7 +4668,119 @@ class SettingsDialog(ctk.CTkToplevel):
         self.theme_segment.pack(fill="x")
 
         # ==============================================================
-        # CARD 3: Version & Updates (Forward Update & Backward Rollback)
+        # CARD 3: Vendor Filter & Selection (Collapsible Dropdown Accordion)
+        # ==============================================================
+        self.card_vendor = ctk.CTkFrame(self.scroll_body, fg_color=t["bg_card"], corner_radius=12, border_width=1, border_color=t["border"])
+        self.card_vendor.pack(fill="x", pady=(0, 14))
+
+        vnd_inner = ctk.CTkFrame(self.card_vendor, fg_color="transparent")
+        vnd_inner.pack(fill="x", padx=16, pady=14)
+
+        # Header of Card 3 (Clickable dropdown header)
+        self.vnd_top = ctk.CTkFrame(vnd_inner, fg_color="transparent", cursor="hand2")
+        self.vnd_top.pack(fill="x")
+
+        hdr_left = ctk.CTkFrame(self.vnd_top, fg_color="transparent")
+        hdr_left.pack(side="left")
+
+        self.vnd_toggle_btn = ctk.CTkButton(
+            hdr_left,
+            text="▼" if getattr(self, "vendor_expanded", False) else "▶",
+            width=26,
+            height=24,
+            corner_radius=6,
+            fg_color="#F1F5F9" if is_light else "#253349",
+            hover_color="#E2E8F0" if is_light else "#334155",
+            text_color=t["text_main"],
+            font=("Segoe UI", 10, "bold"),
+            command=self._toggle_vendor_section
+        )
+        self.vnd_toggle_btn.pack(side="left", padx=(0, 8))
+
+        lbl_vnd = ctk.CTkLabel(hdr_left, text="🏢 Vendor Filter & Selection", font=("Segoe UI", 12, "bold"), text_color=t["text_main"], cursor="hand2")
+        lbl_vnd.pack(side="left")
+        self._section_labels.append(lbl_vnd)
+
+        sel_count = len(self.parent.selected_vendors)
+        tot_count = len(self.parent.detected_vendors)
+        self.vendor_status_badge = ctk.CTkLabel(
+            self.vnd_top,
+            text=f"{sel_count} of {tot_count} Selected",
+            font=("Segoe UI", 10, "bold"),
+            text_color=t["primary"] if is_light else t["success"],
+            cursor="hand2"
+        )
+        self.vendor_status_badge.pack(side="right")
+
+        # Clicking anywhere on header toggles the dropdown
+        self.vnd_top.bind("<Button-1>", self._toggle_vendor_section)
+        lbl_vnd.bind("<Button-1>", self._toggle_vendor_section)
+        self.vendor_status_badge.bind("<Button-1>", self._toggle_vendor_section)
+
+        # Collapsible content frame (closed by default)
+        self.vnd_collapsible = ctk.CTkFrame(vnd_inner, fg_color="transparent")
+        if getattr(self, "vendor_expanded", False):
+            self.vnd_collapsible.pack(fill="x", pady=(6, 0))
+
+        sub_vnd = ctk.CTkLabel(self.vnd_collapsible, text="Select which vendor folders are included when searching and syncing orders.", font=("Segoe UI", 9), text_color=t["text_muted"])
+        sub_vnd.pack(anchor="w", pady=(8, 8))
+
+        # Action bar: Select/Deselect All, Rescan
+        act_row = ctk.CTkFrame(self.vnd_collapsible, fg_color="transparent")
+        act_row.pack(fill="x", pady=(0, 10))
+
+        all_selected = (len(self.parent.selected_vendors) == len(self.parent.detected_vendors) and len(self.parent.detected_vendors) > 0)
+        self.master_vnd_var = tk.BooleanVar(value=all_selected)
+
+        def _toggle_master():
+            val = self.master_vnd_var.get()
+            if val:
+                self.parent.selected_vendors.update(self.parent.detected_vendors)
+            else:
+                self.parent.selected_vendors.clear()
+            for v, cb in getattr(self, "vendor_checkbox_vars", {}).items():
+                cb.set(val)
+            self._update_vendor_badge()
+            self.parent._save_selected_vendors()
+
+        self.cb_master = ctk.CTkCheckBox(
+            act_row,
+            text="Select / Deselect All",
+            variable=self.master_vnd_var,
+            command=_toggle_master,
+            font=("Segoe UI", 10, "bold"),
+            text_color=t["text_main"]
+        )
+        self.cb_master.pack(side="left")
+
+        def _rescan():
+            self.parent._scan_vendors(keep_selection=True)
+            self._rebuild_vendor_list()
+
+        self.btn_rescan_vnd = ctk.CTkButton(
+            act_row,
+            text="🔄 Rescan",
+            width=70,
+            height=26,
+            command=_rescan,
+            font=("Segoe UI", 9),
+            fg_color="#FFFFFF" if is_light else "#253349",
+            hover_color="#F1F5F9" if is_light else "#334155",
+            text_color=t["text_main"],
+            border_width=1,
+            border_color=t["border"]
+        )
+        self.btn_rescan_vnd.pack(side="right")
+
+        # Container for vendor checkboxes
+        self.vendor_items_frame = ctk.CTkFrame(self.vnd_collapsible, fg_color=t["bg_input"], corner_radius=8, border_width=1, border_color=t["border"])
+        self.vendor_items_frame.pack(fill="x", pady=(0, 4))
+
+        self.vendor_checkbox_vars = {}
+        self._rebuild_vendor_list()
+
+        # ==============================================================
+        # CARD 4: Version & Updates (Forward Update & Backward Rollback)
         # ==============================================================
         self.card_ver = ctk.CTkFrame(self.scroll_body, fg_color=t["bg_card"], corner_radius=12, border_width=1, border_color=t["border"])
         self.card_ver.pack(fill="x")
@@ -4623,7 +4878,7 @@ class SettingsDialog(ctk.CTkToplevel):
             corner_radius=8,
             border_width=1,
             border_color=t["border"],
-            font=("Segoe UI", 10),
+            font=("Segoe UI", 10, "bold"),
             wrap="word",
             height=90
         )
@@ -4678,6 +4933,60 @@ class SettingsDialog(ctk.CTkToplevel):
             font=("Segoe UI", 11, "bold")
         )
         self.btn_rollback.pack(side="left")
+
+    def _update_vendor_badge(self):
+        sel_count = len(self.parent.selected_vendors)
+        tot_count = len(self.parent.detected_vendors)
+        if hasattr(self, "vendor_status_badge"):
+            self.vendor_status_badge.configure(text=f"{sel_count} of {tot_count} Selected")
+        if hasattr(self, "master_vnd_var"):
+            self.master_vnd_var.set(sel_count == tot_count and tot_count > 0)
+
+    def _rebuild_vendor_list(self):
+        for w in self.vendor_items_frame.winfo_children():
+            w.destroy()
+        self.vendor_checkbox_vars.clear()
+        t = self.theme
+        is_light = (getattr(self.parent, "theme_name", "light") == "light")
+        if not self.parent.detected_vendors:
+            lbl = ctk.CTkLabel(self.vendor_items_frame, text="No vendor folders detected in Dropbox Root.", text_color=t["text_muted"], font=("Segoe UI", 10))
+            lbl.pack(padx=10, pady=8)
+            return
+
+        for vendor in self.parent.detected_vendors:
+            var = tk.BooleanVar(value=(vendor in self.parent.selected_vendors))
+            self.vendor_checkbox_vars[vendor] = var
+
+            row = ctk.CTkFrame(self.vendor_items_frame, fg_color="transparent")
+            row.pack(fill="x", padx=10, pady=4)
+
+            def _on_check(v=vendor, vr=var):
+                if vr.get():
+                    self.parent.selected_vendors.add(v)
+                else:
+                    self.parent.selected_vendors.discard(v)
+                self._update_vendor_badge()
+                self.parent._save_selected_vendors()
+
+            cb = ctk.CTkCheckBox(row, text=vendor, variable=var, command=_on_check, font=("Segoe UI", 10), text_color=t["text_main"])
+            cb.pack(side="left")
+
+            def _select_only(v=vendor):
+                self.parent.selected_vendors = {v}
+                for v_name, cb_var in self.vendor_checkbox_vars.items():
+                    cb_var.set(v_name == v)
+                self._update_vendor_badge()
+                self.parent._save_selected_vendors()
+
+            btn_only = ctk.CTkButton(row, text="Only", width=42, height=22, font=("Segoe UI", 8),
+                                     fg_color="#FFFFFF" if is_light else "#1E293B", text_color=t["text_muted"],
+                                     border_width=1, border_color=t["border"], command=_select_only)
+            btn_only.pack(side="right")
+        self._update_vendor_badge()
+        if hasattr(self, "_bind_mousewheel_recursive"):
+            self._bind_mousewheel_recursive(self.vendor_items_frame)
+        if hasattr(self, "scroll_body") and hasattr(self.scroll_body, "_parent_canvas"):
+            self.scroll_body._parent_canvas.configure(scrollregion=self.scroll_body._parent_canvas.bbox("all"))
 
     def _scan_rollback_versions(self):
         v_dir = os.path.join(APP_DIR, "versions")
@@ -4775,6 +5084,10 @@ del "%~f0"
             self.path_entry_var.set(chosen)
             self._auto_save_path(chosen)
 
+    def _open_dropbox_folder(self):
+        if hasattr(self.parent, "_open_dropbox_folder"):
+            self.parent._open_dropbox_folder()
+
     def _on_path_entry_focusout(self, event=None):
         val = self.path_entry_var.get().strip()
         if val and os.path.isdir(val):
@@ -4819,10 +5132,29 @@ del "%~f0"
         btn_hover = "#F1F5F9" if is_light else "#334155"
 
         self.configure(fg_color=t["bg_canvas"])
-        cards = [getattr(self, "card_path", None), getattr(self, "card_theme", None), getattr(self, "card_ver", None)]
+        cards = [getattr(self, "card_path", None), getattr(self, "card_theme", None), getattr(self, "card_vendor", None), getattr(self, "card_ver", None)]
         for c in cards:
             if c and isinstance(c, ctk.CTkFrame) and c.winfo_exists():
                 c.configure(fg_color=t["bg_card"], border_color=t["border"])
+
+        if hasattr(self, "vnd_toggle_btn") and self.vnd_toggle_btn.winfo_exists():
+            self.vnd_toggle_btn.configure(
+                fg_color="#F1F5F9" if is_light else "#253349",
+                hover_color="#E2E8F0" if is_light else "#334155",
+                text_color=t["text_main"]
+            )
+
+        if hasattr(self, "vendor_status_badge") and self.vendor_status_badge.winfo_exists():
+            self.vendor_status_badge.configure(text_color=t["primary"] if is_light else t["success"])
+
+        if hasattr(self, "vendor_items_frame") and self.vendor_items_frame.winfo_exists():
+            self.vendor_items_frame.configure(fg_color=t["bg_input"], border_color=t["border"])
+
+        if hasattr(self, "btn_rescan_vnd") and self.btn_rescan_vnd.winfo_exists():
+            self.btn_rescan_vnd.configure(fg_color=btn_bg, hover_color=btn_hover, text_color=t["text_main"], border_color=t["border"])
+
+        if hasattr(self, "cb_master") and self.cb_master.winfo_exists():
+            self.cb_master.configure(text_color=t["text_main"])
 
         for lbl in getattr(self, "_section_labels", []):
             if lbl and lbl.winfo_exists():
@@ -4833,6 +5165,9 @@ del "%~f0"
 
         if hasattr(self, "browse_btn") and self.browse_btn.winfo_exists():
             self.browse_btn.configure(fg_color=btn_bg, hover_color=btn_hover, text_color=t["text_main"], border_color=t["border"])
+
+        if hasattr(self, "open_dropbox_btn") and self.open_dropbox_btn.winfo_exists():
+            self.open_dropbox_btn.configure(fg_color=btn_bg, hover_color=btn_hover, text_color=t["text_main"], border_color=t["border"])
 
         if hasattr(self, "txt_notes") and self.txt_notes.winfo_exists():
             self.txt_notes.configure(fg_color=t["bg_input"], text_color=t["text_main"], border_color=t["border"])
@@ -4897,11 +5232,21 @@ class QCBatchLoaderApp(ctk.CTk):
 
         super().__init__()
 
-        self.title(f"{APP_NAME} {CURRENT_VERSION} — {APP_TAGLINE}")
+        self.title(f"{APP_NAME} {CURRENT_VERSION}")
 
-        self.geometry("1100x640")
-
-        self.minsize(960, 540)
+        # Responsive auto-fit window sizing to prevent cropping of any dashboard content
+        try:
+            sw = self.winfo_screenwidth()
+            sh = self.winfo_screenheight()
+            win_w = min(max(1240, int(sw * 0.82)), int(sw * 0.95)) if sw > 1200 else max(sw - 40, 1000)
+            win_h = min(max(720, int(sh * 0.80)), int(sh * 0.92)) if sh > 700 else max(sh - 60, 600)
+            pos_x = max(0, (sw - win_w) // 2)
+            pos_y = max(0, (sh - win_h) // 2)
+            self.geometry(f"{win_w}x{win_h}+{pos_x}+{pos_y}")
+            self.minsize(min(1160, max(sw - 40, 960)), min(580, max(sh - 60, 520)))
+        except Exception:
+            self.geometry("1240x720")
+            self.minsize(1160, 580)
 
         # Set taskbar/window icon
 
@@ -5000,7 +5345,8 @@ class QCBatchLoaderApp(ctk.CTk):
     def _create_checkbox_icons(self):
         """
         Generates modern rounded rectangle checkbox icons (18x18px)
-        with anti-aliasing (supersampled at 4x) matching the modern UI design.
+        centered within a 38px column canvas with anti-aliasing (supersampled at 4x)
+        ensuring perfect horizontal center alignment across both header and rows.
         """
         is_light = (getattr(self, "theme_name", "light") == "light")
         t = getattr(self, "theme", BRAND_THEMES["light"])
@@ -5017,42 +5363,44 @@ class QCBatchLoaderApp(ctk.CTk):
         check_mark_col = (255, 255, 255, 255)
 
         size = 18
+        col_w = 38
         scale = 4
-        canvas_size = (size * scale, size * scale)
+        canvas_size = (col_w * scale, size * scale)
         r = int(3.5 * scale)
         margin = int(1.5 * scale)
         border_w = max(1, int(1.3 * scale))
+        x_off = ((col_w - size) // 2) * scale
 
         resample_filter = getattr(getattr(Image, 'Resampling', None), 'LANCZOS', getattr(Image, 'LANCZOS', Image.BICUBIC))
 
-        # 1. Unchecked Box
+        # 1. Unchecked Box (Centered in 38px width)
         img_un = Image.new("RGBA", canvas_size, (0, 0, 0, 0))
         draw_un = ImageDraw.Draw(img_un)
-        box = [margin, margin, canvas_size[0] - margin, canvas_size[1] - margin]
+        box = [x_off + margin, margin, x_off + size * scale - margin, size * scale - margin]
         draw_un.rounded_rectangle(box, radius=r, fill=unchecked_bg, outline=border_col, width=border_w)
-        img_un_scaled = img_un.resize((size, size), resample_filter)
+        img_un_scaled = img_un.resize((col_w, size), resample_filter)
         self.chk_unchecked_img = ImageTk.PhotoImage(img_un_scaled)
 
-        # 2. Checked Box
+        # 2. Checked Box (Centered in 38px width)
         img_ck = Image.new("RGBA", canvas_size, (0, 0, 0, 0))
         draw_ck = ImageDraw.Draw(img_ck)
         draw_ck.rounded_rectangle(box, radius=r, fill=checked_bg, outline=checked_bg, width=border_w)
 
-        # Crisp checkmark coordinates
-        p1 = (margin + 3.8 * scale, margin + 7.8 * scale)
-        p2 = (margin + 6.8 * scale, margin + 11.2 * scale)
-        p3 = (margin + 12.0 * scale, margin + 4.6 * scale)
+        # Crisp checkmark coordinates centered in box
+        p1 = (x_off + margin + 3.8 * scale, margin + 7.8 * scale)
+        p2 = (x_off + margin + 6.8 * scale, margin + 11.2 * scale)
+        p3 = (x_off + margin + 12.0 * scale, margin + 4.6 * scale)
         ck_width = max(1, int(2.0 * scale))
         draw_ck.line([p1, p2, p3], fill=check_mark_col, width=ck_width, joint="curve")
-        img_ck_scaled = img_ck.resize((size, size), resample_filter)
+        img_ck_scaled = img_ck.resize((col_w, size), resample_filter)
         self.chk_checked_img = ImageTk.PhotoImage(img_ck_scaled)
 
-        # Master Checkbox Icons
+        # Master Checkbox Icons (Centered in 38px width)
         header_bg = (248, 250, 252, 255) if is_light else (30, 41, 59, 255)
         img_m_un = Image.new("RGBA", canvas_size, (0, 0, 0, 0))
         draw_m_un = ImageDraw.Draw(img_m_un)
         draw_m_un.rounded_rectangle(box, radius=r, fill=header_bg, outline=border_col, width=border_w)
-        img_m_un_scaled = img_m_un.resize((size, size), resample_filter)
+        img_m_un_scaled = img_m_un.resize((col_w, size), resample_filter)
         self.chk_master_unchecked_img = ImageTk.PhotoImage(img_m_un_scaled)
         self.chk_master_checked_img = self.chk_checked_img
 
@@ -5132,9 +5480,9 @@ class QCBatchLoaderApp(ctk.CTk):
 
             "Custom.Treeview",
 
-            background=[("selected", "#EFF6FF" if is_light else "#23334D")],
+            background=[("selected", t["bg_card"])],
 
-            foreground=[("selected", "#1E40AF" if is_light else "#38BDF8")]
+            foreground=[("selected", t["text_main"])]
 
         )
 
@@ -5689,16 +6037,17 @@ class QCBatchLoaderApp(ctk.CTk):
 
         self.settings_btn = ctk.CTkButton(
             header_actions,
-            text="⚙️ Settings",
+            text="⚙ Settings",
             command=self._open_settings,
             fg_color="#FFFFFF" if is_light else "#1E293B",
             hover_color="#F1F5F9" if is_light else "#334155",
             text_color=t["text_main"],
             border_width=1,
             border_color=t["border"],
-            corner_radius=14,
-            height=30,
-            font=("Segoe UI", 11, "bold")
+            corner_radius=12,
+            width=82,
+            height=28,
+            font=("Segoe UI", 10, "bold")
         )
         self.settings_btn.pack(side="right")
 
@@ -5712,7 +6061,7 @@ class QCBatchLoaderApp(ctk.CTk):
             text_color="#FFFFFF" if is_light else "#0B1120",
             corner_radius=14,
             height=30,
-            font=("Segoe UI", 11, "bold")
+            font=("Segoe UI", 11)
         )
         # Initially hidden until update is detected
 
@@ -5747,74 +6096,36 @@ class QCBatchLoaderApp(ctk.CTk):
         self.notification_btn.pack(side="right", padx=(0, 6))
 
         self.leftover_btn = ctk.CTkButton(
-
             header_actions,
-
-            text="🕒 History: 0 Local",
-
+            text="🕒",
             command=self._open_history_tracker,
-
             fg_color="#FFFFFF" if is_light else "#1E293B",
-
             hover_color="#F1F5F9" if is_light else "#334155",
-
             text_color=t["success"],
-
             border_width=1,
-
             border_color=t["border"],
-
             corner_radius=14,
-
+            width=36,
             height=30,
-
-            font=("Segoe UI", 11, "bold")
-
+            font=("Segoe UI", 12)
         )
-
         self.leftover_btn.pack(side="right", padx=(0, 6))
 
-        # 2. Top Control Strip (3 Pill Cards: Vendors, Drive Space, Local Orders)
+        # 2. Top Control Strip (Drive Space, Local Orders, Open Dropbox)
 
         strip = ctk.CTkFrame(self, fg_color="transparent")
+
+        self.strip = strip
 
         strip.pack(fill="x", padx=16, pady=(4, 6))
 
         if not hasattr(self, "path_var"):
-
             self.path_var = tk.StringVar(value=self.config_data.get("dropbox_path") or DEFAULT_DROPBOX_PATH)
 
-        # Pill 1: Vendors Filter
+        if not hasattr(self, "search_var"):
+            self.search_var = tk.StringVar(value="")
 
-        self.card_vendors = ctk.CTkFrame(strip, fg_color=t["bg_card"], corner_radius=18, border_width=1, border_color=t["border"])
-
-        self.card_vendors.pack(side="left", padx=(0, 8), fill="y")
-
-        self.vendor_btn = ctk.CTkButton(
-
-            self.card_vendors,
-
-            text="🏢 Vendors: All Selected ▾",
-
-            command=self._toggle_vendor_popup,
-
-            fg_color="transparent",
-
-            hover_color="#F1F5F9" if is_light else "#253349",
-
-            text_color=t["text_main"],
-
-            corner_radius=18,
-
-            height=34,
-
-            font=("Segoe UI", 11, "bold")
-
-        )
-
-        self.vendor_btn.pack(padx=6, pady=2)
-
-        # Pill 3: Drive Space Gauge
+        # Pill 1: Drive Space Gauge
 
         drive_card_bg = "#BAE6FD" if is_light else "#1E293B"
 
@@ -5830,81 +6141,78 @@ class QCBatchLoaderApp(ctk.CTk):
 
         self.drive_metric_lbl.pack(padx=14, pady=6)
 
-        # Pill 4: Local Orders Badge
-
+        # Pill 2: Local Orders Badge
         self.card_local = ctk.CTkFrame(strip, fg_color=t["bg_card"], corner_radius=18, border_width=1, border_color=t["border"])
-
         self.card_local.pack(side="left", padx=(0, 8), fill="y")
 
-        # Pill 4: Open Dropbox Button
-
-        self.card_open_dropbox = ctk.CTkFrame(strip, fg_color=t["bg_card"], corner_radius=18, border_width=1, border_color=t["border"])
-
-        self.card_open_dropbox.pack(side="left", fill="y")
-
-        self.btn_open_dropbox = ctk.CTkButton(
-
-            self.card_open_dropbox,
-
-            text="📂 Open Dropbox",
-
-            command=self._open_dropbox_folder,
-
-            fg_color="transparent",
-
-            hover_color="#F1F5F9" if is_light else "#253349",
-
-            text_color=t["text_main"],
-
-            corner_radius=18,
-
-            height=34,
-
-            font=("Segoe UI", 11, "bold")
-
-        )
-
-        self.btn_open_dropbox.pack(padx=8, pady=2)
-
-        self.local_metric_lbl = ctk.CTkLabel(self.card_local, text="● Local QC Orders: 0 (0 B on disk)", text_color=t["success"], font=("Segoe UI", 11, "bold"))
-
+        self.local_metric_lbl = ctk.CTkLabel(self.card_local, text="Local QC Orders: 0 (0 B on disk)", text_color=t["success"], font=("Segoe UI", 11, "bold"))
         self.local_metric_lbl.pack(side="left", padx=(12, 6), pady=4)
 
         self.refresh_local_btn = ctk.CTkButton(
-
             self.card_local,
-
             text="🔄",
-
             command=self._scan_local_in_selected_vendors,
-
             fg_color="transparent",
-
             hover_color="#F1F5F9" if is_light else "#253349",
-
             text_color=t["text_muted"],
-
             width=28,
-
             height=28,
-
             corner_radius=14,
-
             font=("Segoe UI", 12)
-
         )
-
         self.refresh_local_btn.pack(side="right", padx=(0, 6), pady=4)
 
-        # 3. Main Body Split (Left Card + Right Card)
+        # Pill 4 (Right): Search Box moved to top control strip (Point 7 green marked area)
+        search_border_col = "#94A3B8" if is_light else "#475569"
+        search_bg_col = "#F8FAFC" if is_light else "#1E293B"
+
+        self.search_box = ctk.CTkFrame(strip, fg_color=search_bg_col, corner_radius=18, border_width=1, border_color=search_border_col, height=34)
+        self.search_box.pack(side="right", padx=(8, 0), fill="y")
+
+        self.search_icon_lbl = ctk.CTkLabel(self.search_box, text="🔍", text_color=t["text_muted"], font=("Segoe UI", 11))
+        self.search_icon_lbl.pack(side="left", padx=(10, 4))
+
+        self.search_entry = ctk.CTkEntry(
+            self.search_box,
+            textvariable=self.search_var,
+            placeholder_text="Search order, vendor...",
+            fg_color="transparent",
+            border_width=0,
+            text_color=t["text_main"],
+            font=("Segoe UI", 10),
+            width=140,
+            height=26
+        )
+        self.search_entry.pack(side="left", padx=(0, 2))
+        self.search_entry.bind("<KeyRelease>", lambda e: self._filter_main_table())
+
+        self.clear_search_btn = ctk.CTkButton(
+            self.search_box,
+            text="✕",
+            command=self._clear_main_search,
+            fg_color="transparent",
+            hover_color="#F1F5F9" if is_light else "#253349",
+            text_color=t["text_muted"],
+            width=22,
+            height=22,
+            corner_radius=11,
+            font=("Segoe UI", 9)
+        )
+        self.clear_search_btn.pack(side="left", padx=(0, 6))
+
+        # 3. Bottom Status Var (Point 4: red mark removed, ticker bar hidden)
+        self.status_var = tk.StringVar(value="")
+        self.status_pill_lbl = None
+
+        # 4. Main Body Split (Left Card + Right Card) - Expands to fill available middle area
 
         self.body_container = ctk.CTkFrame(self, fg_color="transparent")
 
-        self.body_container.pack(fill="both", expand=True, padx=16, pady=4)
+        self.body_container.pack(side="top", fill="both", expand=True, padx=16, pady=(4, 16))
 
         # Left Card: Paste Order IDs Drawer
 
-        self.card_left = ctk.CTkFrame(self.body_container, fg_color=t["bg_card"], corner_radius=14, border_width=1, border_color=t["border"], width=250)
+        self.card_left = ctk.CTkFrame(self.body_container, fg_color=t["bg_card"], corner_radius=14, border_width=1, border_color=t["border"], width=220)
 
         self.card_left.pack(side="left", fill="y", padx=(0, 8))
 
@@ -5914,22 +6222,15 @@ class QCBatchLoaderApp(ctk.CTk):
 
         card_left_header = ctk.CTkFrame(self.card_left, fg_color="transparent")
 
-        card_left_header.pack(fill="x", padx=12, pady=(10, 4))
+        card_left_header.pack(fill="x", padx=8, pady=(8, 4))
 
-        self.paste_title_lbl = ctk.CTkLabel(card_left_header, text="📋 Paste Order IDs", font=("Segoe UI", 12, "bold"), text_color=t["text_main"])
-        self.paste_title_lbl.pack(side="left")
+        self.card_left_header = card_left_header
 
-        # Hide & Clear buttons on drawer header
+        self.btn_toggle_sidebar = ctk.CTkButton(
 
-        btn_box_left_head = ctk.CTkFrame(card_left_header, fg_color="transparent")
+            card_left_header,
 
-        btn_box_left_head.pack(side="right")
-
-        self.btn_hide_left = ctk.CTkButton(
-
-            btn_box_left_head,
-
-            text="◀ Hide",
+            text="◨",
 
             command=self._toggle_drawer,
 
@@ -5937,59 +6238,95 @@ class QCBatchLoaderApp(ctk.CTk):
 
             hover_color="#F1F5F9" if is_light else "#253349",
 
-            text_color=t["text_muted"],
+            text_color=t["text_main"],
 
             border_width=1,
 
             border_color=t["border"],
 
-            corner_radius=10,
+            corner_radius=8,
 
-            width=46,
+            width=26,
 
-            height=22,
+            height=26,
 
-            font=("Segoe UI", 10)
+            font=("Segoe UI", 11, "bold")
 
         )
 
-        self.btn_hide_left.pack(side="left", padx=(0, 4))
+        self.btn_toggle_sidebar.pack(side="left", padx=(0, 4))
 
-        self.btn_toggle_drawer = self.btn_hide_left  # Alias for backward compatibility
+        self.btn_toggle_drawer = self.btn_toggle_sidebar  # Alias for backward compatibility
+        self.btn_hide_left = self.btn_toggle_sidebar      # Alias for backward compatibility
 
-        self.clear_top_btn = ctk.CTkButton(
+        self.paste_title_lbl = ctk.CTkLabel(card_left_header, text="Paste Order IDs", font=("Segoe UI", 11, "bold"), text_color=t["text_main"])
+        self.paste_title_lbl.pack(side="left")
 
-            btn_box_left_head,
-
-            text="Clear",
-
-            command=self._clear_input,
-
-            fg_color="transparent",
-
-            hover_color="#F1F5F9" if is_light else "#253349",
-
-            text_color=t["text_muted"],
-
+        # Paste / Reset Dynamic Action Button in top header (Point 1: Paste text is Blue)
+        self.paste_btn = ctk.CTkButton(
+            card_left_header,
+            text="Paste",
+            command=self._paste_clipboard,
+            fg_color="#FFFFFF" if is_light else "#1E293B",
+            hover_color="#F8FAFC" if is_light else "#334155",
+            text_color=t["primary"],
             border_width=1,
-
             border_color=t["border"],
-
-            corner_radius=10,
-
-            width=44,
-
-            height=22,
-
-            font=("Segoe UI", 10)
-
+            corner_radius=8,
+            width=50,
+            height=26,
+            font=("Segoe UI", 9.5, "bold")
         )
+        self.paste_btn.pack(side="right")
+        self.clear_btn = self.paste_btn  # Alias for backward compatibility
+        self.clear_top_btn = self.paste_btn  # Alias for backward compatibility
 
-        self.clear_top_btn.pack(side="left")
+        # Row 2 (Green mark area): Unique Count on left + Clean Duplicate button on right
+        row_sub = ctk.CTkFrame(self.card_left, fg_color="transparent")
+        row_sub.pack(fill="x", padx=8, pady=(0, 6))
+        self.row_sub = row_sub
 
-        self.count_lbl = ctk.CTkLabel(self.card_left, text="Total: 0 | Unique: 0", font=("Segoe UI", 10), text_color=t["text_muted"])
+        self.count_lbl = ctk.CTkLabel(row_sub, text="Unique: 0", font=("Segoe UI", 9.5), text_color=t["text_muted"])
+        self.count_lbl.pack(side="left", anchor="w")
 
-        self.count_lbl.pack(anchor="w", padx=12, pady=(0, 6))
+        clean_btn_bg = t["success"] if getattr(self, "input_cleaned", False) else ("#F1F5F9" if is_light else "#1E293B")
+        clean_btn_fg = "#FFFFFF" if getattr(self, "input_cleaned", False) else ("#94A3B8" if is_light else "#64748B")
+        clean_btn_txt = "✔ Clean Duplicate" if getattr(self, "input_cleaned", False) else "🧹 Clean Duplicate"
+
+        self.btn_clean_dedup = ctk.CTkButton(
+            row_sub,
+            text=clean_btn_txt,
+            command=self._clean_and_deduplicate,
+            state="disabled",  # Point 2: Inactive until data is pasted
+            fg_color=clean_btn_bg,
+            hover_color="#E2E8F0" if is_light else "#334155",
+            text_color=clean_btn_fg,
+            border_width=1,
+            border_color=t["border"],
+            corner_radius=8,
+            width=114,
+            height=26,
+            font=("Segoe UI", 9.5, "bold")
+        )
+        self.btn_clean_dedup.pack(side="right")
+
+        sync_state = "normal" if getattr(self, "input_cleaned", False) else "disabled"
+        sync_btn_bg = t["primary"] if getattr(self, "input_cleaned", False) else ("#CBD5E1" if is_light else "#334155")
+        sync_btn_fg = ("#FFFFFF" if is_light else "#0B1120") if getattr(self, "input_cleaned", False) else ("#94A3B8" if is_light else "#64748B")
+
+        self.btn_add_to_sync = ctk.CTkButton(
+            self.card_left,
+            text="+ Add to sync list",
+            state=sync_state,
+            command=self._add_to_sync_list,
+            fg_color=sync_btn_bg,
+            hover_color=t["primary_hover"],
+            text_color=sync_btn_fg,
+            corner_radius=8,
+            height=32,
+            font=("Segoe UI", 10, "bold")
+        )
+        self.btn_add_to_sync.pack(side="bottom", fill="x", padx=8, pady=(0, 8))
 
         self.input_text = ctk.CTkTextbox(
 
@@ -6009,105 +6346,12 @@ class QCBatchLoaderApp(ctk.CTk):
 
         )
 
-        self.input_text.pack(fill="both", expand=True, padx=12, pady=(0, 8))
-
         self.input_text.bind("<KeyRelease>", self._on_input_text_changed)
+        self.input_text.bind("<<Paste>>", lambda e: self.after(10, self._on_input_text_changed))
+        self.input_text.bind("<ButtonRelease>", lambda e: self.after(10, self._on_input_text_changed))
 
-        row_util = ctk.CTkFrame(self.card_left, fg_color="transparent")
-
-        row_util.pack(fill="x", padx=12, pady=(0, 8))
-
-        self.paste_btn = ctk.CTkButton(
-
-            row_util,
-
-            text="Paste",
-
-            command=self._paste_clipboard,
-
-            fg_color="#FFFFFF" if is_light else "#1E293B",
-
-            hover_color="#F8FAFC" if is_light else "#334155",
-
-            text_color=t["text_main"],
-
-            border_width=1,
-
-            border_color=t["border"],
-
-            corner_radius=8,
-
-            width=64,
-
-            height=30,
-
-            font=("Segoe UI", 11)
-
-        )
-
-        self.paste_btn.pack(side="left", padx=(0, 6))
-
-        clean_btn_bg = t["success"] if getattr(self, "input_cleaned", False) else (t["danger"] if not is_light else "#FFFFFF")
-
-        clean_btn_fg = "#FFFFFF" if (getattr(self, "input_cleaned", False) or not is_light) else t["text_main"]
-
-        clean_btn_txt = "✔️ Clean & Deduplicate" if getattr(self, "input_cleaned", False) else "🧹 Clean & Deduplicate"
-
-        self.btn_clean_dedup = ctk.CTkButton(
-
-            row_util,
-
-            text=clean_btn_txt,
-
-            command=self._clean_and_deduplicate,
-
-            fg_color=clean_btn_bg,
-
-            hover_color="#F8FAFC" if (is_light and not getattr(self, "input_cleaned", False)) else t["danger_hover"],
-
-            text_color=clean_btn_fg,
-
-            border_width=1,
-
-            border_color=t["border"],
-
-            corner_radius=8,
-
-            height=30,
-
-            font=("Segoe UI", 11)
-
-        )
-
-        self.btn_clean_dedup.pack(side="left", fill="x", expand=True)
-
-        sync_btn_bg = t["primary"] if getattr(self, "input_cleaned", False) else (t["primary"] if is_light else "#1E293B")
-
-        sync_btn_fg = "#FFFFFF" if is_light else "#0B1120"
-
-        self.btn_add_to_sync = ctk.CTkButton(
-
-            self.card_left,
-
-            text="+ Add to sync list",
-
-            command=self._add_to_sync_list,
-
-            fg_color=sync_btn_bg,
-
-            hover_color=t["primary_hover"],
-
-            text_color=sync_btn_fg,
-
-            corner_radius=8,
-
-            height=36,
-
-            font=("Segoe UI", 12, "bold")
-
-        )
-
-        self.btn_add_to_sync.pack(fill="x", padx=12, pady=(0, 12))
+        # Textbox fills the remaining space in the middle
+        self.input_text.pack(fill="both", expand=True, padx=8, pady=(0, 6))
 
         # Right Card: Sync List Dashboard Table
 
@@ -6118,67 +6362,35 @@ class QCBatchLoaderApp(ctk.CTk):
         self.right_frame = self.card_right  # Alias
 
         card_right_header = ctk.CTkFrame(self.card_right, fg_color="transparent")
-
+        self.card_right_header = card_right_header
         card_right_header.pack(fill="x", padx=14, pady=(10, 8))
 
-        self.search_box = ctk.CTkFrame(card_right_header, fg_color=t["bg_card"], corner_radius=16, border_width=1, border_color=t["border"], height=32)
-
-        self.search_box.pack(side="left")
-
-        self.search_icon_lbl = ctk.CTkLabel(self.search_box, text="🔍", text_color=t["text_muted"], font=("Segoe UI", 10))
-        self.search_icon_lbl.pack(side="left", padx=(8, 2))
-
-        self.search_entry = ctk.CTkEntry(
-
-            self.search_box,
-
-            textvariable=self.search_var,
-
-            placeholder_text="Search order, vendor...",
-
-            fg_color="transparent",
-
-            border_width=0,
-
-            text_color=t["text_main"],
-
-            font=("Segoe UI", 11),
-
-            width=150,
-
-            height=28
-
+        # Action Buttons moved up into card_right_header (Point 7 green marked area)
+        self.btn_make_local_all = ctk.CTkButton(
+            card_right_header,
+            text="Make Local (Ready for QC)",
+            command=self._make_all_local,
+            fg_color=t["action_btn_make_local_bg"],
+            hover_color=t["primary_hover"],
+            text_color=t["action_btn_make_local_fg"],
+            corner_radius=8,
+            height=28,
+            font=("Segoe UI", 10, "bold")
         )
+        self.btn_make_local_all.pack(side="left", padx=(0, 6))
 
-        self.search_entry.pack(side="left", padx=(0, 4))
-
-        self.search_entry.bind("<KeyRelease>", lambda e: self._filter_main_table())
-
-        self.clear_search_btn = ctk.CTkButton(
-
-            self.search_box,
-
-            text="✕",
-
-            command=self._clear_main_search,
-
-            fg_color="transparent",
-
-            hover_color="#F1F5F9" if is_light else "#253349",
-
-            text_color=t["text_muted"],
-
-            width=22,
-
-            height=22,
-
-            corner_radius=11,
-
-            font=("Segoe UI", 10)
-
+        self.btn_make_online_all = ctk.CTkButton(
+            card_right_header,
+            text="Free Up Space (Make Online-Only)",
+            command=self._make_all_online,
+            fg_color=t["action_btn_free_space_bg"],
+            hover_color=t["secondary_hover"],
+            text_color=t["action_btn_free_space_fg"],
+            corner_radius=8,
+            height=28,
+            font=("Segoe UI", 10, "bold")
         )
-
-        self.clear_search_btn.pack(side="left", padx=(0, 4))
+        self.btn_make_online_all.pack(side="left")
 
         # Header action buttons on right card (wrapped in dedicated container to prevent squishing)
 
@@ -6186,159 +6398,175 @@ class QCBatchLoaderApp(ctk.CTk):
 
         header_actions_right.pack(side="right")
 
-        self.make_online_top_btn = ctk.CTkButton(
-
-            header_actions_right,
-
-            text="☁️ Make Online",
-
-            command=self._make_selected_online,
-
-            fg_color="#FFFFFF" if is_light else "#1E293B",
-
-            hover_color="#F8FAFC" if is_light else "#334155",
-
-            text_color=t["text_main"],
-
-            border_width=1,
-
-            border_color=t["border"],
-
-            corner_radius=14,
-
-            height=30,
-
-            font=("Segoe UI", 11, "bold")
-
-        )
-
-        self.make_online_top_btn.pack(side="right", padx=(4, 0))
-
-        self.btn_scan_local = ctk.CTkButton(
-
-            header_actions_right,
-
-            text="🔍 Scan Local",
-
-            command=self._scan_local_in_selected_vendors,
-
-            fg_color="#FFFFFF" if is_light else "#1E293B",
-
-            hover_color="#F8FAFC" if is_light else "#334155",
-
-            text_color=t["secondary"] if not is_light else t["secondary_text"],
-
-            border_width=1,
-
-            border_color=t["border"],
-
-            corner_radius=14,
-
-            height=30,
-
-            font=("Segoe UI", 11, "bold")
-
-        )
-
-        self.btn_scan_local.pack(side="right", padx=(4, 0))
-
+        # Point 7: "Clear Dash" moves to "Local Scan" position (top right outer, tight icon gap)
         self.btn_clean_dashboard = ctk.CTkButton(
-
             header_actions_right,
-
-            text="🗑️ Clean Dash",
-
+            text="🗑 Clean Dash",
             command=self._clean_dashboard,
-
             fg_color="#FFFFFF" if is_light else "#1E293B",
-
             hover_color="#F8FAFC" if is_light else "#334155",
-
             text_color=t["danger"],
-
             border_width=1,
-
             border_color=t["border"],
-
-            corner_radius=14,
-
-            height=30,
-
-            font=("Segoe UI", 11)
-
+            corner_radius=8,
+            height=28,
+            font=("Segoe UI", 10, "bold")
         )
-
         self.btn_clean_dashboard.pack(side="right", padx=(4, 0))
 
-        self.btn_order_review = ctk.CTkButton(
-
+        # Point 7: "Local Scan" moves to "Remove" position (top right inner)
+        self.btn_scan_local = ctk.CTkButton(
             header_actions_right,
-
-            text="🔍 Review",
-
-            command=self._open_order_review,
-
+            text="🔍 Scan Local",
+            command=self._scan_local_in_selected_vendors,
             fg_color="#FFFFFF" if is_light else "#1E293B",
-
             hover_color="#F8FAFC" if is_light else "#334155",
-
-            text_color=t["text_muted"],
-
+            text_color=t["secondary"] if not is_light else t["secondary_text"],
             border_width=1,
-
             border_color=t["border"],
-
-            corner_radius=14,
-
-            height=30,
-
-            font=("Segoe UI", 11)
-
+            corner_radius=8,
+            height=28,
+            font=("Segoe UI", 10, "bold")
         )
+        self.btn_scan_local.pack(side="right", padx=(4, 0))
 
-        self.btn_order_review.pack(side="right", padx=(4, 0))
+        # Table Footer Bar inside card_right (Pinned to bottom of card_right first so it is never clipped!)
+        self.table_footer = ctk.CTkFrame(self.card_right, fg_color="transparent")
+        self.table_footer.pack(side="bottom", fill="x", padx=14, pady=(2, 8))
 
-        # Table using styled ttk.Treeview inside card_right
+        footer_row = ctk.CTkFrame(self.table_footer, fg_color="transparent")
+        self.footer_row = footer_row
+        footer_row.pack(fill="x")
 
+        footer_left = ctk.CTkFrame(footer_row, fg_color="transparent")
+        footer_left.pack(side="left", fill="x", expand=True)
+
+        footer_meta_row = ctk.CTkFrame(footer_left, fg_color="transparent")
+        footer_meta_row.pack(fill="x", pady=(0, 3))
+
+        self.total_lbl = ctk.CTkLabel(
+            footer_meta_row,
+            text="Total Orders in Dashboard: 0",
+            font=("Segoe UI", 10, "bold"),
+            text_color=t["text_main"]
+        )
+        self.total_lbl.pack(side="left", anchor="w")
+
+        # Real-time Download Speed & ETA in green box area right next to total_lbl (Point 5)
+        self.speed_eta_lbl = ctk.CTkLabel(
+            footer_meta_row,
+            text="",
+            font=("Segoe UI", 10, "bold"),
+            text_color=t["primary"]
+        )
+        self.speed_eta_lbl.pack(side="left", padx=(18, 0), anchor="w")
+
+        self.total_progress = ctk.CTkProgressBar(
+            footer_left,
+            fg_color="#DCE9F5" if is_light else "#253349",
+            progress_color=t["primary"],
+            corner_radius=6,
+            height=10
+        )
+        self.total_progress.set(0.0)
+        self.total_progress.pack(fill="x")
+
+        # Point 7 & Point 2: "Remove" in table footer, same size as Pause & Stop (width=80, height=28, tight icon gap)
+        self.btn_remove_selected = ctk.CTkButton(
+            footer_row,
+            text="🗑 Remove",
+            command=self._remove_selected_from_dashboard,
+            fg_color="#FFFFFF" if is_light else "#1E293B",
+            hover_color="#FEE2E2" if is_light else "#7F1D1D",
+            text_color=t["danger"],
+            border_width=1,
+            border_color=t["border"],
+            corner_radius=8,
+            width=80,
+            height=28,
+            font=("Segoe UI", 10, "bold")
+        )
+        self.btn_remove_selected.pack(side="right", padx=(6, 0), anchor="center")
+
+        # Stop button moved to table footer (Point 7 green box 2)
+        self.btn_stop = ctk.CTkButton(
+            footer_row,
+            text="⏹ Stop",
+            command=self._request_stop,
+            fg_color=t["action_btn_stop_bg"],
+            hover_color="#DC2626",
+            text_color=t["action_btn_stop_fg"],
+            corner_radius=8,
+            width=80,
+            height=28,
+            font=("Segoe UI", 10, "bold")
+        )
+        self.btn_stop.pack(side="right", padx=(6, 0), anchor="center")
+
+        # Pause button moved to table footer (Point 7 green box 1)
+        self.btn_pause = ctk.CTkButton(
+            footer_row,
+            text="⏸ Pause",
+            command=self._toggle_pause,
+            fg_color=t["action_btn_pause_bg"],
+            hover_color="#F59E0B",
+            text_color=t["action_btn_pause_fg"],
+            corner_radius=8,
+            width=80,
+            height=28,
+            font=("Segoe UI", 10, "bold")
+        )
+        self.btn_pause.pack(side="right", padx=(6, 0), anchor="center")
+
+        self.single_lbl = None
+        self.single_progress = None
+
+        # Table using styled ttk.Treeview inside card_right (Expands in middle)
         tree_frame = ctk.CTkFrame(self.card_right, fg_color="transparent")
 
-        tree_frame.pack(fill="both", expand=True, padx=14, pady=(0, 10))
+        tree_frame.pack(side="top", fill="both", expand=True, padx=14, pady=(0, 4))
 
-        columns = ("vendor", "status", "files", "size", "make_local", "make_online", "open")
+        # Point 3: Status moves before Files
+        columns = ("order_id", "vendor", "status", "files", "size", "make_local", "make_online", "open")
 
         self.tree = ttk.Treeview(tree_frame, columns=columns, show="tree headings", selectmode="extended", style="Custom.Treeview")
 
-        self.tree.heading("#0", text=" Order ID ˅", image=self.chk_master_unchecked_img, anchor="w", command=self._toggle_master_checkbox)
+        # Column #0 is dedicated purely to Checkbox (Centered, separate column)
+        self.tree.heading("#0", text="", image=self.chk_master_unchecked_img, anchor="center", command=self._toggle_master_checkbox)
+
+        self.tree.heading("order_id", text="Order ID ˅", anchor="w")
 
         self.tree.heading("vendor", text="Vendor", image="", anchor="w")
 
-        self.tree.heading("status", text="Sync Status", anchor="center")
+        self.tree.heading("status", text="Status", anchor="w")
 
-        self.tree.heading("files", text="Files", anchor="center")
+        self.tree.heading("files", text="Files (0)", anchor="w")
 
-        self.tree.heading("size", text="File Size", anchor="center")
+        self.tree.heading("size", text="File Size (0 B)", anchor="w")
 
-        self.tree.heading("make_local", text="Make Local", anchor="center")
+        self.tree.heading("make_local", text="Make Local (0)", anchor="w")
 
-        self.tree.heading("make_online", text="Make Online", anchor="center")
+        self.tree.heading("make_online", text="Make Cloud (0)", anchor="w")
 
-        self.tree.heading("open", text="Open", anchor="center")
+        self.tree.heading("open", text="Open", anchor="w")
 
-        self.tree.column("#0", width=115, minwidth=90, stretch=True, anchor="w")
+        self.tree.column("#0", width=38, minwidth=38, stretch=False, anchor="center")
 
-        self.tree.column("vendor", width=130, minwidth=100, stretch=True, anchor="w")
+        self.tree.column("order_id", width=115, minwidth=90, stretch=True, anchor="w")
 
-        self.tree.column("status", width=125, minwidth=95, stretch=True, anchor="center")
+        self.tree.column("vendor", width=110, minwidth=85, stretch=True, anchor="w")
 
-        self.tree.column("files", width=75, minwidth=60, stretch=True, anchor="center")
+        self.tree.column("status", width=85, minwidth=70, stretch=True, anchor="w")
 
-        self.tree.column("size", width=160, minwidth=135, stretch=True, anchor="center")
+        self.tree.column("files", width=95, minwidth=75, stretch=True, anchor="w")
 
-        self.tree.column("make_local", width=105, minwidth=85, stretch=True, anchor="center")
+        self.tree.column("size", width=155, minwidth=130, stretch=True, anchor="w")
 
-        self.tree.column("make_online", width=105, minwidth=85, stretch=True, anchor="center")
+        self.tree.column("make_local", width=115, minwidth=95, stretch=True, anchor="w")
 
-        self.tree.column("open", width=60, minwidth=48, stretch=True, anchor="center")
+        self.tree.column("make_online", width=125, minwidth=105, stretch=True, anchor="w")
+
+        self.tree.column("open", width=75, minwidth=65, stretch=True, anchor="w")
 
         # Status Tags configuration
 
@@ -6350,52 +6578,42 @@ class QCBatchLoaderApp(ctk.CTk):
 
         self.tree.tag_configure("row_notfound", background=t["status_notfound_bg"], foreground=t["status_notfound_fg"])
 
+        # Text selection overlay state for Order ID column & Action cell overlays (Point 1 & Point 7)
+        self._selected_order_ids = []
+        self._order_id_overlays = {}
+        self._action_cell_overlays = {}
+
         # Scrollbar
-
-        tree_scroll = ttk.Scrollbar(tree_frame, orient="vertical", command=self.tree.yview)
-
-        self.tree.configure(yscrollcommand=tree_scroll.set)
-
+        self._tree_scroll = ttk.Scrollbar(tree_frame, orient="vertical", command=self._on_tree_yview)
+        self.tree.configure(yscrollcommand=lambda *args: (self._tree_scroll.set(*args), self._update_all_tree_overlays()))
         self.tree.pack(side="left", fill="both", expand=True)
-
-        tree_scroll.pack(side="right", fill="y")
-
-        # Table Footer Bar inside card_right (Moved here directly below table per user request)
-        self.table_footer = ctk.CTkFrame(self.card_right, fg_color="transparent")
-        self.table_footer.pack(fill="x", padx=14, pady=(2, 10))
-
-        self.total_lbl = ctk.CTkLabel(
-            self.table_footer,
-            text="Total Orders in Dashboard: 0",
-            font=("Segoe UI", 10, "bold"),
-            text_color=t["text_main"]
-        )
-        self.total_lbl.pack(anchor="w", pady=(0, 3))
-
-        self.total_progress = ctk.CTkProgressBar(
-            self.table_footer,
-            fg_color="#DCE9F5" if is_light else "#253349",
-            progress_color=t["primary"],
-            corner_radius=6,
-            height=10
-        )
-        self.total_progress.set(0.0)
-        self.total_progress.pack(fill="x")
-
-        self.single_lbl = None
-        self.single_progress = None
+        self._tree_scroll.pack(side="right", fill="y")
+        self.tree.bind("<MouseWheel>", lambda e: self.after_idle(self._update_all_tree_overlays), add="+")
 
         # Tree Bindings
 
         self.tree.bind("<Button-1>", self._on_tree_click)
+        self.tree.bind("<B1-Motion>", self._on_tree_drag_motion)
+        self.tree.bind("<ButtonRelease-1>", self._on_tree_drag_release)
 
         self.tree.bind("<Double-1>", self._on_tree_double_click)
 
         self.tree.bind("<Button-3>", self._on_tree_right_click)
 
-        self.tree.bind("<Control-c>", self._copy_selected_order_ids)
+        # Shortcut Bindings (Ctrl+C for order ID copying, Ctrl+F for search focus)
+        self.tree.bind("<Control-c>", self._on_global_copy)
+        self.tree.bind("<Control-C>", self._on_global_copy)
+        self.bind("<Control-c>", self._on_global_copy)
+        self.bind("<Control-C>", self._on_global_copy)
 
-        self.tree.bind("<Control-C>", self._copy_selected_order_ids)
+        self.tree.bind("<Control-f>", self._activate_search)
+        self.tree.bind("<Control-F>", self._activate_search)
+        self.bind("<Control-f>", self._activate_search)
+        self.bind("<Control-F>", self._activate_search)
+
+        self.tree.bind("<Delete>", self._remove_selected_from_dashboard)
+
+        self.tree.bind("<BackSpace>", self._remove_selected_from_dashboard)
 
         self.tree.bind("<space>", self._on_space_key)
 
@@ -6411,131 +6629,13 @@ class QCBatchLoaderApp(ctk.CTk):
 
         self.context_menu.add_command(label="📥 Make Local (Download)", command=self._make_selected_local)
 
-        self.context_menu.add_command(label="☁️ Make Online (Free Space)", command=self._make_selected_online)
+        self.context_menu.add_command(label="☁ Make Cloud (Free Space)", command=self._make_selected_online)
 
         self.context_menu.add_separator()
 
         self.context_menu.add_command(label="🔍 Review / Filter Files", command=self._open_order_review)
 
-        self.context_menu.add_command(label="🗑️ Remove from Dashboard", command=self._remove_selected_from_dashboard)
-
-        # 4. Bottom Signature 4-Button Action Dock
-
-        dock = ctk.CTkFrame(self, fg_color="transparent")
-
-        dock.pack(fill="x", padx=16, pady=(4, 8))
-
-        btn_row = ctk.CTkFrame(dock, fg_color="transparent")
-
-        btn_row.pack(fill="x", pady=(0, 8))
-
-        self.btn_make_local_all = ctk.CTkButton(
-
-            btn_row,
-
-            text="📥 1. Make Local (Ready for QC)",
-
-            command=self._make_all_local,
-
-            fg_color=t["action_btn_make_local_bg"],
-
-            hover_color=t["primary_hover"],
-
-            text_color=t["action_btn_make_local_fg"],
-
-            corner_radius=10,
-
-            height=44,
-
-            font=("Segoe UI", 12, "bold")
-
-        )
-
-        self.btn_make_local_all.pack(side="left", fill="x", expand=True, padx=(0, 6))
-
-        self.btn_make_online_all = ctk.CTkButton(
-
-            btn_row,
-
-            text="☁️ 2. Free Up Space (Make Online-Only)",
-
-            command=self._make_all_online,
-
-            fg_color=t["action_btn_free_space_bg"],
-
-            hover_color=t["secondary_hover"],
-
-            text_color=t["action_btn_free_space_fg"],
-
-            corner_radius=10,
-
-            height=44,
-
-            font=("Segoe UI", 12, "bold")
-
-        )
-
-        self.btn_make_online_all.pack(side="left", fill="x", expand=True, padx=(0, 6))
-
-        self.btn_pause = ctk.CTkButton(
-
-            btn_row,
-
-            text="⏸ Pause",
-
-            command=self._toggle_pause,
-
-            fg_color=t["action_btn_pause_bg"],
-
-            hover_color="#F59E0B",
-
-            text_color=t["action_btn_pause_fg"],
-
-            corner_radius=10,
-
-            width=140,
-
-            height=44,
-
-            font=("Segoe UI", 12, "bold")
-
-        )
-
-        self.btn_pause.pack(side="left", padx=(0, 6))
-
-        self.btn_stop = ctk.CTkButton(
-
-            btn_row,
-
-            text="⏹ Stop",
-
-            command=self._request_stop,
-
-            fg_color=t["action_btn_stop_bg"],
-
-            hover_color="#DC2626",
-
-            text_color=t["action_btn_stop_fg"],
-
-            corner_radius=10,
-
-            width=140,
-
-            height=44,
-
-            font=("Segoe UI", 12, "bold")
-
-        )
-
-        self.btn_stop.pack(side="left")
-
-        # Status Ticker line (Clean & compact, dual progress bars moved into card_right footer)
-
-        self.status_var = tk.StringVar(value="⚡ Ready • 0 orders in queue • High speed parallel sync active")
-
-        self.status_pill_lbl = ctk.CTkLabel(dock, textvariable=self.status_var, font=("Segoe UI", 10), text_color=t["text_muted"])
-
-        self.status_pill_lbl.pack(anchor="w", pady=(4, 2))
+        self.context_menu.add_command(label="🗑️ Remove Selected from List (Del)", command=self._remove_selected_from_dashboard)
 
     def _toggle_theme(self):
 
@@ -6609,7 +6709,7 @@ class QCBatchLoaderApp(ctk.CTk):
 
             self.btn_clean_dedup.configure(
 
-                text="✔️ Clean & Deduplicate",
+                text="✔ Clean Duplicate",
 
                 fg_color=t["success"],
 
@@ -6635,13 +6735,7 @@ class QCBatchLoaderApp(ctk.CTk):
 
         if not drawer_was_open:
 
-            self.card_left.pack_forget()
-
-            self.drawer_open = False
-
-            if hasattr(self, "btn_hide_left"):
-
-                self.btn_hide_left.configure(text="▶ Show")
+            self._collapse_drawer()
 
         # Restore table items
 
@@ -6649,7 +6743,8 @@ class QCBatchLoaderApp(ctk.CTk):
 
         m_img = self.chk_master_checked_img if getattr(self, "master_checked", False) else self.chk_master_unchecked_img
 
-        self.tree.heading("#0", text=" Order ID ˅", image=m_img, anchor="w")
+        self.tree.heading("#0", text="", image=m_img, anchor="center")
+        self.tree.heading("order_id", text="Order ID ˅", anchor="w")
 
         for iid, data in existing_items.items():
 
@@ -6657,15 +6752,11 @@ class QCBatchLoaderApp(ctk.CTk):
 
             tag = data.get("tag", "row_online") if isinstance(data, dict) else "row_online"
 
-            info = self.resolved_orders.get(iid, {})
-
-            order_id = info.get("order_id") or str(iid).split("_")[0]
-
             chk = existing_cb.get(iid, "☐")
 
             chk_img = self.chk_checked_img if chk == "☑" else self.chk_unchecked_img
 
-            self.tree.insert("", "end", iid=iid, text=f" #{order_id}", image=chk_img, values=vals, tags=(tag,))
+            self.tree.insert("", "end", iid=iid, text="", image=chk_img, values=vals, tags=(tag,))
 
         self.table_items = existing_items
 
@@ -6689,7 +6780,7 @@ class QCBatchLoaderApp(ctk.CTk):
 
             if tot_cnt > 0 and loc_cnt > 0:
 
-                self.total_lbl.configure(text=f"Total Orders in Dashboard: {tot_cnt} ({loc_cnt} Local, {tot_cnt - loc_cnt} Cloud Only)")
+                self.total_lbl.configure(text=f"Total Orders in Dashboard: {tot_cnt} ({loc_cnt} Local, {tot_cnt - loc_cnt} Cloud)")
 
             else:
 
@@ -6699,29 +6790,59 @@ class QCBatchLoaderApp(ctk.CTk):
 
             self.total_progress.set(loc_cnt / max(tot_cnt, 1) if tot_cnt > 0 else 0.0)
 
+    def _collapse_drawer(self):
+        self.drawer_open = False
+        if hasattr(self, "paste_title_lbl") and self.paste_title_lbl.winfo_exists():
+            self.paste_title_lbl.pack_forget()
+        if hasattr(self, "paste_btn") and self.paste_btn.winfo_exists():
+            self.paste_btn.pack_forget()
+        if hasattr(self, "clear_top_btn") and self.clear_top_btn.winfo_exists():
+            self.clear_top_btn.pack_forget()
+        if hasattr(self, "row_sub") and self.row_sub.winfo_exists():
+            self.row_sub.pack_forget()
+        if hasattr(self, "count_lbl") and self.count_lbl.winfo_exists():
+            self.count_lbl.pack_forget()
+        if hasattr(self, "btn_clean_dedup") and self.btn_clean_dedup.winfo_exists():
+            self.btn_clean_dedup.pack_forget()
+        if hasattr(self, "input_text") and self.input_text.winfo_exists():
+            self.input_text.pack_forget()
+        if hasattr(self, "btn_add_to_sync") and self.btn_add_to_sync.winfo_exists():
+            self.btn_add_to_sync.pack_forget()
+
+        self.card_left.configure(width=46)
+        if hasattr(self, "btn_toggle_sidebar") and self.btn_toggle_sidebar.winfo_exists():
+            self.btn_toggle_sidebar.configure(text="▶")
+            self.btn_toggle_sidebar.pack_configure(padx=0)
+        self.status_var.set("Order IDs sidebar collapsed.")
+
+    def _expand_drawer(self):
+        self.drawer_open = True
+        self.card_left.configure(width=220)
+        if hasattr(self, "btn_toggle_sidebar") and self.btn_toggle_sidebar.winfo_exists():
+            self.btn_toggle_sidebar.configure(text="◨")
+            self.btn_toggle_sidebar.pack_configure(padx=(0, 4))
+        if hasattr(self, "paste_title_lbl") and self.paste_title_lbl.winfo_exists():
+            self.paste_title_lbl.pack(side="left")
+        if hasattr(self, "paste_btn") and self.paste_btn.winfo_exists():
+            self.paste_btn.pack(side="right")
+        if hasattr(self, "row_sub") and self.row_sub.winfo_exists():
+            self.row_sub.pack(fill="x", padx=8, pady=(0, 6))
+        if hasattr(self, "count_lbl") and self.count_lbl.winfo_exists():
+            self.count_lbl.pack(side="left", anchor="w")
+        if hasattr(self, "btn_clean_dedup") and self.btn_clean_dedup.winfo_exists():
+            self.btn_clean_dedup.pack(side="right")
+        if hasattr(self, "btn_add_to_sync") and self.btn_add_to_sync.winfo_exists():
+            self.btn_add_to_sync.pack(side="bottom", fill="x", padx=8, pady=(0, 8))
+        if hasattr(self, "input_text") and self.input_text.winfo_exists():
+            self.input_text.pack(fill="both", expand=True, padx=8, pady=(0, 6))
+        self.status_var.set("Order IDs sidebar expanded.")
+
     def _toggle_drawer(self):
-
         """Toggles the Paste Order IDs left drawer between collapsed and visible."""
-
         if getattr(self, "drawer_open", True):
-
-            self.card_left.pack_forget()
-
-            self.drawer_open = False
-
-            self.btn_hide_left.configure(text="▶ Show")
-
-            self.status_var.set("Order IDs drawer closed.")
-
+            self._collapse_drawer()
         else:
-
-            self.card_left.pack(side="left", fill="y", padx=(0, 8), before=self.card_right)
-
-            self.drawer_open = True
-
-            self.btn_hide_left.configure(text="◀ Hide")
-
-            self.status_var.set("Order IDs drawer opened.")
+            self._expand_drawer()
 
     def _on_input_text_changed(self, event=None):
 
@@ -6729,31 +6850,55 @@ class QCBatchLoaderApp(ctk.CTk):
 
         self.input_cleaned = False
 
+        has_content = bool(self.input_text.get("1.0", "end-1c").strip())
         t = self.theme
-
         is_light = (self.theme_name == "light")
 
-        self.btn_clean_dedup.configure(
+        if hasattr(self, "paste_btn") and self.paste_btn.winfo_exists():
+            if has_content:
+                # Point 3: When Reset button appears, its text color is RED
+                self.paste_btn.configure(
+                    text="Reset",
+                    command=self._clear_input,
+                    text_color=t["danger"],
+                    hover_color="#FEE2E2" if is_light else "#7F1D1D"
+                )
+            else:
+                self.paste_btn.configure(
+                    text="Paste",
+                    command=self._paste_clipboard,
+                    text_color=t["primary"],
+                    hover_color="#F8FAFC" if is_light else "#334155"
+                )
 
-            text="🧹 Clean & Deduplicate",
+        if hasattr(self, "btn_clean_dedup") and self.btn_clean_dedup.winfo_exists():
+            if has_content:
+                # Point 2: Active when data is pasted
+                self.btn_clean_dedup.configure(
+                    state="normal",
+                    text="🧹 Clean Duplicate",
+                    fg_color="#FFFFFF" if is_light else "#1E293B",
+                    hover_color="#F8FAFC" if is_light else "#334155",
+                    text_color=t["text_main"] if is_light else "#FFFFFF",
+                    border_color=t["border"]
+                )
+            else:
+                # Point 2: Inactive until data is pasted
+                self.btn_clean_dedup.configure(
+                    state="disabled",
+                    text="🧹 Clean Duplicate",
+                    fg_color="#F1F5F9" if is_light else "#1E293B",
+                    hover_color="#F1F5F9" if is_light else "#1E293B",
+                    text_color="#94A3B8" if is_light else "#64748B",
+                    border_color=t["border"]
+                )
 
-            fg_color="#FFFFFF" if is_light else t["danger"],
-
-            hover_color="#F8FAFC" if is_light else t["danger_hover"],
-
-            text_color=t["text_main"] if is_light else "#FFFFFF"
-
-        )
-
-        self.btn_add_to_sync.configure(
-
-            state="normal" if is_light else "disabled",
-
-            fg_color=t["primary"] if is_light else t["border"],
-
-            text_color="#FFFFFF" if is_light else t["text_muted"]
-
-        )
+        if hasattr(self, "btn_add_to_sync") and self.btn_add_to_sync.winfo_exists():
+            self.btn_add_to_sync.configure(
+                state="disabled",
+                fg_color="#CBD5E1" if is_light else "#334155",
+                text_color="#94A3B8" if is_light else "#64748B"
+            )
 
     def _clean_and_deduplicate(self):
 
@@ -6799,7 +6944,7 @@ class QCBatchLoaderApp(ctk.CTk):
 
         self.btn_clean_dedup.configure(
 
-            text="✔️ Clean & Deduplicate",
+            text="✔ Clean Duplicate",
 
             fg_color=t["success"],
 
@@ -6821,7 +6966,15 @@ class QCBatchLoaderApp(ctk.CTk):
 
         )
 
-        self.status_var.set(f"Cleaned & deduplicated: {len(unique_orders)} unique orders ready.")
+        if hasattr(self, "paste_btn") and self.paste_btn.winfo_exists():
+            self.paste_btn.configure(
+                text="Reset",
+                command=self._clear_input,
+                text_color=t["danger"],
+                hover_color="#FEE2E2" if (self.theme_name == "light") else "#7F1D1D"
+            )
+
+        self.status_var.set(f"Cleaned duplicates: {len(unique_orders)} unique orders ready.")
 
     def _clean_dashboard(self):
 
@@ -6867,6 +7020,13 @@ class QCBatchLoaderApp(ctk.CTk):
 
                 self.total_lbl.configure(text="Total Orders in Dashboard: 0")
 
+            if hasattr(self, "speed_eta_lbl") and self.speed_eta_lbl:
+                self.speed_eta_lbl.configure(text="")
+
+            self._clear_order_id_highlights()
+            self._clear_action_cell_overlays()
+            self._update_table_header_metrics()
+
             self.status_var.set("Dashboard cleared.")
 
     def _toggle_master_checkbox(self):
@@ -6885,7 +7045,7 @@ class QCBatchLoaderApp(ctk.CTk):
 
         row_img = self.chk_checked_img if self.master_checked else self.chk_unchecked_img
 
-        self.tree.heading("#0", text=" Order ID ˅", image=m_img, anchor="w")
+        self.tree.heading("#0", text="", image=m_img, anchor="center")
 
         for iid in all_iids:
 
@@ -6909,81 +7069,263 @@ class QCBatchLoaderApp(ctk.CTk):
 
         all_iids = self.tree.get_children()
 
+        self._update_master_checkbox_state()
+
+    def _update_master_checkbox_state(self):
+        all_iids = self.tree.get_children()
         if all_iids:
-
             all_checked = all(self.order_checkboxes.get(i, "☐") == "☑" for i in all_iids)
-
             self.master_checked = all_checked
-
             m_img = self.chk_master_checked_img if all_checked else self.chk_master_unchecked_img
+            self.tree.heading("#0", text="", image=m_img, anchor="center")
 
-            self.tree.heading("#0", text=" Order ID ˅", image=m_img, anchor="w")
-
-    def _on_tree_click(self, event):
-
-        col = self.tree.identify_column(event.x)
-
-        row_id = self.tree.identify_row(event.y)
-
-        if not row_id:
-
-            return
-
-        if col == "#0":
-
-            elem = self.tree.identify_element(event.x, event.y)
-
-            if elem in ("Treeitem.image", "image") or event.x <= 40:
-
-                self._toggle_row_checkbox(row_id)
-
-                return "break"
-
-            return
-
-        elif col == "#5":
-
-            # Column 5: 'Make Local'
-
-            vals = self.tree.item(row_id, "values")
-
-            btn_text = vals[4] if len(vals) > 4 else ""
-
-            if "local" in btn_text.lower():
-
-                self._make_single_order_local(row_id)
-
+    def _activate_search(self, event=None):
+        """Focuses the search box when Ctrl+F is pressed (Point 5)."""
+        if hasattr(self, "search_entry") and self.search_entry.winfo_exists():
+            self.search_entry.focus_set()
+            try:
+                if hasattr(self.search_entry, "_entry"):
+                    self.search_entry._entry.focus_set()
+                    self.search_entry._entry.select_range(0, "end")
+                    self.search_entry._entry.icursor("end")
+                else:
+                    self.search_entry.select_range(0, "end")
+            except Exception:
+                pass
+            self.status_var.set("🔍 Search active. Type to filter orders...")
             return "break"
 
-        elif col == "#6":
+    def _on_global_copy(self, event=None):
+        """Global Ctrl+C copy handler: respects entry/text widgets, otherwise copies selected order IDs."""
+        focused = self.focus_get()
+        if focused and isinstance(focused, (tk.Entry, tk.Text)):
+            try:
+                if focused.selection_get():
+                    return  # Native copy handles it
+            except Exception:
+                pass
+        self._copy_selected_order_ids(event)
+        return "break"
 
-            # Column 6: 'Make Online'
+    def _highlight_order_id_rows(self, row_ids):
+        """Highlights only the Order ID text in the Order ID column like selected text (Point 1)."""
+        self._selected_order_ids = list(row_ids)
+        if hasattr(self, "tree") and self.tree.winfo_exists():
+            self.tree.selection_set(row_ids)
+        self._update_order_id_overlay_positions()
 
+    def _clear_order_id_highlights(self):
+        """Removes the visual text selection overlays and clears selection."""
+        self._selected_order_ids = []
+        if hasattr(self, "_order_id_overlays"):
+            for lbl in self._order_id_overlays.values():
+                try:
+                    lbl.place_forget()
+                except Exception:
+                    pass
+        if hasattr(self, "tree") and self.tree.winfo_exists():
+            self.tree.selection_set([])
+
+    def _highlight_tree_rows(self, row_ids):
+        return self._highlight_order_id_rows(row_ids)
+
+    def _clear_tree_highlights(self):
+        return self._clear_order_id_highlights()
+
+    def _update_order_id_overlay_positions(self, *args):
+        """Repositions text-selection overlay labels over Order ID text cells."""
+        if not hasattr(self, "tree") or not self.tree.winfo_exists():
+            return
+        if not hasattr(self, "_order_id_overlays"):
+            self._order_id_overlays = {}
+        active_set = set(getattr(self, "_selected_order_ids", []))
+
+        # Hide overlays no longer selected
+        for iid, lbl in list(self._order_id_overlays.items()):
+            if iid not in active_set:
+                try:
+                    lbl.place_forget()
+                except Exception:
+                    pass
+
+        if not active_set:
+            return
+
+        font = tkFont.Font(family="Segoe UI", size=10)
+        for iid in getattr(self, "_selected_order_ids", []):
+            try:
+                box = self.tree.bbox(iid, "order_id") or self.tree.bbox(iid, "#1")
+                if not box:
+                    if iid in self._order_id_overlays:
+                        self._order_id_overlays[iid].place_forget()
+                    continue
+                x, y, w, h = box
+                vals = self.tree.item(iid, "values")
+                raw_text = str(vals[0]) if vals and len(vals) > 0 else ""
+                if not raw_text:
+                    continue
+                text_w = font.measure(raw_text) + 8
+                if iid not in self._order_id_overlays or not self._order_id_overlays[iid].winfo_exists():
+                    lbl = tk.Label(
+                        self.tree,
+                        bg="#4F67D6",
+                        fg="#FFFFFF",
+                        font=font,
+                        anchor="center",
+                        cursor="xterm"
+                    )
+                    lbl.bind("<Button-1>", lambda e, l=lbl: self._on_overlay_lbl_click(e, l))
+                    lbl.bind("<B1-Motion>", lambda e, l=lbl: self._on_overlay_lbl_motion(e, l))
+                    lbl.bind("<ButtonRelease-1>", lambda e, l=lbl: self._on_overlay_lbl_release(e, l))
+                    self._order_id_overlays[iid] = lbl
+                lbl = self._order_id_overlays[iid]
+                lbl.configure(text=raw_text)
+                lbl.place(x=x + 4, y=y + 1, width=text_w, height=max(h - 2, 12))
+            except Exception:
+                pass
+
+    def _on_overlay_lbl_click(self, event, lbl):
+        event.x += lbl.winfo_x()
+        event.y += lbl.winfo_y()
+        return self._on_tree_click(event)
+
+    def _on_overlay_lbl_motion(self, event, lbl):
+        event.x += lbl.winfo_x()
+        event.y += lbl.winfo_y()
+        return self._on_tree_drag_motion(event)
+
+    def _on_overlay_lbl_release(self, event, lbl):
+        event.x += lbl.winfo_x()
+        event.y += lbl.winfo_y()
+        return self._on_tree_drag_release(event)
+
+    def _update_action_cell_overlays(self, *args):
+        """Action cell overlays feature disabled per user request."""
+        self._clear_action_cell_overlays()
+
+    def _clear_action_cell_overlays(self):
+        """Hides and destroys all action cell overlays."""
+        if hasattr(self, "_action_cell_overlays") and self._action_cell_overlays:
+            for lbl in list(self._action_cell_overlays.values()):
+                try:
+                    lbl.destroy()
+                except Exception:
+                    pass
+            self._action_cell_overlays.clear()
+
+    def _update_all_tree_overlays(self, *args):
+        self._update_order_id_overlay_positions()
+
+    def _on_tree_yview(self, *args):
+        if hasattr(self, "tree") and self.tree.winfo_exists():
+            self.tree.yview(*args)
+        self._update_all_tree_overlays()
+
+    def _on_tree_click(self, event):
+        col = self.tree.identify_column(event.x)
+        row_id = self.tree.identify_row(event.y)
+        if not row_id:
+            self._clear_order_id_highlights()
+            return
+
+        self._drag_start_row = row_id
+
+        if col == "#0":
+            # Dedicated Checkbox column
+            self._clear_order_id_highlights()
+            self._drag_mode = "check"
+            cur = self.order_checkboxes.get(row_id, "☐")
+            self._drag_check_val = "☐" if cur == "☑" else "☑"
+            self._toggle_row_checkbox(row_id)
+            return "break"
+
+        elif col == "#1":
+            # Dedicated Order ID column (Select & highlight like text, copy with mouse / Ctrl+C)
+            self._drag_mode = "select"
+            self.tree.focus_set()
+            self._highlight_order_id_rows([row_id])
+            info = self.resolved_orders.get(row_id)
             vals = self.tree.item(row_id, "values")
+            raw_id = info.get("order_id") if info else (vals[0] if vals and len(vals) > 0 else "")
+            clean_oid = str(raw_id).lstrip("#").strip() if raw_id else str(row_id).split("_")[0].lstrip("#")
+            if clean_oid:
+                self.clipboard_clear()
+                self.clipboard_append(f"#{clean_oid}")
+                self.update_idletasks()
+                self.status_var.set(f"📋 Copied Order ID: #{clean_oid} (Drag or press Ctrl+C for range)")
+            return
 
+        elif col == "#6":
+            # Column 6: 'Make Local'
+            vals = self.tree.item(row_id, "values")
             btn_text = vals[5] if len(vals) > 5 else ""
-
-            if "online" in btn_text.lower():
-
-                self._make_single_order_online(row_id)
-
+            if "local" in btn_text.lower():
+                self._make_single_order_local(row_id)
             return "break"
 
         elif col == "#7":
-
-            # Column 7: 'Open'
-
+            # Column 7: 'Make Cloud'
             vals = self.tree.item(row_id, "values")
-
             btn_text = vals[6] if len(vals) > 6 else ""
-
-            if "open" in btn_text.lower():
-
-                self.tree.selection_set(row_id)
-
-                self._open_single_order_folder(row_id)
-
+            if "online" in btn_text.lower() or "cloud" in btn_text.lower():
+                self._make_single_order_online(row_id)
             return "break"
+
+        elif col == "#8":
+            # Column 8: 'Open'
+            vals = self.tree.item(row_id, "values")
+            btn_text = vals[7] if len(vals) > 7 else ""
+            if "open" in btn_text.lower():
+                self.tree.selection_set(row_id)
+                self._open_single_order_folder(row_id)
+            return "break"
+
+        else:
+            self._clear_order_id_highlights()
+
+    def _on_tree_drag_motion(self, event):
+        if not getattr(self, "_drag_start_row", None):
+            return
+        cur_row = self.tree.identify_row(event.y)
+        if not cur_row:
+            return
+        children = list(self.tree.get_children())
+        if self._drag_start_row not in children or cur_row not in children:
+            return
+        idx1 = children.index(self._drag_start_row)
+        idx2 = children.index(cur_row)
+        start_idx, end_idx = min(idx1, idx2), max(idx1, idx2)
+        range_rows = children[start_idx : end_idx + 1]
+
+        if getattr(self, "_drag_mode", "select") == "check":
+            target_val = getattr(self, "_drag_check_val", "☑")
+            for r in range_rows:
+                self.order_checkboxes[r] = target_val
+                img = self.chk_checked_img if target_val == "☑" else self.chk_unchecked_img
+                self.tree.item(r, image=img)
+            self._update_master_checkbox_state()
+        elif getattr(self, "_drag_mode", None) == "select":
+            self._highlight_order_id_rows(range_rows)
+            self.status_var.set(f"Selected {len(range_rows)} order(s). Press Ctrl+C to copy.")
+
+    def _on_tree_drag_release(self, event):
+        if getattr(self, "_drag_mode", None) == "select" and getattr(self, "_selected_order_ids", None):
+            oids = []
+            for s in self._selected_order_ids:
+                info = self.resolved_orders.get(s)
+                vals = self.tree.item(s, "values")
+                raw_id = info.get("order_id") if info else (vals[0] if vals and len(vals) > 0 else "")
+                clean_oid = str(raw_id).lstrip("#").strip() if raw_id else str(s).split("_")[0].lstrip("#")
+                if clean_oid:
+                    oids.append(f"#{clean_oid}")
+            if oids:
+                self.clipboard_clear()
+                self.clipboard_append("\n".join(oids))
+                self.update_idletasks()
+                if len(oids) > 1:
+                    self.status_var.set(f"📋 Copied {len(oids)} Order IDs to clipboard (or press Ctrl+C)")
+        self._drag_start_row = None
+        self._drag_mode = None
 
     def _on_space_key(self, event=None):
 
@@ -6993,14 +7335,16 @@ class QCBatchLoaderApp(ctk.CTk):
 
     def _copy_selected_order_ids(self, event=None):
 
-        selected_iids = list(self.tree.selection())
+        selected_iids = getattr(self, "_selected_order_ids", []) or list(self.tree.selection())
 
         checked_iids = [k for k, v in self.order_checkboxes.items() if v == "☑"]
 
-        target_iids = list(dict.fromkeys(selected_iids + checked_iids))
-
-        if not target_iids:
-
+        # Prioritize explicitly selected/highlighted rows, otherwise fall back to checked rows or all rows
+        if selected_iids:
+            target_iids = selected_iids
+        elif checked_iids:
+            target_iids = checked_iids
+        else:
             target_iids = list(self.tree.get_children())
 
         if not target_iids:
@@ -7020,15 +7364,10 @@ class QCBatchLoaderApp(ctk.CTk):
                 oid = str(info["order_id"]).strip().lstrip("#")
 
             else:
-
-                item_text = self.tree.item(iid, "text")
-
-                if item_text:
-
-                    oid = str(item_text).strip().lstrip("#")
-
+                vals = self.tree.item(iid, "values")
+                if vals and len(vals) > 0 and vals[0]:
+                    oid = str(vals[0]).strip().lstrip("#")
                 else:
-
                     oid = str(iid).split("_")[0].lstrip("#")
 
             if oid and oid not in order_ids:
@@ -7043,7 +7382,10 @@ class QCBatchLoaderApp(ctk.CTk):
 
             self.clipboard_append(clipboard_text)
 
-            self.status_var.set(f"Copied {len(order_ids)} Order ID(s) to clipboard.")
+            self.update_idletasks()
+
+            sample = f"#{order_ids[0]}" if len(order_ids) == 1 else f"{len(order_ids)} Order ID(s)"
+            self.status_var.set(f"📋 Copied {sample} to clipboard.")
 
         else:
 
@@ -7067,7 +7409,7 @@ class QCBatchLoaderApp(ctk.CTk):
             t = self.theme
             is_light = (self.theme_name == "light")
             self.settings_btn.configure(
-                text="⚙️ Settings",
+                text="⚙ Settings",
                 fg_color="#FFFFFF" if is_light else "#1E293B",
                 hover_color="#F1F5F9" if is_light else "#334155",
                 text_color=t["text_main"],
@@ -7140,7 +7482,7 @@ class QCBatchLoaderApp(ctk.CTk):
             )
 
         if hasattr(self, "settings_btn") and self.settings_btn.winfo_exists():
-            s_text = "⚙️ Settings 🔴" if (has_update or has_unread) else "⚙️ Settings"
+            s_text = "⚙ Settings 🔴" if (has_update or has_unread) else "⚙ Settings"
             self.settings_btn.configure(
                 text=s_text,
                 fg_color=btn_bg,
@@ -7211,10 +7553,12 @@ class QCBatchLoaderApp(ctk.CTk):
         if hasattr(self, "count_lbl") and self.count_lbl.winfo_exists():
             self.count_lbl.configure(text_color=t["text_muted"])
 
-        if hasattr(self, "btn_hide_left") and self.btn_hide_left.winfo_exists():
-            self.btn_hide_left.configure(text_color=t["text_muted"], border_color=t["border"], hover_color="#F1F5F9" if is_light else "#253349")
+        if hasattr(self, "btn_toggle_sidebar") and self.btn_toggle_sidebar.winfo_exists():
+            self.btn_toggle_sidebar.configure(text_color=t["text_main"], border_color=t["border"], hover_color="#F1F5F9" if is_light else "#253349")
+        elif hasattr(self, "btn_hide_left") and self.btn_hide_left.winfo_exists():
+            self.btn_hide_left.configure(text_color=t["text_main"], border_color=t["border"], hover_color="#F1F5F9" if is_light else "#253349")
 
-        if hasattr(self, "clear_top_btn") and self.clear_top_btn.winfo_exists():
+        if hasattr(self, "clear_top_btn") and self.clear_top_btn.winfo_exists() and self.clear_top_btn is not getattr(self, "paste_btn", None):
             self.clear_top_btn.configure(text_color=t["text_muted"], border_color=t["border"], hover_color="#F1F5F9" if is_light else "#253349")
 
         if hasattr(self, "input_text") and self.input_text.winfo_exists():
@@ -7224,32 +7568,63 @@ class QCBatchLoaderApp(ctk.CTk):
                 border_color=t["border"]
             )
 
+        has_content = bool(self.input_text.get("1.0", "end-1c").strip()) if hasattr(self, "input_text") and self.input_text.winfo_exists() else False
+
         if hasattr(self, "paste_btn") and self.paste_btn.winfo_exists():
-            self.paste_btn.configure(
-                fg_color=btn_bg,
-                hover_color=btn_hover_subtle,
-                text_color=t["text_main"],
-                border_color=t["border"]
-            )
+            if has_content:
+                self.paste_btn.configure(
+                    fg_color=btn_bg,
+                    hover_color="#FEE2E2" if is_light else "#7F1D1D",
+                    text_color=t["danger"],
+                    border_color=t["border"]
+                )
+            else:
+                self.paste_btn.configure(
+                    fg_color=btn_bg,
+                    hover_color=btn_hover_subtle,
+                    text_color=t["primary"],
+                    border_color=t["border"]
+                )
 
         if hasattr(self, "btn_clean_dedup") and self.btn_clean_dedup.winfo_exists():
             if getattr(self, "input_cleaned", False):
-                self.btn_clean_dedup.configure(fg_color=t["success"], hover_color=t["success_hover"], text_color="#FFFFFF")
+                self.btn_clean_dedup.configure(
+                    state="normal",
+                    text="✔ Clean Duplicate",
+                    fg_color=t["success"],
+                    hover_color=t["success_hover"],
+                    text_color="#FFFFFF"
+                )
+            elif has_content:
+                self.btn_clean_dedup.configure(
+                    state="normal",
+                    text="🧹 Clean Duplicate",
+                    fg_color=btn_bg,
+                    hover_color=btn_hover_subtle,
+                    text_color=t["text_main"] if is_light else "#FFFFFF"
+                )
             else:
-                self.btn_clean_dedup.configure(fg_color=t["danger"], hover_color=t["danger_hover"], text_color="#FFFFFF")
+                self.btn_clean_dedup.configure(
+                    state="disabled",
+                    text="🧹 Clean Duplicate",
+                    fg_color="#F1F5F9" if is_light else "#1E293B",
+                    hover_color="#F1F5F9" if is_light else "#1E293B",
+                    text_color="#94A3B8" if is_light else "#64748B"
+                )
 
         if hasattr(self, "btn_add_to_sync") and self.btn_add_to_sync.winfo_exists():
             if getattr(self, "input_cleaned", False):
                 self.btn_add_to_sync.configure(
+                    state="normal",
                     fg_color=t["primary"],
                     hover_color=t["primary_hover"],
                     text_color="#FFFFFF" if is_light else "#0B1120"
                 )
             else:
                 self.btn_add_to_sync.configure(
-                    fg_color="#1E293B",
-                    hover_color=t["primary_hover"],
-                    text_color="#FFFFFF" if is_light else "#94A3B8"
+                    state="disabled",
+                    fg_color="#CBD5E1" if is_light else "#334155",
+                    text_color="#94A3B8" if is_light else "#64748B"
                 )
 
         # 5. Update Right Card (Search & Table)
@@ -7257,7 +7632,9 @@ class QCBatchLoaderApp(ctk.CTk):
             self.card_right.configure(fg_color=t["bg_card"], border_color=t["border"])
 
         if hasattr(self, "search_box") and self.search_box.winfo_exists():
-            self.search_box.configure(fg_color=t["bg_card"], border_color=t["border"])
+            s_border = "#94A3B8" if is_light else "#475569"
+            s_bg = "#F8FAFC" if is_light else "#1E293B"
+            self.search_box.configure(fg_color=s_bg, border_color=s_border, border_width=1)
 
         if hasattr(self, "search_icon_lbl") and self.search_icon_lbl.winfo_exists():
             self.search_icon_lbl.configure(text_color=t["text_muted"])
@@ -7278,6 +7655,9 @@ class QCBatchLoaderApp(ctk.CTk):
         if hasattr(self, "btn_clean_dashboard") and self.btn_clean_dashboard.winfo_exists():
             self.btn_clean_dashboard.configure(fg_color=btn_bg, hover_color=btn_hover_subtle, text_color=t["danger"], border_color=t["border"])
 
+        if hasattr(self, "btn_remove_selected") and self.btn_remove_selected.winfo_exists():
+            self.btn_remove_selected.configure(fg_color=btn_bg, hover_color=btn_hover_subtle, text_color=t["danger"], border_color=t["border"])
+
         if hasattr(self, "btn_order_review") and self.btn_order_review.winfo_exists():
             self.btn_order_review.configure(fg_color=btn_bg, hover_color=btn_hover_subtle, text_color=t["text_muted"], border_color=t["border"])
 
@@ -7287,23 +7667,26 @@ class QCBatchLoaderApp(ctk.CTk):
                 "Custom.Treeview",
                 background=t["bg_card"],
                 foreground=t["text_main"],
-                fieldbackground=t["bg_card"]
+                fieldbackground=t["bg_card"],
+                font=("Segoe UI", 10)
             )
             self.style.configure(
                 "Custom.Treeview.Heading",
                 background="#F8FAFC" if is_light else "#1E293B",
-                foreground=t["text_muted"]
+                foreground=t["text_muted"],
+                font=("Segoe UI", 10, "bold")
             )
             self.style.map(
                 "Custom.Treeview",
-                background=[("selected", "#EFF6FF" if is_light else "#23334D")],
-                foreground=[("selected", "#1E40AF" if is_light else "#38BDF8")]
+                background=[("selected", t["bg_card"])],
+                foreground=[("selected", t["text_main"])]
             )
 
         self._create_checkbox_icons()
         if hasattr(self, "tree") and self.tree.winfo_exists():
             m_img = self.chk_master_checked_img if getattr(self, "master_checked", False) else self.chk_master_unchecked_img
-            self.tree.heading("#0", text=" Order ID ˅", image=m_img, anchor="w")
+            self.tree.heading("#0", text="", image=m_img, anchor="center")
+            self.tree.heading("order_id", text="Order ID ˅", anchor="w")
             self.tree.heading("vendor", text="Vendor", image="", anchor="w")
             for iid in self.tree.get_children():
                 chk = self.order_checkboxes.get(iid, "☐")
@@ -7313,6 +7696,7 @@ class QCBatchLoaderApp(ctk.CTk):
             self.tree.tag_configure("row_syncing", background=t["status_sync_bg"], foreground=t["status_sync_fg"])
             self.tree.tag_configure("row_online", background=t["status_cloud_bg"], foreground=t["status_cloud_fg"])
             self.tree.tag_configure("row_notfound", background=t["status_notfound_bg"], foreground=t["status_notfound_fg"])
+            self._update_all_tree_overlays()
 
         # 7. Update Context Menu
         if hasattr(self, "context_menu") and self.context_menu:
@@ -7350,6 +7734,9 @@ class QCBatchLoaderApp(ctk.CTk):
 
         if hasattr(self, "total_lbl") and self.total_lbl and self.total_lbl.winfo_exists():
             self.total_lbl.configure(text_color=t["text_main"])
+
+        if hasattr(self, "speed_eta_lbl") and self.speed_eta_lbl and self.speed_eta_lbl.winfo_exists():
+            self.speed_eta_lbl.configure(text_color=t["primary"])
 
         if hasattr(self, "total_progress") and self.total_progress and self.total_progress.winfo_exists():
             self.total_progress.configure(fg_color="#DCE9F5" if is_light else "#253349", progress_color=t["primary"])
@@ -7406,7 +7793,7 @@ class QCBatchLoaderApp(ctk.CTk):
             )
 
         if hasattr(self, "settings_btn") and self.settings_btn.winfo_exists():
-            self.settings_btn.configure(text="⚙️ Settings 🔴")
+            self.settings_btn.configure(text="⚙ Settings 🔴")
 
         # 3. Synchronize open SettingsDialog if alive
         if hasattr(self, "settings_dialog") and self.settings_dialog and self.settings_dialog.winfo_exists():
@@ -7508,35 +7895,112 @@ class QCBatchLoaderApp(ctk.CTk):
 
             )
 
-    def _remove_selected_from_dashboard(self):
+    def _remove_selected_from_dashboard(self, event=None):
+        if self.is_running:
+            messagebox.showwarning("Busy", "Cannot remove orders while a process is running.", parent=self)
+            return
 
-        selected = list(self.tree.selection())
+        selected_iids = list(self.tree.selection())
+        checked_iids = [k for k, v in self.order_checkboxes.items() if v == "☑" and (self.tree.exists(k) or k in self.table_items)]
+        target_iids = list(dict.fromkeys(selected_iids + checked_iids))
 
-        for iid in selected:
+        if not target_iids:
+            self.status_var.set("⚠️ Please select or check order(s) to remove.")
+            messagebox.showinfo("No Selection", "Please select or check the row(s) you wish to remove from the dashboard.", parent=self)
+            return
 
-            self.tree.delete(iid)
+        count = len(target_iids)
+        msg = f"Remove {count} selected order(s) from the processing list?" if count > 1 else f"Remove order #{str(target_iids[0]).split('_')[0].lstrip('#')} from the processing list?"
+        if not messagebox.askyesno("Remove Orders", msg, parent=self):
+            return
 
+        for iid in target_iids:
+            if self.tree.exists(iid):
+                self.tree.delete(iid)
+            self.resolved_orders.pop(iid, None)
             self.table_items.pop(iid, None)
-
             self.order_checkboxes.pop(iid, None)
+            self.order_file_whitelists.pop(iid, None)
 
-        self.status_var.set(f"Removed {len(selected)} order(s) from dashboard.")
+        # Update total count & metrics in footer
+        tot_cnt = len(self.table_items)
+        loc_cnt = sum(1 for v in self.table_items.values() if any("local" in str(x).lower() for x in (v if isinstance(v, (list, tuple)) else [])))
+        if hasattr(self, "total_lbl") and self.total_lbl:
+            if tot_cnt > 0 and loc_cnt > 0:
+                self.total_lbl.configure(text=f"Total Orders in Dashboard: {tot_cnt} ({loc_cnt} Local, {tot_cnt - loc_cnt} Cloud)")
+            else:
+                self.total_lbl.configure(text=f"Total Orders in Dashboard: {tot_cnt}")
+        if hasattr(self, "total_progress") and self.total_progress:
+            self.total_progress.set(loc_cnt / max(tot_cnt, 1) if tot_cnt > 0 else 0.0)
+
+        # Update master checkbox status
+        if not self.tree.get_children():
+            self.master_checked = False
+            self.tree.heading("#0", text="", image=self.chk_master_unchecked_img, anchor="center")
+
+        self.status_var.set(f"🗑️ Removed {count} order(s) from dashboard.")
+        self._update_all_tree_overlays()
+        self._update_table_header_metrics()
+
+    def _update_table_header_metrics(self):
+        """Dynamically computes total quantity and size metrics and updates treeview headings (Point 2 & Point 3)."""
+        tot_files = 0
+        tot_bytes = 0
+        loc_cnt = 0
+        cloud_cnt = 0
+
+        for key, vals in self.table_items.items():
+            # vals: (order_id, vendor, status, files, size, make_local, make_online, open)
+            info = self.resolved_orders.get(key, {})
+            f_val = info.get("files")
+            if (f_val is None or f_val == 0) and len(vals) > 3:
+                s = str(vals[3]).split("/")[-1].strip()
+                try:
+                    f_val = int(s)
+                except Exception:
+                    f_val = 0
+            tot_files += int(f_val or 0)
+
+            b_val = info.get("size_bytes")
+            if (not b_val or b_val == 0) and len(vals) > 4:
+                s_part = str(vals[4]).split("/")[-1].strip()
+                b_val = parse_bytes_str(s_part)
+            tot_bytes += int(b_val or 0)
+
+            st = str(vals[2] if len(vals) > 2 else (vals[1] if len(vals) > 1 else "")).lower()
+            if "local" in st:
+                loc_cnt += 1
+            elif "not found" in st:
+                pass
+            else:
+                cloud_cnt += 1
+
+        tot_sz_str = format_bytes(tot_bytes)
+        try:
+            self.tree.heading("files", text=f"Files ({tot_files})")
+            self.tree.heading("size", text=f"File Size ({tot_sz_str})")
+            self.tree.heading("make_local", text=f"Make Local ({loc_cnt})")
+            self.tree.heading("make_online", text=f"Make Cloud ({cloud_cnt})")
+        except Exception:
+            pass
+        self._update_action_cell_overlays()
 
     def _filter_main_table(self):
 
         query = self.search_var.get().strip().lower()
 
         self.tree.delete(*self.tree.get_children())
+        self._clear_action_cell_overlays()
 
         for key, vals in self.table_items.items():
 
             order_info = self.resolved_orders.get(key, {})
 
-            order_id = str(order_info.get("order_id") or str(key).split("_")[0]).lower()
+            order_id = str(vals[0] if len(vals) > 0 else (order_info.get("order_id") or str(key).split("_")[0])).lower()
 
-            vendor = str(vals[0]).lower() if len(vals) > 0 else ""
+            vendor = str(vals[1]).lower() if len(vals) > 1 else ""
 
-            status = str(vals[1]).lower() if len(vals) > 1 else ""
+            status = str(vals[2]).lower() if len(vals) > 2 else ""
 
             if not query or query in order_id or query in vendor or query in status:
 
@@ -7546,7 +8010,9 @@ class QCBatchLoaderApp(ctk.CTk):
 
                 chk_img = self.chk_checked_img if chk == "☑" else self.chk_unchecked_img
 
-                self.tree.insert("", "end", iid=key, text=f" #{order_id}", image=chk_img, values=vals, tags=(tag,))
+                self.tree.insert("", "end", iid=key, text="", image=chk_img, values=vals, tags=(tag,))
+
+        self._update_table_header_metrics()
 
     def _clear_main_search(self):
 
@@ -7561,6 +8027,12 @@ class QCBatchLoaderApp(ctk.CTk):
         if self.is_running:
 
             messagebox.showinfo("Busy", "A task is currently running. Please wait for it to finish.", parent=self)
+
+            return
+
+        if not getattr(self, "input_cleaned", False):
+
+            messagebox.showinfo("Clean Duplicate Required", "Please click 'Clean Duplicate' before adding orders to the sync list.", parent=self)
 
             return
 
@@ -7618,9 +8090,9 @@ class QCBatchLoaderApp(ctk.CTk):
 
                 if not self.tree.exists(item_key):
 
-                    row_vals = ("-", "⚠️ Not Found", "0 / 0", "0 B / 0 B", "-", "-", "-")
+                    row_vals = (format_order_id_display(clean_id), "-", "⚠️ Not Found", "0 / 0", "0 B / 0 B", "-", "-", "-")
 
-                    self.tree.insert("", "end", iid=item_key, text=f" #{clean_id}", image=chk_img, values=row_vals, tags=("row_notfound",))
+                    self.tree.insert("", "end", iid=item_key, text="", image=chk_img, values=row_vals, tags=("row_notfound",))
 
                     self.table_items[item_key] = row_vals
 
@@ -7678,19 +8150,19 @@ class QCBatchLoaderApp(ctk.CTk):
 
                     if local_files == total_files and total_files > 0:
 
-                        status_text = "● Local"
+                        status_text = "Local"
 
                         row_tag = "row_local"
 
                     elif local_files > 0:
 
-                        status_text = f"⚠️ Local ({local_files}/{total_files})"
+                        status_text = f"Local ({local_files}/{total_files})"
 
                         row_tag = "row_local"
 
                     else:
 
-                        status_text = "● Cloud Only"
+                        status_text = "Cloud"
 
                         row_tag = "row_online"
 
@@ -7700,15 +8172,15 @@ class QCBatchLoaderApp(ctk.CTk):
 
                     chk_img = self.chk_checked_img if chk == "☑" else self.chk_unchecked_img
 
-                    row_vals = (vendor, status_text, files_disp, disp_size, "📥 Make Local", "☁️ Make Online", "📁 Open")
+                    row_vals = (format_order_id_display(clean_id), vendor, status_text, files_disp, disp_size, "Local", "Cloud", "📁 Open")
 
                     if self.tree.exists(item_key):
 
-                        self.tree.item(item_key, text=f" #{clean_id}", image=chk_img, values=row_vals, tags=(row_tag,))
+                        self.tree.item(item_key, text="", image=chk_img, values=row_vals, tags=(row_tag,))
 
                     else:
 
-                        self.tree.insert("", "end", iid=item_key, text=f" #{clean_id}", image=chk_img, values=row_vals, tags=(row_tag,))
+                        self.tree.insert("", "end", iid=item_key, text="", image=chk_img, values=row_vals, tags=(row_tag,))
 
                     self.table_items[item_key] = row_vals
 
@@ -7744,7 +8216,7 @@ class QCBatchLoaderApp(ctk.CTk):
 
             if total_cnt > 0 and local_cnt > 0:
 
-                self.total_lbl.configure(text=f"Total Orders in Dashboard: {total_cnt} ({local_cnt} Local, {total_cnt - local_cnt} Cloud Only)")
+                self.total_lbl.configure(text=f"Total Orders in Dashboard: {total_cnt} ({local_cnt} Local, {total_cnt - local_cnt} Cloud)")
 
             else:
 
@@ -7753,6 +8225,8 @@ class QCBatchLoaderApp(ctk.CTk):
         if hasattr(self, "total_progress") and self.total_progress:
 
             self.total_progress.set(local_cnt / max(total_cnt, 1) if total_cnt > 0 else 0.0)
+
+        self._update_table_header_metrics()
 
         self.status_var.set(f"Added/updated {added_count} order item(s) in sync list.")
 
@@ -7889,26 +8363,19 @@ class QCBatchLoaderApp(ctk.CTk):
             tot_b_str = format_bytes(item["local_bytes"])
 
             row_vals = (
-
+                format_order_id_display(oid),
                 vendor,
-
-                "● Local",
-
+                "Local",
                 f"{tot_f} / {tot_f}",
-
                 f"{tot_b_str} / {tot_b_str}",
-
-                "📥 Make Local",
-
-                "☁️ Make Online",
-
+                "Local",
+                "Cloud",
                 "📁 Open"
-
             )
 
             self.table_items[item_key] = row_vals
 
-            self.tree.insert("", "end", iid=item_key, text=f" #{oid}", image=chk_img, values=row_vals, tags=("row_local",))
+            self.tree.insert("", "end", iid=item_key, text="", image=chk_img, values=row_vals, tags=("row_local",))
 
             info = {
 
@@ -7918,7 +8385,7 @@ class QCBatchLoaderApp(ctk.CTk):
 
                 "path": item["path"],
 
-                "status": "● Local",
+                "status": "Local",
 
                 "files": item["total_files"],
 
@@ -7933,6 +8400,9 @@ class QCBatchLoaderApp(ctk.CTk):
             self.resolved_orders[f"#{oid}"] = info
 
             mark_order_history(oid, vendor, item["path"], "local", item["total_files"], item["local_bytes"])
+
+        if hasattr(self, "speed_eta_lbl") and self.speed_eta_lbl:
+            self.after(0, lambda: self.speed_eta_lbl.configure(text=""))
 
         self._set_controls_running(False)
 
@@ -7950,6 +8420,8 @@ class QCBatchLoaderApp(ctk.CTk):
 
             self.total_progress.set(1.0 if found_items else 0.0)
 
+        self.after(0, self._update_table_header_metrics)
+
     def _get_order_info(self, item_id):
         """
         Reliably resolves order metadata (path, order_id, vendor, files, size)
@@ -7960,9 +8432,9 @@ class QCBatchLoaderApp(ctk.CTk):
             if self.tree.exists(item_id):
                 vals = self.tree.item(item_id, "values")
                 item_text = self.tree.item(item_id, "text")
-                raw_id = item_text.strip().lstrip("#") if item_text else ""
+                raw_id = str(vals[0]).strip().lstrip("#") if vals and len(vals) > 0 else (item_text.strip().lstrip("#") if item_text else "")
                 clean_id = normalize_order_id(raw_id)
-                vendor = str(vals[0]).strip() if vals and len(vals) > 0 else ""
+                vendor = str(vals[1]).strip() if vals and len(vals) > 1 else ""
                 item_key = f"{clean_id}_{vendor}"
                 alt = (
                     self.resolved_orders.get(item_key)
@@ -7986,7 +8458,7 @@ class QCBatchLoaderApp(ctk.CTk):
                         for cand in candidates:
                             if os.path.isdir(cand):
                                 target_p = resolve_target_folder(cand)
-                                files_raw = str(vals[2]).strip() if len(vals) > 2 else "0"
+                                files_raw = str(vals[3]).strip() if len(vals) > 3 else "0"
                                 if "/" in files_raw:
                                     try:
                                         files_cnt = int(files_raw.split("/")[-1].strip())
@@ -8000,7 +8472,7 @@ class QCBatchLoaderApp(ctk.CTk):
                                     "order_id": clean_id,
                                     "vendor": vendor,
                                     "path": target_p,
-                                    "status": vals[1] if len(vals) > 1 else "● Local",
+                                    "status": vals[2] if len(vals) > 2 else "Local",
                                     "files": files_cnt,
                                     "size_bytes": 0
                                 }
@@ -8031,9 +8503,9 @@ class QCBatchLoaderApp(ctk.CTk):
         chk = self.order_checkboxes.get(item_id, "☐")
         chk_img = self.chk_checked_img if chk == "☑" else self.chk_unchecked_img
 
-        self.tree.item(item_id, text=f" #{order_id}", image=chk_img, values=(vendor, "⏳ Offloading...", f"0 / {file_count}", "Freeing...", "📥 Make Local", "⏳ Offloading", "📁 Open"), tags=("row_syncing",))
+        self.tree.item(item_id, text="", image=chk_img, values=(format_order_id_display(order_id), vendor, "⏳ Offloading...", f"0 / {file_count}", "Freeing...", "Local", "⏳ Offloading", "📁 Open"), tags=("row_syncing",))
 
-        self.status_var.set(f"☁️ Offloading #{order_id} ({vendor}) to Online-Only...")
+        self.status_var.set(f"☁ Offloading #{order_id} ({vendor}) to Online-Only...")
 
         if hasattr(self, "total_lbl") and self.total_lbl:
 
@@ -8047,7 +8519,7 @@ class QCBatchLoaderApp(ctk.CTk):
 
                 cur_vals = self.tree.item(item_id, "values")
 
-                raw_sz = cur_vals[3] if len(cur_vals) > 3 and cur_vals[3] not in ("Freeing...", "0 B") else format_bytes(info.get("size_bytes", 0))
+                raw_sz = cur_vals[4] if len(cur_vals) > 4 and cur_vals[4] not in ("Freeing...", "0 B") else format_bytes(info.get("size_bytes", 0))
 
                 tot_sz_str = raw_sz.split(" / ")[-1].strip() if " / " in raw_sz else raw_sz
 
@@ -8055,11 +8527,11 @@ class QCBatchLoaderApp(ctk.CTk):
 
                 files_str = f"0 / {file_count}"
 
-                new_vals = (vendor, "● Cloud Only", files_str, file_sz_str, "📥 Make Local", "☁️ Make Online", "📁 Open")
+                new_vals = (format_order_id_display(order_id), vendor, "Cloud", files_str, file_sz_str, "Local", "Cloud", "📁 Open")
 
                 def _on_done():
 
-                    self.tree.item(item_id, text=f" #{order_id}", image=chk_img, values=new_vals, tags=("row_online",))
+                    self.tree.item(item_id, text="", image=chk_img, values=new_vals, tags=("row_online",))
 
                     self.table_items.update({item_id: new_vals})
 
@@ -8069,23 +8541,27 @@ class QCBatchLoaderApp(ctk.CTk):
 
                     self._update_storage_metrics()
 
+                    self._update_table_header_metrics()
+
+                    self._update_action_cell_overlays()
+
                     tot_cnt = len(self.table_items)
 
                     loc_cnt = sum(1 for v in self.table_items.values() if any("local" in str(x).lower() for x in (v if isinstance(v, (list, tuple)) else [])))
 
                     if hasattr(self, "total_lbl") and self.total_lbl:
 
-                        self.total_lbl.configure(text=f"Total Orders in Dashboard: {tot_cnt} ({loc_cnt} Local, {tot_cnt - loc_cnt} Cloud Only)")
+                        self.total_lbl.configure(text=f"Total Orders in Dashboard: {tot_cnt} ({loc_cnt} Local, {tot_cnt - loc_cnt} Cloud)")
 
                     if hasattr(self, "total_progress") and self.total_progress:
 
                         self.total_progress.set(loc_cnt / max(tot_cnt, 1) if tot_cnt > 0 else 0.0)
 
-                    self.status_var.set(f"☁️ Order #{order_id} ({vendor}) is now Online-Only (0 B on disk).")
+                    self.status_var.set(f"☁ Order #{order_id} ({vendor}) is now Online-Only (0 B on disk).")
 
                 self.after(0, _on_done)
 
-                info["status"] = "● Cloud Only"
+                info["status"] = "Cloud"
 
                 info["size_bytes"] = 0
 
@@ -8137,13 +8613,17 @@ class QCBatchLoaderApp(ctk.CTk):
 
                 init_size = f"0 B / {total_sz_str}"
 
-                self.after(0, lambda: self.tree.item(
-                    item_id,
-                    text=f" #{order_id}",
-                    image=chk_img,
-                    values=(vendor, "● Syncing 0.0%", init_files, init_size, "⏳ Syncing", "☁️ Make Online", "📁 Open"),
-                    tags=("row_syncing",)
-                ))
+                init_row = (format_order_id_display(order_id), vendor, "Syncing 0.0%", init_files, init_size, "⏳ Syncing", "Cloud", "📁 Open")
+                self.after(0, lambda: [
+                    self.tree.item(
+                        item_id,
+                        text="",
+                        image=chk_img,
+                        values=init_row,
+                        tags=("row_syncing",)
+                    ),
+                    self._update_action_cell_overlays()
+                ])
 
                 self.status_var.set(f"⏳ Syncing order #{order_id} ({vendor})...")
 
@@ -8155,12 +8635,17 @@ class QCBatchLoaderApp(ctk.CTk):
                 downloaded_bytes = 0
                 bytes_lock = threading.Lock()
                 last_ui_time = [0.0]
+                speed_samples = deque()
+                last_speed_time = [0.0]
 
                 def on_chunk(bytes_read):
                     nonlocal downloaded_bytes
+                    now = time.time()
                     with bytes_lock:
                         downloaded_bytes = min(downloaded_bytes + bytes_read, total_size)
-                        now = time.time()
+                        speed_samples.append((now, bytes_read))
+                        while speed_samples and (now - speed_samples[0][0]) > 2.5:
+                            speed_samples.popleft()
                         if now - last_ui_time[0] < 0.04 and downloaded_bytes < total_size:
                             return
                         last_ui_time[0] = now
@@ -8169,20 +8654,33 @@ class QCBatchLoaderApp(ctk.CTk):
                     pct = (cur_b / max(total_size, 1)) * 100.0
                     if pct > 99.9 and cur_b < total_size:
                         pct = 99.9
-                    prog_text = f"● Syncing {pct:.1f}%"
+                    prog_text = f"Syncing {pct:.1f}%"
                     files_prog = f"{cur_f} / {total_files}"
                     size_prog = f"{format_bytes(cur_b)} / {total_sz_str}"
-                    cur_vals = (vendor, prog_text, files_prog, size_prog, "⏳ Syncing", "☁️ Make Online", "📁 Open")
-                    self.after(0, lambda r=cur_vals, p=prog_text, f=files_prog, s=size_prog: [
+                    cur_vals = (format_order_id_display(order_id), vendor, prog_text, files_prog, size_prog, "⏳ Syncing", "Cloud", "📁 Open")
+
+                    # Calculate Speed and ETA (Point 4)
+                    sp_str = ""
+                    if now - last_speed_time[0] >= 0.15 or cur_b >= total_size:
+                        last_speed_time[0] = now
+                        win_dt = max(now - speed_samples[0][0], 0.05) if speed_samples else 1.0
+                        win_b = sum(b for _, b in speed_samples)
+                        bps = win_b / win_dt
+                        rem_b = max(total_size - cur_b, 0)
+                        eta_sec = (rem_b / bps) if bps > 0 else 0
+                        sp_str = f"⚡ {format_speed(bps)} • ⏳ ETA: {format_eta(eta_sec)}" if bps > 0 else "⚡ Calculating..."
+
+                    self.after(0, lambda r=cur_vals, p=prog_text, f=files_prog, s=size_prog, sp=sp_str: [
                         self.tree.item(
                             item_id,
-                            text=f" #{order_id}",
+                            text="",
                             image=chk_img,
                             values=r,
                             tags=("row_syncing",)
                         ),
                         self.table_items.update({item_id: r}),
-                        self.status_var.set(f"⚡ Syncing #{order_id} ({f} files • {s} - {p.replace('● ', '')})")
+                        self.status_var.set(f"⚡ Syncing #{order_id} ({f} files • {s} - {p.replace('● ', '')})"),
+                        self.speed_eta_lbl.configure(text=sp) if (sp and hasattr(self, "speed_eta_lbl") and self.speed_eta_lbl) else None
                     ])
 
                 workers = min(8, max(total_files, 1))
@@ -8204,18 +8702,18 @@ class QCBatchLoaderApp(ctk.CTk):
                             if pct > 99.9 and completed_files < total_files:
                                 pct = 99.9
 
-                            prog_text = f"● Syncing {pct:.1f}%"
+                            prog_text = f"Syncing {pct:.1f}%"
 
                             files_prog = f"{cur_f} / {total_files}"
 
                             size_prog = f"{format_bytes(cur_b)} / {total_sz_str}"
 
-                            cur_vals = (vendor, prog_text, files_prog, size_prog, "⏳ Syncing", "☁️ Make Online", "📁 Open")
+                            cur_vals = (format_order_id_display(order_id), vendor, prog_text, files_prog, size_prog, "⏳ Syncing", "Cloud", "📁 Open")
 
                             self.after(0, lambda r=cur_vals, p=prog_text, f=files_prog, s=size_prog: [
                                 self.tree.item(
                                     item_id,
-                                    text=f" #{order_id}",
+                                    text="",
                                     image=chk_img,
                                     values=r,
                                     tags=("row_syncing",)
@@ -8224,17 +8722,20 @@ class QCBatchLoaderApp(ctk.CTk):
                                 self.status_var.set(f"⚡ Syncing #{order_id} ({f} files • {s} - {p.replace('● ', '')})")
                             ])
 
-                status_text = "● Local"
+                status_text = "Local"
 
                 final_files = f"{total_files} / {total_files}"
 
                 final_size = f"{total_sz_str} / {total_sz_str}"
 
-                new_vals = (vendor, status_text, final_files, final_size, "📥 Make Local", "☁️ Make Online", "📁 Open")
+                new_vals = (format_order_id_display(order_id), vendor, status_text, final_files, final_size, "Local", "Cloud", "📁 Open")
 
                 def _on_local_done():
 
-                    self.tree.item(item_id, text=f" #{order_id}", image=chk_img, values=new_vals, tags=("row_local",))
+                    if hasattr(self, "speed_eta_lbl") and self.speed_eta_lbl:
+                        self.speed_eta_lbl.configure(text="")
+
+                    self.tree.item(item_id, text="", image=chk_img, values=new_vals, tags=("row_local",))
 
                     self.table_items.update({item_id: new_vals})
 
@@ -8250,13 +8751,17 @@ class QCBatchLoaderApp(ctk.CTk):
 
                     self._update_storage_metrics()
 
+                    self._update_table_header_metrics()
+
+                    self._update_action_cell_overlays()
+
                     tot_cnt = len(self.table_items)
 
                     loc_cnt = sum(1 for v in self.table_items.values() if any("local" in str(x).lower() for x in (v if isinstance(v, (list, tuple)) else [])))
 
                     if hasattr(self, "total_lbl") and self.total_lbl:
 
-                        self.total_lbl.configure(text=f"Total Orders in Dashboard: {tot_cnt} ({loc_cnt} Local, {tot_cnt - loc_cnt} Cloud Only)")
+                        self.total_lbl.configure(text=f"Total Orders in Dashboard: {tot_cnt} ({loc_cnt} Local, {tot_cnt - loc_cnt} Cloud)")
 
                     if hasattr(self, "total_progress") and self.total_progress:
 
@@ -8310,17 +8815,17 @@ class QCBatchLoaderApp(ctk.CTk):
 
                 chk_img = self.chk_checked_img if chk == "☑" else self.chk_unchecked_img
 
-                self.after(0, lambda iid=item_id, img=chk_img, oid=order_id, v=vendor, fc=file_count: self.tree.item(iid, text=f" #{oid}", image=img, values=(v, "⏳ Offloading...", f"0 / {fc}", "Freeing...", "📥 Make Local", "⏳ Offloading", "📁 Open"), tags=("row_syncing",)))
+                self.after(0, lambda iid=item_id, img=chk_img, oid=order_id, v=vendor, fc=file_count: self.tree.item(iid, text="", image=img, values=(format_order_id_display(oid), v, "⏳ Offloading...", f"0 / {fc}", "Freeing...", "Local", "⏳ Offloading", "📁 Open"), tags=("row_syncing",)))
 
                 try:
 
                     free_up_space_cfapi(folder_path)
 
-                    status_text = "● Cloud Only"
+                    status_text = "Cloud"
 
                     cur_vals = self.tree.item(item_id, "values")
 
-                    raw_sz = cur_vals[3] if len(cur_vals) > 3 and cur_vals[3] not in ("Freeing...", "0 B") else format_bytes(info.get("size_bytes", 0))
+                    raw_sz = cur_vals[4] if len(cur_vals) > 4 and cur_vals[4] not in ("Freeing...", "0 B") else format_bytes(info.get("size_bytes", 0))
 
                     tot_sz_str = raw_sz.split(" / ")[-1].strip() if " / " in raw_sz else raw_sz
 
@@ -8328,11 +8833,11 @@ class QCBatchLoaderApp(ctk.CTk):
 
                     files_str = f"0 / {file_count}"
 
-                    new_vals = (vendor, status_text, files_str, file_sz_str, "📥 Make Local", "☁️ Make Online", "📁 Open")
+                    new_vals = (format_order_id_display(order_id), vendor, status_text, files_str, file_sz_str, "Local", "Cloud", "📁 Open")
 
                     self.after(0, lambda iid=item_id, img=chk_img, oid=order_id, vals=new_vals: [
 
-                        self.tree.item(iid, text=f" #{oid}", image=img, values=vals, tags=("row_online",)),
+                        self.tree.item(iid, text="", image=img, values=vals, tags=("row_online",)),
 
                         self.table_items.update({iid: vals})
 
@@ -8354,19 +8859,23 @@ class QCBatchLoaderApp(ctk.CTk):
 
                 self._update_storage_metrics()
 
+                self._update_table_header_metrics()
+
+                self._update_action_cell_overlays()
+
                 tot_cnt = len(self.table_items)
 
                 loc_cnt = sum(1 for v in self.table_items.values() if any("local" in str(x).lower() for x in (v if isinstance(v, (list, tuple)) else [])))
 
                 if hasattr(self, "total_lbl") and self.total_lbl:
 
-                    self.total_lbl.configure(text=f"Total Orders in Dashboard: {tot_cnt} ({loc_cnt} Local, {tot_cnt - loc_cnt} Cloud Only)")
+                    self.total_lbl.configure(text=f"Total Orders in Dashboard: {tot_cnt} ({loc_cnt} Local, {tot_cnt - loc_cnt} Cloud)")
 
                 if hasattr(self, "total_progress") and self.total_progress:
 
                     self.total_progress.set(loc_cnt / max(tot_cnt, 1) if tot_cnt > 0 else 0.0)
 
-                self.status_var.set(f"☁️ Made {freed_count} order(s) Online-Only. Disk space freed!")
+                self.status_var.set(f"☁ Made {freed_count} order(s) Online-Only. Disk space freed!")
 
             self.after(0, _on_all_freed)
 
@@ -8408,19 +8917,19 @@ class QCBatchLoaderApp(ctk.CTk):
 
         for iid in all_iids:
 
-            item_text = self.tree.item(iid, "text")
-
-            if item_text:
-
-                orders_to_sync.append(item_text.strip().lstrip("#"))
-
-            else:
-
+            vals = self.tree.item(iid, "values")
+            raw_id = str(vals[0]).strip().lstrip("#") if vals and len(vals) > 0 and str(vals[0]).strip() not in ("-", "") else ""
+            if not raw_id:
                 info = self.resolved_orders.get(iid)
-
                 if info and info.get("order_id"):
+                    raw_id = str(info["order_id"]).strip().lstrip("#")
+            if not raw_id:
+                item_text = self.tree.item(iid, "text")
+                if item_text:
+                    raw_id = item_text.strip().lstrip("#")
 
-                    orders_to_sync.append(info["order_id"])
+            if raw_id and raw_id not in orders_to_sync:
+                orders_to_sync.append(raw_id)
 
         if orders_to_sync:
 
@@ -8464,7 +8973,8 @@ class QCBatchLoaderApp(ctk.CTk):
 
                     chk_img = self.chk_checked_img if chk == "☑" else self.chk_unchecked_img
 
-                    self.after(0, lambda i=iid, img=chk_img, inf=info: self.tree.item(i, text=f" #{inf.get('order_id')}", image=img, values=(inf.get("vendor"), "⏳ Offloading...", f"0 / {inf.get('files', 0)}", "Freeing...", "📥 Make Local", "⏳ Offloading", "📁 Open"), tags=("row_syncing",)))
+                    interim_vals = (format_order_id_display(info.get('order_id')), info.get("vendor"), "⏳ Offloading...", f"0 / {info.get('files', 0)}", "Freeing...", "Local", "⏳ Offloading", "📁 Open")
+                    self.after(0, lambda i=iid, img=chk_img, iv=interim_vals: self.tree.item(i, text="", image=img, values=iv, tags=("row_syncing",)))
 
                     try:
 
@@ -8472,7 +8982,7 @@ class QCBatchLoaderApp(ctk.CTk):
 
                         cur_vals = self.tree.item(i, "values")
 
-                        raw_sz = cur_vals[3] if len(cur_vals) > 3 and cur_vals[3] not in ("Freeing...", "0 B") else format_bytes(info.get("size_bytes", 0))
+                        raw_sz = cur_vals[4] if len(cur_vals) > 4 and cur_vals[4] not in ("Freeing...", "0 B") else format_bytes(info.get("size_bytes", 0))
 
                         tot_sz_str = raw_sz.split(" / ")[-1].strip() if " / " in raw_sz else raw_sz
 
@@ -8480,17 +8990,17 @@ class QCBatchLoaderApp(ctk.CTk):
 
                         files_str = f"0 / {info.get('files', 0)}"
 
-                        new_vals = (info.get("vendor"), "● Cloud Only", files_str, file_sz_str, "📥 Make Local", "☁️ Make Online", "📁 Open")
+                        new_vals = (format_order_id_display(info.get("order_id")), info.get("vendor"), "Cloud", files_str, file_sz_str, "Local", "Cloud", "📁 Open")
 
-                        self.after(0, lambda i=iid, img=chk_img, oid=info.get("order_id"), vals=new_vals: [
+                        self.after(0, lambda i=iid, img=chk_img, vals=new_vals: [
 
-                            self.tree.item(i, text=f" #{oid}", image=img, values=vals, tags=("row_online",)),
+                            self.tree.item(i, text="", image=img, values=vals, tags=("row_online",)),
 
                             self.table_items.update({i: vals})
 
                         ])
 
-                        info["status"] = "● Cloud Only"
+                        info["status"] = "Cloud"
 
                         mark_order_history(info.get("order_id"), info.get("vendor"), info["path"], "online", info.get("files", 0), 0)
 
@@ -8506,13 +9016,17 @@ class QCBatchLoaderApp(ctk.CTk):
 
                 self._update_storage_metrics()
 
+                self._update_table_header_metrics()
+
+                self._update_action_cell_overlays()
+
                 tot_cnt = len(self.table_items)
 
                 loc_cnt = sum(1 for v in self.table_items.values() if any("local" in str(x).lower() for x in (v if isinstance(v, (list, tuple)) else [])))
 
                 if hasattr(self, "total_lbl") and self.total_lbl:
 
-                    self.total_lbl.configure(text=f"Total Orders in Dashboard: {tot_cnt} ({loc_cnt} Local, {tot_cnt - loc_cnt} Cloud Only)")
+                    self.total_lbl.configure(text=f"Total Orders in Dashboard: {tot_cnt} ({loc_cnt} Local, {tot_cnt - loc_cnt} Cloud)")
 
                 if hasattr(self, "total_progress") and self.total_progress:
 
@@ -8576,6 +9090,11 @@ class QCBatchLoaderApp(ctk.CTk):
 
         not_found_count = 0
 
+        batch_speed_samples = deque()
+        batch_last_speed_time = [0.0]
+        batch_downloaded_bytes = [0]
+        batch_lock = threading.Lock()
+
         for i, order_id in enumerate(orders):
 
             if self.stop_requested:
@@ -8624,7 +9143,7 @@ class QCBatchLoaderApp(ctk.CTk):
 
                 chk_img = self.chk_checked_img if chk == "☑" else self.chk_unchecked_img
 
-                row_vals = ("-", status_text, "0 / 0", "0 B / 0 B", "-", "-", "-")
+                row_vals = (format_order_id_display(order_id), "-", status_text, "0 / 0", "0 B / 0 B", "-", "-", "-")
 
                 self.resolved_orders[item_key] = {"order_id": order_id, "vendor": "-", "path": None, "status": status_text, "files": 0, "size_bytes": 0}
 
@@ -8634,11 +9153,11 @@ class QCBatchLoaderApp(ctk.CTk):
 
                 if self.tree.exists(item_key):
 
-                    self.tree.item(item_key, text=f" #{order_id}", image=chk_img, values=row_vals, tags=("row_notfound",))
+                    self.tree.item(item_key, text="", image=chk_img, values=row_vals, tags=("row_notfound",))
 
                 else:
 
-                    self.tree.insert("", "end", iid=item_key, text=f" #{order_id}", image=chk_img, values=row_vals, tags=("row_notfound",))
+                    self.tree.insert("", "end", iid=item_key, text="", image=chk_img, values=row_vals, tags=("row_notfound",))
 
                 not_found_count += 1
 
@@ -8688,19 +9207,20 @@ class QCBatchLoaderApp(ctk.CTk):
 
                     init_size = f"0 B / {total_sz_str}"
 
-                    row_vals = (vendor, "● Syncing 0.0%", init_files, init_size, "⏳ Syncing", "☁️ Make Online", "📁 Open")
+                    row_vals = (format_order_id_display(order_id), vendor, "Syncing 0.0%", init_files, init_size, "⏳ Syncing", "Cloud", "📁 Open")
 
                     self.table_items[item_key] = row_vals
 
                     if self.tree.exists(item_key):
 
-                        self.tree.item(item_key, text=f" #{order_id}", image=chk_img, values=row_vals, tags=("row_syncing",))
+                        self.tree.item(item_key, text="", image=chk_img, values=row_vals, tags=("row_syncing",))
 
                     else:
 
-                        self.tree.insert("", "end", iid=item_key, text=f" #{order_id}", image=chk_img, values=row_vals, tags=("row_syncing",))
+                        self.tree.insert("", "end", iid=item_key, text="", image=chk_img, values=row_vals, tags=("row_syncing",))
 
                     self.tree.see(item_key)
+                    self.after(0, self._update_action_cell_overlays)
 
                     try:
 
@@ -8715,9 +9235,14 @@ class QCBatchLoaderApp(ctk.CTk):
 
                         def on_chunk(bytes_read):
                             nonlocal downloaded_bytes
+                            now = time.time()
+                            with batch_lock:
+                                batch_downloaded_bytes[0] += bytes_read
+                                batch_speed_samples.append((now, bytes_read))
+                                while batch_speed_samples and (now - batch_speed_samples[0][0]) > 2.5:
+                                    batch_speed_samples.popleft()
                             with bytes_lock:
                                 downloaded_bytes = min(downloaded_bytes + bytes_read, total_size)
-                                now = time.time()
                                 if now - last_ui_time[0] < 0.04 and downloaded_bytes < total_size:
                                     return
                                 last_ui_time[0] = now
@@ -8726,18 +9251,31 @@ class QCBatchLoaderApp(ctk.CTk):
                             s_pct = (cur_b / max(total_size, 1)) * 100.0
                             if s_pct > 99.9 and cur_b < total_size:
                                 s_pct = 99.9
-                            prog_text = f"● Syncing {s_pct:.1f}%"
+                            prog_text = f"Syncing {s_pct:.1f}%"
                             files_prog = f"{cur_f} / {total_files}"
                             size_prog = f"{format_bytes(cur_b)} / {total_sz_str}"
-                            cur_vals = (vendor, prog_text, files_prog, size_prog, "⏳ Syncing", "☁️ Make Online", "📁 Open")
+                            cur_vals = (format_order_id_display(order_id), vendor, prog_text, files_prog, size_prog, "⏳ Syncing", "Cloud", "📁 Open")
                             overall_frac = (i + (cur_b / max(total_size, 1))) / max(total_orders, 1)
                             overall_pct = overall_frac * 100.0
-                            self.after(0, lambda r=cur_vals, p=prog_text, b=size_prog, f=files_prog, pct_val=s_pct, o_pct=overall_pct, o_frac=overall_frac: [
-                                self.tree.item(item_key, values=r),
+
+                            # Real-time speed and ETA calculation (Point 4)
+                            sp_str = ""
+                            if now - batch_last_speed_time[0] >= 0.15 or cur_b >= total_size:
+                                batch_last_speed_time[0] = now
+                                win_dt = max(now - batch_speed_samples[0][0], 0.05) if batch_speed_samples else 1.0
+                                win_b = sum(b for _, b in batch_speed_samples)
+                                bps = win_b / win_dt
+                                rem_b = max(total_size - cur_b, 0)
+                                eta_sec = (rem_b / bps) if bps > 0 else 0
+                                sp_str = f"⚡ {format_speed(bps)} • ⏳ ETA: {format_eta(eta_sec)}" if bps > 0 else "⚡ Calculating..."
+
+                            self.after(0, lambda r=cur_vals, p=prog_text, b=size_prog, f=files_prog, pct_val=s_pct, o_pct=overall_pct, o_frac=overall_frac, sp=sp_str: [
+                                self.tree.item(item_key, text="", image=chk_img, values=r),
                                 self.table_items.update({item_key: r}),
                                 self.status_var.set(f"⚡ Hydrating #{order_id} ({f} files • {b} - {pct_val:.1f}%) • Parallel sync active"),
                                 self.total_progress.set(o_frac) if hasattr(self, "total_progress") and self.total_progress else None,
-                                self.total_lbl.configure(text=f"Total Progress: {o_pct:.1f}% (Order {i+1}/{total_orders} • #{order_id} {pct_val:.1f}%)") if hasattr(self, "total_lbl") and self.total_lbl else None
+                                self.total_lbl.configure(text=f"Total Progress: {o_pct:.1f}% (Order {i+1}/{total_orders} • #{order_id} {pct_val:.1f}%)") if hasattr(self, "total_lbl") and self.total_lbl else None,
+                                self.speed_eta_lbl.configure(text=sp) if (sp and hasattr(self, "speed_eta_lbl") and self.speed_eta_lbl) else None
                             ])
 
                         if file_list:
@@ -8773,15 +9311,15 @@ class QCBatchLoaderApp(ctk.CTk):
                                     if s_pct > 99.9 and completed_files < total_files:
                                         s_pct = 99.9
 
-                                    prog_text = f"● Syncing {s_pct:.1f}%"
+                                    prog_text = f"Syncing {s_pct:.1f}%"
 
                                     files_prog = f"{cur_f} / {total_files}"
 
                                     size_prog = f"{format_bytes(cur_b)} / {total_sz_str}"
 
-                                    cur_vals = (vendor, prog_text, files_prog, size_prog, "⏳ Syncing", "☁️ Make Online", "📁 Open")
+                                    cur_vals = (format_order_id_display(order_id), vendor, prog_text, files_prog, size_prog, "⏳ Syncing", "Cloud", "📁 Open")
 
-                                    self.tree.item(item_key, text=f" #{order_id}", image=chk_img, values=cur_vals, tags=("row_syncing",))
+                                    self.tree.item(item_key, text="", image=chk_img, values=cur_vals, tags=("row_syncing",))
                                     self.table_items.update({item_key: cur_vals})
 
                                     overall_frac = (i + (cur_b / max(total_size, 1))) / max(total_orders, 1)
@@ -8798,7 +9336,7 @@ class QCBatchLoaderApp(ctk.CTk):
 
                                     self.status_var.set(f"⚡ Hydrating #{order_id} ({files_prog} files • {size_prog} - {s_pct:.1f}%) • Parallel sync active")
 
-                        status_text = "● Local"
+                        status_text = "Local"
 
                         success_count += 1
 
@@ -8812,11 +9350,12 @@ class QCBatchLoaderApp(ctk.CTk):
 
                     final_size = f"{total_sz_str} / {total_sz_str}" if "Local" in status_text else f"0 B / {total_sz_str}"
 
-                    final_vals = (vendor, status_text, final_files, final_size, "📥 Make Local", "☁️ Make Online", "📁 Open")
+                    final_vals = (format_order_id_display(order_id), vendor, status_text, final_files, final_size, "Local", "Cloud", "📁 Open")
 
                     self.table_items[item_key] = final_vals
 
-                    self.tree.item(item_key, text=f" #{order_id}", image=chk_img, values=final_vals, tags=("row_local" if "Local" in status_text else "row_online",))
+                    self.tree.item(item_key, text="", image=chk_img, values=final_vals, tags=("row_local" if "Local" in status_text else "row_online",))
+                    self.after(0, self._update_action_cell_overlays)
 
                     order_info = {
 
@@ -8856,6 +9395,8 @@ class QCBatchLoaderApp(ctk.CTk):
 
                 self.total_progress.set(1.0)
 
+            self._update_table_header_metrics()
+
             self.status_var.set(f"Done! {success_count} folders ready locally, {not_found_count} not found.")
 
             messagebox.showinfo(
@@ -8869,6 +9410,9 @@ class QCBatchLoaderApp(ctk.CTk):
                 parent=self
 
             )
+
+        if hasattr(self, "speed_eta_lbl") and self.speed_eta_lbl:
+            self.after(0, lambda: self.speed_eta_lbl.configure(text=""))
 
         self._set_controls_running(False)
 
@@ -8912,17 +9456,19 @@ class QCBatchLoaderApp(ctk.CTk):
 
             count, total_bytes, size_str = get_tracked_local_storage_stats()
 
-            if hasattr(self, "local_metric_lbl"):
+            if hasattr(self, "local_metric_lbl") and self.local_metric_lbl:
 
                 fg_color = self.theme["danger"] if count > 0 else self.theme["success"]
 
-                self.local_metric_lbl.config(
-
-                    text=f"● Local QC Orders: {count} ({size_str} on disk)",
-
-                    fg=fg_color
-
-                )
+                try:
+                    self.local_metric_lbl.configure(
+                        text=f"Local QC Orders: {count} ({size_str} on disk)",
+                        text_color=fg_color
+                    )
+                except Exception:
+                    self.local_metric_lbl.config(
+                        text=f"Local QC Orders: {count} ({size_str} on disk)"
+                    )
 
         except Exception:
 
@@ -9000,7 +9546,8 @@ class QCBatchLoaderApp(ctk.CTk):
 
         unique_orders, total_lines = self._parse_order_ids()
 
-        self.count_lbl.config(text=f"Total: {total_lines} lines | Unique: {len(unique_orders)}")
+        if hasattr(self, "count_lbl") and self.count_lbl.winfo_exists():
+            self.count_lbl.configure(text=f"Unique: {len(unique_orders)}")
 
     def _on_tree_double_click(self, event):
 
@@ -9050,9 +9597,8 @@ class QCBatchLoaderApp(ctk.CTk):
 
         else:
 
-            item_text = self.tree.item(item_id, "text")
-
-            order_name = item_text.strip().lstrip("#") if item_text else "selected"
+            vals = self.tree.item(item_id, "values")
+            order_name = str(vals[0]).strip().lstrip("#") if vals and len(vals) > 0 else (self.tree.item(item_id, "text").strip().lstrip("#") or "selected")
 
             messagebox.showwarning("Not Found", f"Folder path for order {order_name} is not available on disk.", parent=self)
 
@@ -9125,25 +9671,14 @@ class QCBatchLoaderApp(ctk.CTk):
         t = self.theme
 
         if count > 0:
-
-            total_b = sum(it.get("size_bytes", 0) for it in tracked)
-
-            self.leftover_btn.config(
-
-                text=f"🕒 History: {count} Local",
-
-                fg=t["danger"]
-
+            self.leftover_btn.configure(
+                text="🕒",
+                text_color=t["danger"]
             )
-
         else:
-
-            self.leftover_btn.config(
-
-                text="🕒 History: 0 Local",
-
-                fg=t["success"]
-
+            self.leftover_btn.configure(
+                text="🕒",
+                text_color=t["success"]
             )
 
     def _open_history_tracker(self):
@@ -9190,39 +9725,39 @@ class QCBatchLoaderApp(ctk.CTk):
 
         if running:
 
-            self.btn_pause.config(state="normal", text="⏸️ Pause All", bg=self.accent_orange)
+            self.btn_pause.configure(state="normal", text="⏸ Pause", fg_color=self.accent_orange)
 
-            self.btn_stop.config(state="normal")
+            self.btn_stop.configure(state="normal")
 
             if hasattr(self, "btn_make_local_all"):
 
-                self.btn_make_local_all.config(state="disabled")
+                self.btn_make_local_all.configure(state="disabled")
 
             if hasattr(self, "btn_make_online_all"):
 
-                self.btn_make_online_all.config(state="disabled")
+                self.btn_make_online_all.configure(state="disabled")
 
             if hasattr(self, "btn_scan_local"):
 
-                self.btn_scan_local.config(state="disabled")
+                self.btn_scan_local.configure(state="disabled")
 
         else:
 
-            self.btn_pause.config(state="disabled", text="⏸️ Pause All")
+            self.btn_pause.configure(state="disabled", text="⏸ Pause")
 
-            self.btn_stop.config(state="disabled")
+            self.btn_stop.configure(state="disabled")
 
             if hasattr(self, "btn_make_local_all"):
 
-                self.btn_make_local_all.config(state="normal")
+                self.btn_make_local_all.configure(state="normal")
 
             if hasattr(self, "btn_make_online_all"):
 
-                self.btn_make_online_all.config(state="normal")
+                self.btn_make_online_all.configure(state="normal")
 
             if hasattr(self, "btn_scan_local"):
 
-                self.btn_scan_local.config(state="normal")
+                self.btn_scan_local.configure(state="normal")
 
     def _toggle_pause(self):
 
@@ -9236,7 +9771,10 @@ class QCBatchLoaderApp(ctk.CTk):
 
             self.pause_event.set()
 
-            self.btn_pause.config(text="⏸️ Pause All", bg=self.accent_orange)
+            self.btn_pause.configure(text="⏸ Pause", fg_color=self.accent_orange)
+
+            if hasattr(self, "speed_eta_lbl") and self.speed_eta_lbl:
+                self.speed_eta_lbl.configure(text="⚡ Resuming...")
 
             self.status_var.set("Resumed process.")
 
@@ -9246,7 +9784,10 @@ class QCBatchLoaderApp(ctk.CTk):
 
             self.pause_event.clear()
 
-            self.btn_pause.config(text="▶️ Resume All", bg=self.accent_green)
+            self.btn_pause.configure(text="▶ Resume", fg_color=self.accent_green)
+
+            if hasattr(self, "speed_eta_lbl") and self.speed_eta_lbl:
+                self.speed_eta_lbl.configure(text="⏸ Paused")
 
             self.status_var.set("Paused by user. Click Resume to continue.")
 
@@ -9261,6 +9802,9 @@ class QCBatchLoaderApp(ctk.CTk):
         if self.is_paused:
 
             self.pause_event.set()
+
+        if hasattr(self, "speed_eta_lbl") and self.speed_eta_lbl:
+            self.speed_eta_lbl.configure(text="")
 
         self.status_var.set("Stopping process, please wait...")
 
