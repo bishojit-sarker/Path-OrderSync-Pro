@@ -1,3 +1,7 @@
 @echo off
 cd /d "%~dp0"
-start python app.py
+if exist .venv\Scripts\python.exe (
+    start "" ".venv\Scripts\python.exe" app.py
+) else (
+    start "" python app.py
+)
