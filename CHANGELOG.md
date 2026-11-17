@@ -2,6 +2,23 @@
 
 All notable changes, bug fixes, and feature additions to **Path OrderSync Pro** are documented here.
 
+## [v1.9.1] - 2026-11-17
+
+### 🚀 Direct In-App Update Engine, Notification Center & GitHub Release Automation:
+- **Instant Header Update Pill (`🚀 Update Ready`):**
+  - Prominent 1-click update pill appears dynamically in the header actions bar whenever a newer release is published on GitHub.
+  - Clicking the pill directly opens the Update Dialog with release notes, real-time download progress, and auto-restart capability.
+- **Synchronized Settings Center Indicator:**
+  - Real-time indicator dot (`⚙️ Settings 🔴`) and live update button synchronization within the Settings dialog.
+- **Dual-Asset Official GitHub Release Distribution:**
+  - Automatic publishing and cloud distribution of both `Path_OrderSync_Pro.exe` and legacy compatibility asset `QC_Batch_Loader.exe`.
+  - Guarantees seamless backward compatibility with existing workflows and automated updater hooks.
+- **Enhanced Design System & Accessible Visual Hierarchy:**
+  - Optimized color tokens for light (Ice Slate & Royal Navy) and dark (Midnight Slate & Vibrant Glow) themes.
+  - Improved readability and contrast across dashboard tables, action controls, and modal dialogs.
+
+---
+
 ## [v1.9.0] - 2026-11-12
 
 ### 🚀 Real-Time Speed & ETA, Drag Selection, Dedicated Checkboxes & Complete UI Modernization:

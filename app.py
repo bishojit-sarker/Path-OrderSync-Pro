@@ -133,7 +133,7 @@ APP_NAME = "Path OrderSync Pro"
 
 APP_TAGLINE = "Sync Smarter. Work Faster. Better Quality."
 
-CURRENT_VERSION = "v1.9.0"
+CURRENT_VERSION = "v1.9.1"
 
 GITHUB_REPO = "bishojit-sarker/Path-OrderSync-Pro"
 
@@ -4038,7 +4038,7 @@ def fetch_all_releases():
 
     # Only include VERIFIED AVAILABLE releases (active build, local binary, or valid GitHub asset)
 
-    candidate_tags = [CURRENT_VERSION, "v1.8.0", "v1.7.0", "v1.6.0", "v1.5.0", "v1.4.0", "v1.3.0", "v1.2.0"]
+    candidate_tags = [CURRENT_VERSION, "v1.9.0", "v1.8.0", "v1.7.0", "v1.6.0", "v1.5.0", "v1.4.0", "v1.3.0", "v1.2.0"]
 
     for t in github_releases:
 

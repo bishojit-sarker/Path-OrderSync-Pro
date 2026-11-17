@@ -2,7 +2,7 @@
 
 > **Sync Smarter. Work Faster. Better Quality.**
 
-[![Release](https://img.shields.io/badge/version-1.8.0-blue.svg)](https://github.com/bishojit-sarker/Path-OrderSync-Pro/releases)
+[![Release](https://img.shields.io/badge/version-1.9.1-blue.svg)](https://github.com/bishojit-sarker/Path-OrderSync-Pro/releases)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078d7.svg)](https://www.microsoft.com/windows)
 [![GitHub](https://img.shields.io/badge/GitHub-Repository-black?logo=github)](https://github.com/bishojit-sarker/Path-OrderSync-Pro)
 
