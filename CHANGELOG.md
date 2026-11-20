@@ -2,6 +2,29 @@
 
 All notable changes, bug fixes, and feature additions to **Path OrderSync Pro** are documented here.
 
+## [v1.9.2] - 2026-11-20
+
+### 🌐 FTP & Synology NAS Fallback Engine, IP Presets & Enhanced Storage Architecture:
+- **Automatic Multi-Tier Fallback (Dropbox ➔ FTP / Synology NAS):**
+  - Seamlessly queries configured Dropbox vendor directories first; if an order is not found in Dropbox, automatically falls back to scanning the local network FTP/Synology NAS storage.
+  - Ultra-fast 2-depth indexing (`build_ftp_index`) scans hundreds of subdirectories across batch accounts (e.g. `1099192795221/#459186`) in milliseconds with 30-second memory caching.
+- **Dedicated High-Contrast Purple/Violet FTP Status Badge:**
+  - Distinctive `row_ftp` badge styling (`#f3e8ff` / `#7e22ce` in Light Mode; `#2e1065` / `#c084fc` in Dark Mode) differentiates network-stored orders from local and cloud Dropbox orders at a glance.
+  - Automatically calculates total file counts and file sizes from the network share (e.g. `24` files • `92.72 MB`).
+- **Zero Local Disk Consumption & Protected Safe Actions:**
+  - `Make Local` and `Make Cloud` cells display `-` for FTP orders and are safely disabled to protect local disk space.
+  - Batch operations (`Make Local All`, `Free Up Space / Make Online All`) automatically filter out FTP orders to prevent running Windows Cloud Filter API operations on network paths.
+- **1-Click Native Windows Explorer Folder Opening:**
+  - Clicking `📁 Open` or double-clicking the table row natively opens the main order folder (e.g. `.../#459186`) directly in Windows Explorer using Windows UNC networking, eliminating manual explorer searches.
+- **Interactive Settings Center FTP Manager with IP Presets:**
+  - Added `🌐 FTP / Synology NAS Path` card in Settings (`⚙️ Settings`) featuring an interactive `CTkComboBox` dropdown.
+  - Pre-configured with fast direct IP path (`\\192.168.2.127\Dropbox-SSD\order\`) as default, and hostname (`\\Synology-NAS\Dropbox-SSD\order\`) in the dropdown list.
+  - Full manual entry and `Browse...` folder chooser support with real-time persistence in `config.json`.
+- **Refined Dropbox Status Nomenclature:**
+  - Dropbox orders now explicitly display `Dropbox (Local)` and `Dropbox (Cloud)` for clarity against external network orders.
+
+---
+
 ## [v1.9.1] - 2026-11-17
 
 ### 🚀 Direct In-App Update Engine, Notification Center & GitHub Release Automation:

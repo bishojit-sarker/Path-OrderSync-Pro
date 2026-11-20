@@ -133,7 +133,7 @@ APP_NAME = "Path OrderSync Pro"
 
 APP_TAGLINE = "Sync Smarter. Work Faster. Better Quality."
 
-CURRENT_VERSION = "v1.9.1"
+CURRENT_VERSION = "v1.9.2"
 
 GITHUB_REPO = "bishojit-sarker/Path-OrderSync-Pro"
 
@@ -192,6 +192,8 @@ BRAND_THEMES = {
         "status_cloud_fg": "#4b5563",
         "status_notfound_bg": "#fde8e8",
         "status_notfound_fg": "#9b1c1c",
+        "status_ftp_bg": "#f3e8ff",
+        "status_ftp_fg": "#7e22ce",
         "row_sync_bg": "#e1effe",
         "row_sync_fg": "#1e429f",
         "action_btn_make_local_bg": "#292194",
@@ -246,6 +248,8 @@ BRAND_THEMES = {
         "status_cloud_fg": "#94a3b8",
         "status_notfound_bg": "#7f1d1d",
         "status_notfound_fg": "#fca5a5",
+        "status_ftp_bg": "#2e1065",
+        "status_ftp_fg": "#c084fc",
         "row_sync_bg": "#0c4a6e",
         "row_sync_fg": "#38bdf8",
         "action_btn_make_local_bg": "#34d399",
@@ -1233,12 +1237,22 @@ def auto_detect_dropbox_path():
     return os.path.join(user_profile, "Dropbox")
 
 DEFAULT_DROPBOX_PATH = auto_detect_dropbox_path()
+DEFAULT_FTP_PATH = r"\\192.168.2.127\Dropbox-SSD\order"
+FTP_PATH_PRESETS = [
+    r"\\192.168.2.127\Dropbox-SSD\order",
+    r"\\Synology-NAS\Dropbox-SSD\order"
+]
 
 def load_config():
 
     detected_path = auto_detect_dropbox_path()
 
-    cfg = {"dropbox_path": detected_path, "last_seen_version": CURRENT_VERSION}
+    cfg = {
+        "dropbox_path": detected_path,
+        "last_seen_version": CURRENT_VERSION,
+        "ftp_path": DEFAULT_FTP_PATH,
+        "ftp_enabled": True
+    }
 
     if os.path.exists(CONFIG_FILE):
 
@@ -1255,6 +1269,11 @@ def load_config():
                     if not cfg.get("dropbox_path") or not os.path.isdir(cfg.get("dropbox_path")):
 
                         cfg["dropbox_path"] = detected_path
+
+                    if not cfg.get("ftp_path"):
+                        cfg["ftp_path"] = DEFAULT_FTP_PATH
+                    if "ftp_enabled" not in cfg:
+                        cfg["ftp_enabled"] = True
 
         except Exception:
 
@@ -1388,6 +1407,39 @@ def build_vendor_index(base_path, selected_vendors=None):
 
             })
 
+    return index
+
+def build_ftp_index(ftp_root):
+    """
+    Builds an in-memory index of all orders found in the FTP/Synology NAS directory.
+    Scans depth 1 (direct order folders) and depth 2 (batch/account subdirectories).
+    Returns dict: clean_order_id -> folder_path
+    """
+    index = {}
+    if not ftp_root or not os.path.isdir(ftp_root):
+        return index
+    try:
+        for entry in os.scandir(ftp_root):
+            if not entry.is_dir():
+                continue
+            name = entry.name
+            clean = normalize_order_id(name)
+            # Depth 1: If entry itself is an order folder (e.g. #459186 or 459186)
+            if name.startswith("#") or (clean and clean.isdigit() and len(clean) <= 8):
+                index[clean] = entry.path
+
+            # Depth 2: If entry is a batch or account folder (e.g. 1099192795221)
+            try:
+                for sub in os.scandir(entry.path):
+                    if sub.is_dir():
+                        s_name = sub.name
+                        s_clean = normalize_order_id(s_name)
+                        if s_clean:
+                            index[s_clean] = sub.path
+            except Exception:
+                pass
+    except Exception:
+        pass
     return index
 
 def resolve_target_folder(order_dir):
@@ -4038,7 +4090,7 @@ def fetch_all_releases():
 
     # Only include VERIFIED AVAILABLE releases (active build, local binary, or valid GitHub asset)
 
-    candidate_tags = [CURRENT_VERSION, "v1.9.0", "v1.8.0", "v1.7.0", "v1.6.0", "v1.5.0", "v1.4.0", "v1.3.0", "v1.2.0"]
+    candidate_tags = [CURRENT_VERSION, "v1.9.1", "v1.9.0", "v1.8.0", "v1.7.0", "v1.6.0", "v1.5.0", "v1.4.0", "v1.3.0", "v1.2.0"]
 
     for t in github_releases:
 
@@ -4281,6 +4333,82 @@ class SettingsDialog(ctk.CTkToplevel):
             font=("Segoe UI", 10.5)
         )
         self.open_dropbox_btn.pack(side="left")
+
+        # ==============================================================
+        # CARD 1.5: FTP / Synology NAS Storage (Heading: "FTP / Synology NAS Path", auto-save)
+        # ==============================================================
+        self.card_ftp = ctk.CTkFrame(self.scroll_body, fg_color=t["bg_card"], corner_radius=12, border_width=1, border_color=t["border"])
+        self.card_ftp.pack(fill="x", pady=(0, 14))
+
+        ftp_inner = ctk.CTkFrame(self.card_ftp, fg_color="transparent")
+        ftp_inner.pack(fill="x", padx=16, pady=14)
+
+        lbl_ftp = ctk.CTkLabel(ftp_inner, text="🌐 FTP / Synology NAS Path", font=("Segoe UI", 12, "bold"), text_color=t["text_main"])
+        lbl_ftp.pack(anchor="w", pady=(0, 8))
+        self._section_labels.append(lbl_ftp)
+
+        row_ftp = ctk.CTkFrame(ftp_inner, fg_color="transparent")
+        row_ftp.pack(fill="x")
+
+        cur_ftp = getattr(self.parent, "ftp_path", DEFAULT_FTP_PATH)
+        presets = list(FTP_PATH_PRESETS)
+        if cur_ftp and cur_ftp not in presets:
+            presets.insert(0, cur_ftp)
+        self.ftp_entry_var = tk.StringVar(value=cur_ftp if cur_ftp else DEFAULT_FTP_PATH)
+        self.ftp_entry = ctk.CTkComboBox(
+            row_ftp,
+            values=presets,
+            variable=self.ftp_entry_var,
+            command=self._on_ftp_combo_selected,
+            fg_color=t["bg_input"],
+            text_color=t["text_main"],
+            border_width=1,
+            border_color=t["border"],
+            button_color=t.get("btn_secondary_bg", "#ffffff" if is_light else "#1e293b"),
+            button_hover_color=t.get("btn_secondary_hover", "#f1f5f9" if is_light else "#334155"),
+            dropdown_fg_color=t["bg_card"],
+            dropdown_text_color=t["text_main"],
+            dropdown_hover_color=t.get("tree_select", "#dbeafe" if is_light else "#222d52"),
+            corner_radius=8,
+            font=("Segoe UI", 11),
+            dropdown_font=("Segoe UI", 10.5),
+            height=30
+        )
+        self.ftp_entry.pack(side="left", fill="x", expand=True, padx=(0, 8))
+        if hasattr(self.ftp_entry, "_entry"):
+            self.ftp_entry._entry.bind("<FocusOut>", self._on_ftp_entry_focusout)
+
+        self.ftp_browse_btn = ctk.CTkButton(
+            row_ftp,
+            text="Browse...",
+            command=self._browse_ftp_path,
+            fg_color=t.get("btn_secondary_bg", "#ffffff" if is_light else "#1e293b"),
+            hover_color=t.get("btn_secondary_hover", "#f1f5f9" if is_light else "#334155"),
+            text_color=t["text_main"],
+            border_width=1,
+            border_color=t["border"],
+            corner_radius=8,
+            width=84,
+            height=30,
+            font=("Segoe UI", 10.5)
+        )
+        self.ftp_browse_btn.pack(side="left", padx=(0, 6))
+
+        self.open_ftp_btn = ctk.CTkButton(
+            row_ftp,
+            text="📂 Open FTP/NAS",
+            command=self._open_ftp_folder,
+            fg_color=t.get("btn_secondary_bg", "#ffffff" if is_light else "#1e293b"),
+            hover_color=t.get("btn_secondary_hover", "#f1f5f9" if is_light else "#334155"),
+            text_color=t["text_main"],
+            border_width=1,
+            border_color=t["border"],
+            corner_radius=8,
+            width=124,
+            height=30,
+            font=("Segoe UI", 10.5)
+        )
+        self.open_ftp_btn.pack(side="left")
 
         # ==============================================================
         # CARD 2: Theme Mode (Clean heading, no extra icons)
@@ -4758,6 +4886,55 @@ del "%~f0"
         self.parent._scan_vendors()
         self.parent._update_storage_metrics()
 
+    def _browse_ftp_path(self):
+        cur = self.ftp_entry_var.get()
+        init_d = cur if os.path.isdir(cur) else "C:/"
+        chosen = filedialog.askdirectory(title="Select FTP / Synology NAS Root Directory", initialdir=init_d, parent=self)
+        if chosen:
+            self.ftp_entry_var.set(chosen)
+            if hasattr(self, "ftp_entry") and hasattr(self.ftp_entry, "cget"):
+                try:
+                    cur_vals = list(self.ftp_entry.cget("values"))
+                    if chosen not in cur_vals:
+                        cur_vals.append(chosen)
+                        self.ftp_entry.configure(values=cur_vals)
+                except Exception:
+                    pass
+            self._auto_save_ftp_path(chosen)
+
+    def _open_ftp_folder(self):
+        val = self.ftp_entry_var.get().strip()
+        if val and os.path.isdir(val):
+            try:
+                os.startfile(val)
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to open FTP/NAS folder:\n{e}", parent=self)
+        else:
+            messagebox.showwarning("Not Found", "Specified FTP/NAS directory does not exist or is unreachable.", parent=self)
+
+    def _on_ftp_combo_selected(self, choice):
+        if choice:
+            self._auto_save_ftp_path(choice)
+
+    def _on_ftp_entry_focusout(self, event=None):
+        val = self.ftp_entry_var.get().strip()
+        if val:
+            self._auto_save_ftp_path(val)
+
+    def _auto_save_ftp_path(self, path):
+        if not path:
+            return
+        if hasattr(self.parent, "ftp_path"):
+            self.parent.ftp_path = path
+        self.parent.config_data["ftp_path"] = path
+        try:
+            with open(os.path.join(APP_DIR, "config.json"), "w", encoding="utf-8") as f:
+                json.dump(self.parent.config_data, f, indent=2)
+        except Exception:
+            pass
+        if hasattr(self.parent, "get_ftp_index"):
+            self.parent.get_ftp_index(force_refresh=True)
+
     def _on_theme_changed(self, choice):
         new_theme = "light" if "Light" in choice else "dark"
         if getattr(self.parent, "theme_name", "") != new_theme:
@@ -4782,7 +4959,7 @@ del "%~f0"
         btn_hover = t.get("btn_secondary_hover", "#f1f5f9" if is_light else "#334155")
 
         self.configure(fg_color=t["bg_canvas"])
-        cards = [getattr(self, "card_path", None), getattr(self, "card_theme", None), getattr(self, "card_vendor", None), getattr(self, "card_ver", None)]
+        cards = [getattr(self, "card_path", None), getattr(self, "card_ftp", None), getattr(self, "card_theme", None), getattr(self, "card_vendor", None), getattr(self, "card_ver", None)]
         for c in cards:
             if c and isinstance(c, ctk.CTkFrame) and c.winfo_exists():
                 c.configure(fg_color=t["bg_card"], border_color=t["border"])
@@ -4819,6 +4996,24 @@ del "%~f0"
         if hasattr(self, "open_dropbox_btn") and self.open_dropbox_btn.winfo_exists():
             self.open_dropbox_btn.configure(fg_color=btn_bg, hover_color=btn_hover, text_color=t["text_main"], border_color=t["border"])
 
+        if hasattr(self, "ftp_entry") and self.ftp_entry.winfo_exists():
+            self.ftp_entry.configure(
+                fg_color=t["bg_input"],
+                text_color=t["text_main"],
+                border_color=t["border"],
+                button_color=btn_bg,
+                button_hover_color=btn_hover,
+                dropdown_fg_color=t["bg_card"],
+                dropdown_text_color=t["text_main"],
+                dropdown_hover_color=t.get("tree_select", "#dbeafe" if is_light else "#222d52")
+            )
+
+        if hasattr(self, "ftp_browse_btn") and self.ftp_browse_btn.winfo_exists():
+            self.ftp_browse_btn.configure(fg_color=btn_bg, hover_color=btn_hover, text_color=t["text_main"], border_color=t["border"])
+
+        if hasattr(self, "open_ftp_btn") and self.open_ftp_btn.winfo_exists():
+            self.open_ftp_btn.configure(fg_color=btn_bg, hover_color=btn_hover, text_color=t["text_main"], border_color=t["border"])
+
         if hasattr(self, "txt_notes") and self.txt_notes.winfo_exists():
             self.txt_notes.configure(fg_color=t["bg_input"], text_color=t["text_main"], border_color=t["border"])
 
@@ -4842,6 +5037,9 @@ del "%~f0"
         lines = [
             f"=== {APP_NAME} {CURRENT_VERSION} ===",
             "",
+            "• Direct FTP & Synology NAS Fallback integration.",
+            "• High-speed IP address presets with ComboBox dropdown in Settings.",
+            "• 1-Click native Windows Explorer opening for FTP orders.",
             "• Clean, modern light & dark user interface.",
             "• Direct 1-click 'Open Dropbox' on main dashboard.",
             "• Streamlined Settings with automatic path detection.",
@@ -4960,6 +5158,12 @@ class QCBatchLoaderApp(ctk.CTk):
         self.table_items = {}
 
         self.search_var = tk.StringVar(value="")
+
+        # FTP / Synology NAS state
+        self.ftp_path = self.config_data.get("ftp_path", DEFAULT_FTP_PATH)
+        self.ftp_enabled = self.config_data.get("ftp_enabled", True)
+        self.ftp_index = {}
+        self.ftp_index_time = 0
 
         # Advanced V1.5 / V1.6 features state
 
@@ -5182,6 +5386,18 @@ class QCBatchLoaderApp(ctk.CTk):
         self.text_main = t["text_main"]
 
         self.text_muted = t["text_muted"]
+
+    def get_ftp_index(self, force_refresh=False):
+        """Returns the in-memory FTP/NAS index, refreshing if forced or older than 30 seconds."""
+        now = time.time()
+        if force_refresh or not self.ftp_index or (now - getattr(self, "ftp_index_time", 0) > 30):
+            p = getattr(self, "ftp_path", DEFAULT_FTP_PATH)
+            if getattr(self, "ftp_enabled", True) and p and os.path.isdir(p):
+                self.ftp_index = build_ftp_index(p)
+                self.ftp_index_time = now
+            else:
+                self.ftp_index = {}
+        return self.ftp_index
 
     def _scan_vendors(self, keep_selection=False):
 
@@ -6129,6 +6345,8 @@ class QCBatchLoaderApp(ctk.CTk):
         self.tree.tag_configure("row_online", background=t["status_cloud_bg"], foreground=t["status_cloud_fg"])
 
         self.tree.tag_configure("row_notfound", background=t["status_notfound_bg"], foreground=t["status_notfound_fg"])
+
+        self.tree.tag_configure("row_ftp", background=t.get("status_ftp_bg", "#f3e8ff"), foreground=t.get("status_ftp_fg", "#7e22ce"))
 
         # Text selection overlay state for Order ID column & Action cell overlays (Point 1 & Point 7)
         self._selected_order_ids = []
@@ -7263,6 +7481,7 @@ class QCBatchLoaderApp(ctk.CTk):
             self.tree.tag_configure("row_syncing", background=t["status_sync_bg"], foreground=t["status_sync_fg"])
             self.tree.tag_configure("row_online", background=t["status_cloud_bg"], foreground=t["status_cloud_fg"])
             self.tree.tag_configure("row_notfound", background=t["status_notfound_bg"], foreground=t["status_notfound_fg"])
+            self.tree.tag_configure("row_ftp", background=t.get("status_ftp_bg", "#f3e8ff"), foreground=t.get("status_ftp_fg", "#7e22ce"))
             self._update_all_tree_overlays()
 
         # 7. Update Context Menu
@@ -7537,7 +7756,7 @@ class QCBatchLoaderApp(ctk.CTk):
             st = str(vals[2] if len(vals) > 2 else (vals[1] if len(vals) > 1 else "")).lower()
             if "local" in st:
                 loc_cnt += 1
-            elif "not found" in st:
+            elif "not found" in st or "ftp" in st:
                 pass
             else:
                 cloud_cnt += 1
@@ -7571,7 +7790,7 @@ class QCBatchLoaderApp(ctk.CTk):
 
             if not query or query in order_id or query in vendor or query in status:
 
-                tag = "row_syncing" if "Syncing" in status or "%" in status else ("row_local" if "Local" in status else ("row_notfound" if "Not Found" in status else "row_online"))
+                tag = "row_syncing" if ("syncing" in status or "%" in status) else ("row_ftp" if "ftp" in status else ("row_local" if "local" in status else ("row_notfound" if "not found" in status else "row_online")))
 
                 chk = self.order_checkboxes.get(key, "☐")
 
@@ -7649,27 +7868,70 @@ class QCBatchLoaderApp(ctk.CTk):
 
             if not matches:
 
-                item_key = f"{clean_id}_notfound"
+                # Check FTP / Synology NAS fallback
+                ftp_folder = None
+                if getattr(self, "ftp_enabled", True):
+                    ftp_idx = self.get_ftp_index()
+                    ftp_folder = ftp_idx.get(clean_id)
 
-                chk = self.order_checkboxes.get(item_key, "☐")
+                if ftp_folder and os.path.isdir(ftp_folder):
+                    file_list, total_size = collect_folder_files(ftp_folder)
+                    total_files = len(file_list)
+                    files_disp = str(total_files)
+                    disp_size = format_bytes(total_size)
+                    status_text = "FTP"
+                    row_tag = "row_ftp"
+                    vendor = "FTP"
+                    item_key = f"{clean_id}_ftp"
 
-                chk_img = self.chk_checked_img if chk == "☑" else self.chk_unchecked_img
+                    chk = self.order_checkboxes.get(item_key, "☐")
+                    chk_img = self.chk_checked_img if chk == "☑" else self.chk_unchecked_img
 
-                if not self.tree.exists(item_key):
+                    row_vals = (format_order_id_display(clean_id), vendor, status_text, files_disp, disp_size, "-", "-", "📁 Open")
 
-                    row_vals = (format_order_id_display(clean_id), "-", "⚠️ Not Found", "0 / 0", "0 B / 0 B", "-", "-", "-")
-
-                    self.tree.insert("", "end", iid=item_key, text="", image=chk_img, values=row_vals, tags=("row_notfound",))
+                    if self.tree.exists(item_key):
+                        self.tree.item(item_key, text="", image=chk_img, values=row_vals, tags=(row_tag,))
+                    else:
+                        self.tree.insert("", "end", iid=item_key, text="", image=chk_img, values=row_vals, tags=(row_tag,))
 
                     self.table_items[item_key] = row_vals
-
-                    info = {"order_id": clean_id, "vendor": "-", "path": None, "status": "⚠️ Not Found", "files": 0, "size_bytes": 0}
-
+                    info = {
+                        "order_id": clean_id,
+                        "vendor": vendor,
+                        "path": ftp_folder,
+                        "status": status_text,
+                        "files": total_files,
+                        "size_bytes": total_size,
+                        "is_ftp": True
+                    }
                     self.resolved_orders[item_key] = info
-
                     self.resolved_orders[clean_id] = info
+                    self.resolved_orders[f"#{clean_id}"] = info
+                    added_count += 1
 
-                added_count += 1
+                else:
+
+                    item_key = f"{clean_id}_notfound"
+
+                    chk = self.order_checkboxes.get(item_key, "☐")
+
+                    chk_img = self.chk_checked_img if chk == "☑" else self.chk_unchecked_img
+
+                    if not self.tree.exists(item_key):
+
+                        row_vals = (format_order_id_display(clean_id), "-", "⚠️ Not Found", "0 / 0", "0 B / 0 B", "-", "-", "-")
+
+                        self.tree.insert("", "end", iid=item_key, text="", image=chk_img, values=row_vals, tags=("row_notfound",))
+
+                        self.table_items[item_key] = row_vals
+
+                        info = {"order_id": clean_id, "vendor": "-", "path": None, "status": "⚠️ Not Found", "files": 0, "size_bytes": 0}
+
+                        self.resolved_orders[item_key] = info
+
+                        self.resolved_orders[clean_id] = info
+
+                    added_count += 1
 
             else:
 
@@ -7717,19 +7979,19 @@ class QCBatchLoaderApp(ctk.CTk):
 
                     if local_files == total_files and total_files > 0:
 
-                        status_text = "Local"
+                        status_text = "Dropbox (Local)"
 
                         row_tag = "row_local"
 
                     elif local_files > 0:
 
-                        status_text = f"Local ({local_files}/{total_files})"
+                        status_text = f"Dropbox (Local: {local_files}/{total_files})"
 
                         row_tag = "row_local"
 
                     else:
 
-                        status_text = "Cloud"
+                        status_text = "Dropbox (Cloud)"
 
                         row_tag = "row_online"
 
@@ -7913,7 +8175,7 @@ class QCBatchLoaderApp(ctk.CTk):
                 row_vals = (
                     format_order_id_display(oid),
                     vendor,
-                    "Local",
+                    "Dropbox (Local)",
                     f"{tot_f} / {tot_f}",
                     f"{tot_b_str} / {tot_b_str}",
                     "Local",
@@ -7928,7 +8190,7 @@ class QCBatchLoaderApp(ctk.CTk):
                     "order_id": oid,
                     "vendor": vendor,
                     "path": item["path"],
-                    "status": "Local",
+                    "status": "Dropbox (Local)",
                     "files": item["total_files"],
                     "size_bytes": item["local_bytes"]
                 }
@@ -7985,7 +8247,27 @@ class QCBatchLoaderApp(ctk.CTk):
                     self.resolved_orders[item_id] = alt
                     return alt
 
-                if vendor and vendor != "-":
+                if vendor == "FTP":
+                    ftp_idx = self.get_ftp_index()
+                    ftp_p = ftp_idx.get(clean_id)
+                    if ftp_p and os.path.isdir(ftp_p):
+                        files_raw = str(vals[3]).strip() if len(vals) > 3 else "0"
+                        files_cnt = int(files_raw) if files_raw.isdigit() else 0
+                        new_info = {
+                            "order_id": clean_id,
+                            "vendor": "FTP",
+                            "path": ftp_p,
+                            "status": "FTP",
+                            "files": files_cnt,
+                            "size_bytes": 0,
+                            "is_ftp": True
+                        }
+                        self.resolved_orders[item_id] = new_info
+                        self.resolved_orders[item_key] = new_info
+                        self.resolved_orders[clean_id] = new_info
+                        return new_info
+
+                elif vendor and vendor != "-":
                     base_path = self.path_var.get()
                     if base_path and os.path.isdir(base_path):
                         candidates = [
@@ -8030,6 +8312,9 @@ class QCBatchLoaderApp(ctk.CTk):
 
             return
 
+        if info.get("is_ftp") or info.get("vendor") == "FTP" or info.get("status") == "FTP":
+            return
+
         folder_path = info["path"]
 
         order_id = info.get("order_id", "")
@@ -8066,7 +8351,7 @@ class QCBatchLoaderApp(ctk.CTk):
 
                 files_str = f"0 / {file_count}"
 
-                new_vals = (format_order_id_display(order_id), vendor, "Cloud", files_str, file_sz_str, "Local", "Cloud", "📁 Open")
+                new_vals = (format_order_id_display(order_id), vendor, "Dropbox (Cloud)", files_str, file_sz_str, "Local", "Cloud", "📁 Open")
 
                 def _on_done():
 
@@ -8118,6 +8403,9 @@ class QCBatchLoaderApp(ctk.CTk):
 
             messagebox.showwarning("Not Found", "Folder location not found on disk.", parent=self)
 
+            return
+
+        if info.get("is_ftp") or info.get("vendor") == "FTP" or info.get("status") == "FTP":
             return
 
         folder_path = info["path"]
@@ -8261,7 +8549,7 @@ class QCBatchLoaderApp(ctk.CTk):
                                 self.status_var.set(f"⚡ Syncing #{order_id} ({f} files • {s} - {p.replace('● ', '')})")
                             ])
 
-                status_text = "Local"
+                status_text = "Dropbox (Local)"
 
                 final_files = f"{total_files} / {total_files}"
 
@@ -8342,6 +8630,9 @@ class QCBatchLoaderApp(ctk.CTk):
 
                     continue
 
+                if info.get("is_ftp") or info.get("vendor") == "FTP" or info.get("status") == "FTP":
+                    continue
+
                 folder_path = info["path"]
 
                 order_id = normalize_order_id(str(info.get("order_id", "")))
@@ -8360,7 +8651,7 @@ class QCBatchLoaderApp(ctk.CTk):
 
                     free_up_space_cfapi(folder_path)
 
-                    status_text = "Cloud"
+                    status_text = "Dropbox (Cloud)"
 
                     cur_vals = self.tree.item(item_id, "values")
 
@@ -8456,6 +8747,10 @@ class QCBatchLoaderApp(ctk.CTk):
 
         for iid in all_iids:
 
+            info = self.resolved_orders.get(iid)
+            if info and (info.get("is_ftp") or info.get("vendor") == "FTP" or info.get("status") == "FTP"):
+                continue
+
             vals = self.tree.item(iid, "values")
             raw_id = str(vals[0]).strip().lstrip("#") if vals and len(vals) > 0 and str(vals[0]).strip() not in ("-", "") else ""
             if not raw_id:
@@ -8506,6 +8801,9 @@ class QCBatchLoaderApp(ctk.CTk):
 
                 info = self._get_order_info(iid)
 
+                if not info or info.get("is_ftp") or info.get("vendor") == "FTP" or info.get("status") == "FTP":
+                    continue
+
                 if info and info.get("path") and os.path.isdir(info["path"]):
 
                     chk = self.order_checkboxes.get(iid, "☐")
@@ -8529,7 +8827,7 @@ class QCBatchLoaderApp(ctk.CTk):
 
                         files_str = f"0 / {info.get('files', 0)}"
 
-                        new_vals = (format_order_id_display(info.get("order_id")), info.get("vendor"), "Cloud", files_str, file_sz_str, "Local", "Cloud", "📁 Open")
+                        new_vals = (format_order_id_display(info.get("order_id")), info.get("vendor"), "Dropbox (Cloud)", files_str, file_sz_str, "Local", "Cloud", "📁 Open")
 
                         self.after(0, lambda i=iid, img=chk_img, vals=new_vals: [
 
@@ -8539,7 +8837,7 @@ class QCBatchLoaderApp(ctk.CTk):
 
                         ])
 
-                        info["status"] = "Cloud"
+                        info["status"] = "Dropbox (Cloud)"
 
                         mark_order_history(info.get("order_id"), info.get("vendor"), info["path"], "online", info.get("files", 0), 0)
 
@@ -8673,6 +8971,40 @@ class QCBatchLoaderApp(ctk.CTk):
                 matches = full_vendor_index.get(clean_id, [])
 
             if not matches:
+
+                # Check FTP / Synology NAS fallback
+                ftp_folder = None
+                if getattr(self, "ftp_enabled", True):
+                    ftp_idx = self.get_ftp_index()
+                    ftp_folder = ftp_idx.get(clean_id)
+
+                if ftp_folder and os.path.isdir(ftp_folder):
+                    file_list, total_size = collect_folder_files(ftp_folder)
+                    total_files = len(file_list)
+                    files_disp = str(total_files)
+                    disp_size = format_bytes(total_size)
+                    status_text = "FTP"
+                    row_tag = "row_ftp"
+                    vendor = "FTP"
+                    item_key = f"{order_id}_ftp"
+
+                    chk = self.order_checkboxes.get(item_key, "☐")
+                    chk_img = self.chk_checked_img if chk == "☑" else self.chk_unchecked_img
+
+                    row_vals = (format_order_id_display(order_id), vendor, status_text, files_disp, disp_size, "-", "-", "📁 Open")
+
+                    self.resolved_orders[item_key] = {"order_id": order_id, "vendor": vendor, "path": ftp_folder, "status": status_text, "files": total_files, "size_bytes": total_size, "is_ftp": True}
+                    self.resolved_orders[order_id] = self.resolved_orders[item_key]
+                    self.resolved_orders[clean_id] = self.resolved_orders[item_key]
+                    self.table_items[item_key] = row_vals
+
+                    def _insert_ftp_row(k=item_key, img=chk_img, vals=row_vals, tag=row_tag):
+                        if self.tree.exists(k):
+                            self.tree.item(k, text="", image=img, values=vals, tags=(tag,))
+                        else:
+                            self.tree.insert("", "end", iid=k, text="", image=img, values=vals, tags=(tag,))
+                    self.after(0, _insert_ftp_row)
+                    continue
 
                 status_text = "⚠️ Not Found"
 
@@ -8875,7 +9207,7 @@ class QCBatchLoaderApp(ctk.CTk):
 
                                     self.status_var.set(f"⚡ Hydrating #{order_id} ({files_prog} files • {size_prog} - {s_pct:.1f}%) • Parallel sync active")
 
-                        status_text = "Local"
+                        status_text = "Dropbox (Local)"
 
                         success_count += 1
 

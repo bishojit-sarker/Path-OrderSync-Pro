@@ -2,7 +2,7 @@
 
 > **Sync Smarter. Work Faster. Better Quality.**
 
-[![Release](https://img.shields.io/badge/version-1.9.1-blue.svg)](https://github.com/bishojit-sarker/Path-OrderSync-Pro/releases)
+[![Release](https://img.shields.io/badge/version-1.9.2-blue.svg)](https://github.com/bishojit-sarker/Path-OrderSync-Pro/releases)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078d7.svg)](https://www.microsoft.com/windows)
 [![GitHub](https://img.shields.io/badge/GitHub-Repository-black?logo=github)](https://github.com/bishojit-sarker/Path-OrderSync-Pro)
 
@@ -72,6 +72,11 @@
     - **একক ভেন্ডর নির্বাচন (Single Vendor Selection):** যেকোনো ভেন্ডরের নামের পাশে `[ Only ]` বাটনে চাপ দিয়ে তাৎক্ষণিকভাবে অন্যসব আনচেক করে কেবল সেই একটি ভেন্ডরের কাজ করা যায়।
     - **একাধিক ভেন্ডর নির্বাচন (Multi-Vendor Selection):** চেকবক্সে টিক দিয়ে ইচ্ছামতো একাধিক নির্দিষ্ট ভেন্ডর নির্বাচন করা যায়।
     - **ফিল্টার প্রসেসিং:** আপনি যে ভেন্ডরগুলো বেছে নেবেন, `Make Local` এবং `Make Online` করার সময় কেবল সেই নির্বাচিত ভেন্ডরগুলোর অর্ডার প্রসেস হবে; অপ্রয়োজনীয় ভেন্ডরে কোনো স্ক্যান বা ডাউনলোড হবে না।
+16. **FTP ও Synology NAS স্বয়ংক্রিয় ফলব্যাক ও ১-ক্লিক ওপেন (FTP / NAS Fallback Engine):**
+    - ড্রপবক্সে কোনো অর্ডার না পেলে অ্যাপটি স্বয়ংক্রিয়ভাবে Synology NAS (`\\192.168.2.127\Dropbox-SSD\order\`) চেক করে অর্ডারটি খুঁজে বের করে।
+    - টেবিলে স্পষ্ট পার্পল ব্যাজে `FTP` স্ট্যাটাস, ফাইল সংখ্যা ও সাইজ দেখায়। লোকাল ড্রাইভ স্পেস অক্ষত রাখতে লোকাল/ক্লাউড বাটন নিষ্ক্রিয় `(-)` থাকে।
+    - `[ 📁 Open ]` এ ক্লিক করলে বা ডাবল-ক্লিক করলে সরাসরি উইন্ডোজ ফাইল এক্সপ্লোরারে সেই অর্ডারের ফোল্ডারটি ওপেন হয়ে যায়।
+    - সেটিংস সেন্টারে ComboBox ড্রপডাউন দিয়ে IP ও Hostname পাথের মধ্যে তাৎক্ষণিক পরিবর্তন করা যায়।
 
 ---
 
