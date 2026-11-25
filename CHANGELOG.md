@@ -1,6 +1,29 @@
-# 📝 Changelog & Version History
+# 📋 Changelog & Version History
 
 All notable changes, bug fixes, and feature additions to **Path OrderSync Pro** are documented here.
+
+## [v1.9.4] - 2026-11-25
+
+### 🎯 Order Grouping, Selective Sync/Pause/Stop, Button Pill Styling & UX Polish:
+- **Order ID Consecutive Grouping & "Original" Vendor Identification:**
+  - Orders sharing the same Order ID across storage tiers (Dropbox row and FTP/NAS row) are now guaranteed to be grouped directly side-by-side in consecutive rows (`tree.move()` and `_reorder_table_by_order_group()`).
+  - FTP/Synology NAS orders now display Vendor as **`Original`** (while the Status column displays `FTP`).
+- **Selective Batch Operations ("Make Local" & "Free Up Space"):**
+  - If specific orders are checked or selected in the table, clicking **Make Local (Ready for QC)** or **Free Up Space (Make Online-Only)** operates exclusively on the selected orders; unselected orders are not modified.
+  - If no orders are checked or selected, the buttons process all eligible orders in the dashboard table.
+- **Fixed & Immediate Pause / Stop Controls (Global & Selective):**
+  - Resolved unresponsive Pause and Stop buttons by implementing 128 KB non-blocking chunk check hooks (`pause_fn`, `stop_fn`), making pause and stop take effect instantaneously without waiting for whole files to finish.
+  - Selective Pause / Stop: If orders are checked or selected, clicking Pause or Stop toggles pause or halts sync exclusively for those selected orders, while unselected orders continue downloading.
+  - Global Pause / Stop: If no orders are selected, Pause and Stop apply globally across all orders.
+- **Card-Style Pill Fields & Polished Modern Appearance:**
+  - Table action fields (`[ 📥 Local ]`, `[ ☁ Cloud ]`, `[ 📁 Open ]`, `[ - ]`) now feature button pill styling with borders, aligning with the visual style of "Scan Local", "Clean Dash", and "Remove".
+  - Configured custom Treeitem border and clam theme styling for crisp cell rendering.
+- **Interactive Hand Tool Cursor on Clickable Action Cells:**
+  - Hovering the mouse over interactive table fields (`Order ID`, `Make Local`, `Make Cloud`, `Open`, and row checkboxes) dynamically switches the mouse cursor to a hand tool (`hand2`), providing visual clickability feedback.
+- **Header Clean-Up:**
+  - Removed the `🔔 Alerts` button from the top navigation bar per user request.
+
+---
 
 ## [v1.9.3] - 2026-11-25
 
