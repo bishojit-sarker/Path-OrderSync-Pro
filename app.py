@@ -133,7 +133,7 @@ APP_NAME = "Path OrderSync Pro"
 
 APP_TAGLINE = "Sync Smarter. Work Faster. Better Quality."
 
-CURRENT_VERSION = "v1.9.2"
+CURRENT_VERSION = "v1.9.3"
 
 GITHUB_REPO = "bishojit-sarker/Path-OrderSync-Pro"
 
@@ -4090,7 +4090,7 @@ def fetch_all_releases():
 
     # Only include VERIFIED AVAILABLE releases (active build, local binary, or valid GitHub asset)
 
-    candidate_tags = [CURRENT_VERSION, "v1.9.1", "v1.9.0", "v1.8.0", "v1.7.0", "v1.6.0", "v1.5.0", "v1.4.0", "v1.3.0", "v1.2.0"]
+    candidate_tags = [CURRENT_VERSION, "v1.9.2", "v1.9.1", "v1.9.0", "v1.8.0", "v1.7.0", "v1.6.0", "v1.5.0", "v1.4.0", "v1.3.0", "v1.2.0"]
 
     for t in github_releases:
 
@@ -7710,7 +7710,7 @@ class QCBatchLoaderApp(ctk.CTk):
 
         # Update total count & metrics in footer
         tot_cnt = len(self.table_items)
-        loc_cnt = sum(1 for v in self.table_items.values() if any("local" in str(x).lower() for x in (v if isinstance(v, (list, tuple)) else [])))
+        loc_cnt = sum(1 for v in self.table_items.values() if len(v) > 2 and "local" in str(v[2]).lower())
         if hasattr(self, "total_lbl") and self.total_lbl:
             if tot_cnt > 0 and loc_cnt > 0:
                 self.total_lbl.configure(text=f"Total Orders in Dashboard: {tot_cnt} ({loc_cnt} Local, {tot_cnt - loc_cnt} Cloud)")
@@ -7866,180 +7866,137 @@ class QCBatchLoaderApp(ctk.CTk):
 
                 matches = full_vendor_index.get(clean_id, [])
 
-            if not matches:
+            # Remove previous notfound row if it exists
+            nf_key = f"{clean_id}_notfound"
 
-                # Check FTP / Synology NAS fallback
-                ftp_folder = None
-                if getattr(self, "ftp_enabled", True):
-                    ftp_idx = self.get_ftp_index()
-                    ftp_folder = ftp_idx.get(clean_id)
+            # Check FTP / Synology NAS independent match
+            ftp_folder = None
+            if getattr(self, "ftp_enabled", True):
+                ftp_idx = self.get_ftp_index()
+                ftp_folder = ftp_idx.get(clean_id)
+                if ftp_folder and not os.path.isdir(ftp_folder):
+                    ftp_folder = None
 
-                if ftp_folder and os.path.isdir(ftp_folder):
-                    file_list, total_size = collect_folder_files(ftp_folder)
-                    total_files = len(file_list)
-                    files_disp = str(total_files)
-                    disp_size = format_bytes(total_size)
-                    status_text = "FTP"
-                    row_tag = "row_ftp"
-                    vendor = "FTP"
-                    item_key = f"{clean_id}_ftp"
+            if (matches or ftp_folder) and self.tree.exists(nf_key):
+                self.tree.delete(nf_key)
+                self.table_items.pop(nf_key, None)
+                self.resolved_orders.pop(nf_key, None)
 
-                    chk = self.order_checkboxes.get(item_key, "☐")
-                    chk_img = self.chk_checked_img if chk == "☑" else self.chk_unchecked_img
-
-                    row_vals = (format_order_id_display(clean_id), vendor, status_text, files_disp, disp_size, "-", "-", "📁 Open")
-
-                    if self.tree.exists(item_key):
-                        self.tree.item(item_key, text="", image=chk_img, values=row_vals, tags=(row_tag,))
-                    else:
-                        self.tree.insert("", "end", iid=item_key, text="", image=chk_img, values=row_vals, tags=(row_tag,))
-
-                    self.table_items[item_key] = row_vals
-                    info = {
-                        "order_id": clean_id,
-                        "vendor": vendor,
-                        "path": ftp_folder,
-                        "status": status_text,
-                        "files": total_files,
-                        "size_bytes": total_size,
-                        "is_ftp": True
-                    }
-                    self.resolved_orders[item_key] = info
-                    self.resolved_orders[clean_id] = info
-                    self.resolved_orders[f"#{clean_id}"] = info
-                    added_count += 1
-
-                else:
-
-                    item_key = f"{clean_id}_notfound"
-
-                    chk = self.order_checkboxes.get(item_key, "☐")
-
-                    chk_img = self.chk_checked_img if chk == "☑" else self.chk_unchecked_img
-
-                    if not self.tree.exists(item_key):
-
-                        row_vals = (format_order_id_display(clean_id), "-", "⚠️ Not Found", "0 / 0", "0 B / 0 B", "-", "-", "-")
-
-                        self.tree.insert("", "end", iid=item_key, text="", image=chk_img, values=row_vals, tags=("row_notfound",))
-
-                        self.table_items[item_key] = row_vals
-
-                        info = {"order_id": clean_id, "vendor": "-", "path": None, "status": "⚠️ Not Found", "files": 0, "size_bytes": 0}
-
-                        self.resolved_orders[item_key] = info
-
-                        self.resolved_orders[clean_id] = info
-
-                    added_count += 1
-
-            else:
-
+            # 1) Handle Dropbox matches (if found in Dropbox)
+            if matches:
                 for match in matches:
-
                     vendor = match["vendor"]
-
                     order_dir = match["order_dir"]
-
                     folder_path = resolve_target_folder(order_dir)
-
                     file_list, total_size = collect_folder_files(folder_path)
-
                     total_files = len(file_list)
-
                     local_files = 0
-
                     local_bytes = 0
 
                     if kernel32 and file_list:
-
                         for fp in file_list:
-
                             if os.path.basename(fp).lower() in IGNORE_FILES:
-
                                 continue
-
                             try:
-
                                 attrs = kernel32.GetFileAttributesW(fp)
-
                                 if attrs != -1 and not (attrs & FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS) and not (attrs & FILE_ATTRIBUTE_OFFLINE):
-
                                     local_files += 1
-
                                     local_bytes += os.path.getsize(fp)
-
                             except Exception:
-
                                 pass
 
                     files_disp = f"{local_files} / {total_files}"
-
                     disp_size = f"{format_bytes(local_bytes)} / {format_bytes(total_size)}"
 
                     if local_files == total_files and total_files > 0:
-
-                        status_text = "Dropbox (Local)"
-
+                        status_text = "Local"
                         row_tag = "row_local"
-
                     elif local_files > 0:
-
-                        status_text = f"Dropbox (Local: {local_files}/{total_files})"
-
+                        status_text = f"Local ({local_files}/{total_files})"
                         row_tag = "row_local"
-
                     else:
-
-                        status_text = "Dropbox (Cloud)"
-
+                        status_text = "Dropbox"
                         row_tag = "row_online"
 
                     item_key = f"{clean_id}_{vendor}"
-
                     chk = self.order_checkboxes.get(item_key, "☐")
-
                     chk_img = self.chk_checked_img if chk == "☑" else self.chk_unchecked_img
-
                     row_vals = (format_order_id_display(clean_id), vendor, status_text, files_disp, disp_size, "Local", "Cloud", "📁 Open")
 
                     if self.tree.exists(item_key):
-
                         self.tree.item(item_key, text="", image=chk_img, values=row_vals, tags=(row_tag,))
-
                     else:
-
                         self.tree.insert("", "end", iid=item_key, text="", image=chk_img, values=row_vals, tags=(row_tag,))
 
                     self.table_items[item_key] = row_vals
-
                     info = {
-
                         "order_id": clean_id,
-
                         "vendor": vendor,
-
                         "path": folder_path,
-
                         "status": status_text,
-
                         "files": total_files,
-
                         "size_bytes": total_size
-
                     }
-
                     self.resolved_orders[item_key] = info
-
                     self.resolved_orders[clean_id] = info
-
                     self.resolved_orders[f"#{clean_id}"] = info
-
                     added_count += 1
 
-        total_cnt = len(self.table_items)
+            # 2) Handle FTP match (independent check: adds dedicated FTP row even if also in Dropbox)
+            if ftp_folder:
+                file_list, total_size = collect_folder_files(ftp_folder)
+                total_files = len(file_list)
+                files_disp = str(total_files)
+                disp_size = format_bytes(total_size)
+                status_text = "FTP"
+                row_tag = "row_ftp"
+                vendor = "FTP"
+                item_key = f"{clean_id}_ftp"
 
-        local_cnt = sum(1 for v in self.table_items.values() if any("local" in str(x).lower() for x in (v if isinstance(v, (list, tuple)) else [])))
+                chk = self.order_checkboxes.get(item_key, "☐")
+                chk_img = self.chk_checked_img if chk == "☑" else self.chk_unchecked_img
+                row_vals = (format_order_id_display(clean_id), vendor, status_text, files_disp, disp_size, "-", "-", "📁 Open")
+
+                if self.tree.exists(item_key):
+                    self.tree.item(item_key, text="", image=chk_img, values=row_vals, tags=(row_tag,))
+                else:
+                    self.tree.insert("", "end", iid=item_key, text="", image=chk_img, values=row_vals, tags=(row_tag,))
+
+                self.table_items[item_key] = row_vals
+                info = {
+                    "order_id": clean_id,
+                    "vendor": vendor,
+                    "path": ftp_folder,
+                    "status": status_text,
+                    "files": total_files,
+                    "size_bytes": total_size,
+                    "is_ftp": True
+                }
+                self.resolved_orders[item_key] = info
+                self.resolved_orders[f"{clean_id}_ftp"] = info
+                self.resolved_orders[f"{clean_id}_FTP"] = info
+                if not matches:
+                    self.resolved_orders[clean_id] = info
+                    self.resolved_orders[f"#{clean_id}"] = info
+                added_count += 1
+
+            # 3) Neither Dropbox nor FTP
+            if not matches and not ftp_folder:
+                item_key = f"{clean_id}_notfound"
+                chk = self.order_checkboxes.get(item_key, "☐")
+                chk_img = self.chk_checked_img if chk == "☑" else self.chk_unchecked_img
+
+                if not self.tree.exists(item_key):
+                    row_vals = (format_order_id_display(clean_id), "-", "⚠️ Not Found", "0 / 0", "0 B / 0 B", "-", "-", "-")
+                    self.tree.insert("", "end", iid=item_key, text="", image=chk_img, values=row_vals, tags=("row_notfound",))
+                    self.table_items[item_key] = row_vals
+                    info = {"order_id": clean_id, "vendor": "-", "path": None, "status": "⚠️ Not Found", "files": 0, "size_bytes": 0}
+                    self.resolved_orders[item_key] = info
+                    self.resolved_orders[clean_id] = info
+                added_count += 1
+
+        total_cnt = len(self.table_items)
+        local_cnt = sum(1 for v in self.table_items.values() if len(v) > 2 and "local" in str(v[2]).lower())
 
         if hasattr(self, "total_lbl") and self.total_lbl:
 
@@ -8175,7 +8132,7 @@ class QCBatchLoaderApp(ctk.CTk):
                 row_vals = (
                     format_order_id_display(oid),
                     vendor,
-                    "Dropbox (Local)",
+                    "Local",
                     f"{tot_f} / {tot_f}",
                     f"{tot_b_str} / {tot_b_str}",
                     "Local",
@@ -8190,7 +8147,7 @@ class QCBatchLoaderApp(ctk.CTk):
                     "order_id": oid,
                     "vendor": vendor,
                     "path": item["path"],
-                    "status": "Dropbox (Local)",
+                    "status": "Local",
                     "files": item["total_files"],
                     "size_bytes": item["local_bytes"]
                 }
@@ -8236,18 +8193,8 @@ class QCBatchLoaderApp(ctk.CTk):
                 raw_id = str(vals[0]).strip().lstrip("#") if vals and len(vals) > 0 else (item_text.strip().lstrip("#") if item_text else "")
                 clean_id = normalize_order_id(raw_id)
                 vendor = str(vals[1]).strip() if vals and len(vals) > 1 else ""
-                item_key = f"{clean_id}_{vendor}"
-                alt = (
-                    self.resolved_orders.get(item_key)
-                    or self.resolved_orders.get(clean_id)
-                    or self.resolved_orders.get(f"#{clean_id}")
-                    or self.resolved_orders.get(raw_id)
-                )
-                if alt and alt.get("path") and os.path.isdir(alt["path"]):
-                    self.resolved_orders[item_id] = alt
-                    return alt
 
-                if vendor == "FTP":
+                if vendor == "FTP" or str(item_id).endswith("_ftp"):
                     ftp_idx = self.get_ftp_index()
                     ftp_p = ftp_idx.get(clean_id)
                     if ftp_p and os.path.isdir(ftp_p):
@@ -8263,11 +8210,22 @@ class QCBatchLoaderApp(ctk.CTk):
                             "is_ftp": True
                         }
                         self.resolved_orders[item_id] = new_info
-                        self.resolved_orders[item_key] = new_info
-                        self.resolved_orders[clean_id] = new_info
+                        self.resolved_orders[f"{clean_id}_ftp"] = new_info
+                        self.resolved_orders[f"{clean_id}_FTP"] = new_info
                         return new_info
 
-                elif vendor and vendor != "-":
+                item_key = f"{clean_id}_{vendor}"
+                alt = (
+                    self.resolved_orders.get(item_key)
+                    or self.resolved_orders.get(clean_id)
+                    or self.resolved_orders.get(f"#{clean_id}")
+                    or self.resolved_orders.get(raw_id)
+                )
+                if alt and alt.get("path") and os.path.isdir(alt["path"]):
+                    self.resolved_orders[item_id] = alt
+                    return alt
+
+                if vendor and vendor != "-":
                     base_path = self.path_var.get()
                     if base_path and os.path.isdir(base_path):
                         candidates = [
@@ -8351,7 +8309,7 @@ class QCBatchLoaderApp(ctk.CTk):
 
                 files_str = f"0 / {file_count}"
 
-                new_vals = (format_order_id_display(order_id), vendor, "Dropbox (Cloud)", files_str, file_sz_str, "Local", "Cloud", "📁 Open")
+                new_vals = (format_order_id_display(order_id), vendor, "Dropbox", files_str, file_sz_str, "Local", "Cloud", "📁 Open")
 
                 def _on_done():
 
@@ -8371,7 +8329,7 @@ class QCBatchLoaderApp(ctk.CTk):
 
                     tot_cnt = len(self.table_items)
 
-                    loc_cnt = sum(1 for v in self.table_items.values() if any("local" in str(x).lower() for x in (v if isinstance(v, (list, tuple)) else [])))
+                    loc_cnt = sum(1 for v in self.table_items.values() if len(v) > 2 and "local" in str(v[2]).lower())
 
                     if hasattr(self, "total_lbl") and self.total_lbl:
 
@@ -8385,7 +8343,7 @@ class QCBatchLoaderApp(ctk.CTk):
 
                 self.after(0, _on_done)
 
-                info["status"] = "Cloud"
+                info["status"] = "Dropbox"
 
                 info["size_bytes"] = 0
 
@@ -8549,7 +8507,7 @@ class QCBatchLoaderApp(ctk.CTk):
                                 self.status_var.set(f"⚡ Syncing #{order_id} ({f} files • {s} - {p.replace('● ', '')})")
                             ])
 
-                status_text = "Dropbox (Local)"
+                status_text = "Local"
 
                 final_files = f"{total_files} / {total_files}"
 
@@ -8584,7 +8542,7 @@ class QCBatchLoaderApp(ctk.CTk):
 
                     tot_cnt = len(self.table_items)
 
-                    loc_cnt = sum(1 for v in self.table_items.values() if any("local" in str(x).lower() for x in (v if isinstance(v, (list, tuple)) else [])))
+                    loc_cnt = sum(1 for v in self.table_items.values() if len(v) > 2 and "local" in str(v[2]).lower())
 
                     if hasattr(self, "total_lbl") and self.total_lbl:
 
@@ -8651,7 +8609,7 @@ class QCBatchLoaderApp(ctk.CTk):
 
                     free_up_space_cfapi(folder_path)
 
-                    status_text = "Dropbox (Cloud)"
+                    status_text = "Dropbox"
 
                     cur_vals = self.tree.item(item_id, "values")
 
@@ -8695,7 +8653,7 @@ class QCBatchLoaderApp(ctk.CTk):
 
                 tot_cnt = len(self.table_items)
 
-                loc_cnt = sum(1 for v in self.table_items.values() if any("local" in str(x).lower() for x in (v if isinstance(v, (list, tuple)) else [])))
+                loc_cnt = sum(1 for v in self.table_items.values() if len(v) > 2 and "local" in str(v[2]).lower())
 
                 if hasattr(self, "total_lbl") and self.total_lbl:
 
@@ -8827,7 +8785,7 @@ class QCBatchLoaderApp(ctk.CTk):
 
                         files_str = f"0 / {info.get('files', 0)}"
 
-                        new_vals = (format_order_id_display(info.get("order_id")), info.get("vendor"), "Dropbox (Cloud)", files_str, file_sz_str, "Local", "Cloud", "📁 Open")
+                        new_vals = (format_order_id_display(info.get("order_id")), info.get("vendor"), "Dropbox", files_str, file_sz_str, "Local", "Cloud", "📁 Open")
 
                         self.after(0, lambda i=iid, img=chk_img, vals=new_vals: [
 
@@ -8837,7 +8795,7 @@ class QCBatchLoaderApp(ctk.CTk):
 
                         ])
 
-                        info["status"] = "Dropbox (Cloud)"
+                        info["status"] = "Dropbox"
 
                         mark_order_history(info.get("order_id"), info.get("vendor"), info["path"], "online", info.get("files", 0), 0)
 
@@ -8859,7 +8817,7 @@ class QCBatchLoaderApp(ctk.CTk):
 
                 tot_cnt = len(self.table_items)
 
-                loc_cnt = sum(1 for v in self.table_items.values() if any("local" in str(x).lower() for x in (v if isinstance(v, (list, tuple)) else [])))
+                loc_cnt = sum(1 for v in self.table_items.values() if len(v) > 2 and "local" in str(v[2]).lower())
 
                 if hasattr(self, "total_lbl") and self.total_lbl:
 
@@ -8970,69 +8928,67 @@ class QCBatchLoaderApp(ctk.CTk):
 
                 matches = full_vendor_index.get(clean_id, [])
 
+            # Check FTP / Synology NAS independent match
+            ftp_folder = None
+            if getattr(self, "ftp_enabled", True):
+                ftp_idx = self.get_ftp_index()
+                ftp_folder = ftp_idx.get(clean_id)
+                if ftp_folder and not os.path.isdir(ftp_folder):
+                    ftp_folder = None
+
+            nf_key = f"{order_id}_notfound"
+            if (matches or ftp_folder) and self.tree.exists(nf_key):
+                self.tree.delete(nf_key)
+                self.table_items.pop(nf_key, None)
+                self.resolved_orders.pop(nf_key, None)
+
+            if ftp_folder:
+                file_list_ftp, total_size_ftp = collect_folder_files(ftp_folder)
+                total_files_ftp = len(file_list_ftp)
+                files_disp_ftp = str(total_files_ftp)
+                disp_size_ftp = format_bytes(total_size_ftp)
+                status_text_ftp = "FTP"
+                row_tag_ftp = "row_ftp"
+                vendor_ftp = "FTP"
+                item_key_ftp = f"{order_id}_ftp"
+
+                chk_ftp = self.order_checkboxes.get(item_key_ftp, "☐")
+                chk_img_ftp = self.chk_checked_img if chk_ftp == "☑" else self.chk_unchecked_img
+
+                row_vals_ftp = (format_order_id_display(order_id), vendor_ftp, status_text_ftp, files_disp_ftp, disp_size_ftp, "-", "-", "📁 Open")
+
+                ftp_info = {"order_id": order_id, "vendor": vendor_ftp, "path": ftp_folder, "status": status_text_ftp, "files": total_files_ftp, "size_bytes": total_size_ftp, "is_ftp": True}
+                self.resolved_orders[item_key_ftp] = ftp_info
+                self.resolved_orders[f"{clean_id}_ftp"] = ftp_info
+                self.resolved_orders[f"{clean_id}_FTP"] = ftp_info
+                if not matches:
+                    self.resolved_orders[order_id] = ftp_info
+                    self.resolved_orders[clean_id] = ftp_info
+                self.table_items[item_key_ftp] = row_vals_ftp
+
+                def _insert_ftp_row(k=item_key_ftp, img=chk_img_ftp, vals=row_vals_ftp, tag=row_tag_ftp):
+                    if self.tree.exists(k):
+                        self.tree.item(k, text="", image=img, values=vals, tags=(tag,))
+                    else:
+                        self.tree.insert("", "end", iid=k, text="", image=img, values=vals, tags=(tag,))
+                self.after(0, _insert_ftp_row)
+
             if not matches:
-
-                # Check FTP / Synology NAS fallback
-                ftp_folder = None
-                if getattr(self, "ftp_enabled", True):
-                    ftp_idx = self.get_ftp_index()
-                    ftp_folder = ftp_idx.get(clean_id)
-
-                if ftp_folder and os.path.isdir(ftp_folder):
-                    file_list, total_size = collect_folder_files(ftp_folder)
-                    total_files = len(file_list)
-                    files_disp = str(total_files)
-                    disp_size = format_bytes(total_size)
-                    status_text = "FTP"
-                    row_tag = "row_ftp"
-                    vendor = "FTP"
-                    item_key = f"{order_id}_ftp"
-
+                if not ftp_folder:
+                    status_text = "⚠️ Not Found"
+                    item_key = f"{order_id}_notfound"
                     chk = self.order_checkboxes.get(item_key, "☐")
                     chk_img = self.chk_checked_img if chk == "☑" else self.chk_unchecked_img
-
-                    row_vals = (format_order_id_display(order_id), vendor, status_text, files_disp, disp_size, "-", "-", "📁 Open")
-
-                    self.resolved_orders[item_key] = {"order_id": order_id, "vendor": vendor, "path": ftp_folder, "status": status_text, "files": total_files, "size_bytes": total_size, "is_ftp": True}
+                    row_vals = (format_order_id_display(order_id), "-", status_text, "0 / 0", "0 B / 0 B", "-", "-", "-")
+                    self.resolved_orders[item_key] = {"order_id": order_id, "vendor": "-", "path": None, "status": status_text, "files": 0, "size_bytes": 0}
                     self.resolved_orders[order_id] = self.resolved_orders[item_key]
-                    self.resolved_orders[clean_id] = self.resolved_orders[item_key]
                     self.table_items[item_key] = row_vals
-
-                    def _insert_ftp_row(k=item_key, img=chk_img, vals=row_vals, tag=row_tag):
-                        if self.tree.exists(k):
-                            self.tree.item(k, text="", image=img, values=vals, tags=(tag,))
-                        else:
-                            self.tree.insert("", "end", iid=k, text="", image=img, values=vals, tags=(tag,))
-                    self.after(0, _insert_ftp_row)
-                    continue
-
-                status_text = "⚠️ Not Found"
-
-                item_key = f"{order_id}_notfound"
-
-                chk = self.order_checkboxes.get(item_key, "☐")
-
-                chk_img = self.chk_checked_img if chk == "☑" else self.chk_unchecked_img
-
-                row_vals = (format_order_id_display(order_id), "-", status_text, "0 / 0", "0 B / 0 B", "-", "-", "-")
-
-                self.resolved_orders[item_key] = {"order_id": order_id, "vendor": "-", "path": None, "status": status_text, "files": 0, "size_bytes": 0}
-
-                self.resolved_orders[order_id] = self.resolved_orders[item_key]
-
-                self.table_items[item_key] = row_vals
-
-                if self.tree.exists(item_key):
-
-                    self.tree.item(item_key, text="", image=chk_img, values=row_vals, tags=("row_notfound",))
-
-                else:
-
-                    self.tree.insert("", "end", iid=item_key, text="", image=chk_img, values=row_vals, tags=("row_notfound",))
-
-                not_found_count += 1
-
-            else:
+                    if self.tree.exists(item_key):
+                        self.tree.item(item_key, text="", image=chk_img, values=row_vals, tags=("row_notfound",))
+                    else:
+                        self.tree.insert("", "end", iid=item_key, text="", image=chk_img, values=row_vals, tags=("row_notfound",))
+                    not_found_count += 1
+                continue
 
                 for match in matches:
 
@@ -9207,7 +9163,7 @@ class QCBatchLoaderApp(ctk.CTk):
 
                                     self.status_var.set(f"⚡ Hydrating #{order_id} ({files_prog} files • {size_prog} - {s_pct:.1f}%) • Parallel sync active")
 
-                        status_text = "Dropbox (Local)"
+                        status_text = "Local"
 
                         success_count += 1
 

@@ -2,6 +2,24 @@
 
 All notable changes, bug fixes, and feature additions to **Path OrderSync Pro** are documented here.
 
+## [v1.9.3] - 2026-11-25
+
+### 🔀 Independent Multi-Location Row Split (FTP & Dropbox) & Streamlined Status System:
+- **Independent Coexistence & Multi-Row Split for Dual-Storage Orders:**
+  - When an Order ID exists across both Dropbox and FTP / Synology NAS (e.g., historical archive on FTP after 15-day transfer policy, while still having working files in Dropbox), the app now independently displays separate rows:
+    - **Dropbox Row:** Displays vendor name, status (`Dropbox` or `Local`), sync controls (`Local` / `Cloud`), and dedicated `[📁 Open]` button opening the Dropbox folder in Windows Explorer.
+    - **FTP Row:** Displays `FTP` vendor, status `FTP`, disabled sync buttons (`-`), and dedicated `[📁 Open]` button opening the network NAS folder in Windows Explorer.
+- **Clean & Intuitive Status Column Naming Convention:**
+  - Cloud-only orders in Dropbox now display Status: **`Dropbox`** (with dedicated cloud styling).
+  - Downloaded / on-disk orders now display Status: **`Local`** (or `Local (x/y)` for partial downloads, with local badge styling).
+  - Synology NAS / Network FTP orders display Status: **`FTP`** (with distinct purple badge styling).
+- **Collision-Proof Folder Resolution:**
+  - `_get_order_info` and row action handlers guarantee that clicking `📁 Open` on a row always opens its respective storage target without ambiguous cross-path resolution.
+- **Automatic Not-Found Cleanup:**
+  - Removing obsolete `_notfound` placeholders dynamically when an order is resolved in either or both storage locations.
+
+---
+
 ## [v1.9.2] - 2026-11-20
 
 ### 🌐 FTP & Synology NAS Fallback Engine, IP Presets & Enhanced Storage Architecture:
