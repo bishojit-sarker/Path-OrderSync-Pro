@@ -6,7 +6,7 @@ import app
 
 class TestV197Features(unittest.TestCase):
     def test_version_bump(self):
-        self.assertEqual(app.CURRENT_VERSION, "v1.9.10")
+        self.assertEqual(app.CURRENT_VERSION, "v1.9.11")
 
     def test_palette_and_font_colors(self):
         light = app.BRAND_THEMES["light"]

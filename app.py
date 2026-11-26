@@ -133,7 +133,7 @@ APP_NAME = "Path OrderSync Pro"
 
 APP_TAGLINE = "Sync Smarter. Work Faster. Better Quality."
 
-CURRENT_VERSION = "v1.9.10"
+CURRENT_VERSION = "v1.9.11"
 
 GITHUB_REPO = "bishojit-sarker/Path-OrderSync-Pro"
 
@@ -4108,7 +4108,7 @@ def fetch_all_releases():
 
     # Only include VERIFIED AVAILABLE releases (active build, local binary, or valid GitHub asset)
 
-    candidate_tags = [CURRENT_VERSION, "v1.9.9", "v1.9.8", "v1.9.7", "v1.9.6", "v1.9.5", "v1.9.4", "v1.9.3", "v1.9.2", "v1.9.1", "v1.9.0", "v1.8.0", "v1.7.0", "v1.6.0", "v1.5.0", "v1.4.0", "v1.3.0", "v1.2.0"]
+    candidate_tags = [CURRENT_VERSION, "v1.9.10", "v1.9.9", "v1.9.8", "v1.9.7", "v1.9.6", "v1.9.5", "v1.9.4", "v1.9.3", "v1.9.2", "v1.9.1", "v1.9.0", "v1.8.0", "v1.7.0", "v1.6.0", "v1.5.0", "v1.4.0", "v1.3.0", "v1.2.0"]
 
     for t in github_releases:
 
@@ -7071,13 +7071,33 @@ class QCBatchLoaderApp(ctk.CTk):
         active_keys = set()
         active_sep_keys = set()
         tree_w = max(self.tree.winfo_width(), 400)
+        tree_h = self.tree.winfo_height()
 
         for iid in children:
+            box_st = self.tree.bbox(iid, "status") or self.tree.bbox(iid, "#3")
             box_loc = self.tree.bbox(iid, "make_local") or self.tree.bbox(iid, "#6")
             box_cld = self.tree.bbox(iid, "make_online") or self.tree.bbox(iid, "#7")
 
-            if not box_loc or not box_cld:
-                for col_name in ("make_local", "make_online"):
+            if not box_loc or not box_cld or (tree_h > 20 and box_loc[1] >= tree_h - 4):
+                for col_name in ("status", "make_local", "make_online"):
+                    k = f"{iid}_{col_name}"
+                    if k in self._action_cell_overlays:
+                        try:
+                            self._action_cell_overlays[k].place_forget()
+                        except Exception:
+                            pass
+                if iid in self._row_separators:
+                    try:
+                        self._row_separators[iid].place_forget()
+                    except Exception:
+                        pass
+                continue
+
+            cell_h = box_loc[3] - 1
+            if tree_h > 20:
+                cell_h = min(cell_h, tree_h - 2 - box_loc[1])
+            if cell_h < 6:
+                for col_name in ("status", "make_local", "make_online"):
                     k = f"{iid}_{col_name}"
                     if k in self._action_cell_overlays:
                         try:
@@ -7111,29 +7131,43 @@ class QCBatchLoaderApp(ctk.CTk):
             else:
                 row_bg = "#F5F4FD"
 
-            active_fg = ("#1e1b4b" if is_selected else "#1d4ed8") if is_light else "#60a5fa"
+            cloud_active_fg = "#1d4ed8" if is_light else "#60a5fa"
+            local_active_fg = "#DDB944"
+            ftp_status_fg = "#9F00C5"
             dim_fg = ("#475569" if is_selected else "#64748b") if is_light else "#64748b"
 
+            # Status column bold text & exact per-status colors
+            if "local" in status_lower:
+                st_fg = local_active_fg
+            elif "dropbox" in status_lower or "online" in status_lower:
+                st_fg = cloud_active_fg
+            elif "ftp" in status_lower:
+                st_fg = ftp_status_fg
+            elif "not found" in status_lower:
+                st_fg = "#b91c1c" if is_light else "#f87171"
+            else:
+                st_fg = "#1F1D2F" if is_light else t["text_main"]
+
             # Per User Requirements:
-            # - Status == "Local": Make Local is dimmed (light color, arrow), Make Cloud is original active color (bold, hand2)
-            # - Status == "Dropbox": Make Local is original active color (bold, hand2), Make Cloud is dimmed (light color, arrow)
+            # - Status == "Local": Make Local is dimmed (light color, arrow), Make Cloud is active (#1d4ed8 bold, hand2)
+            # - Status == "Dropbox": Make Local is active (#DDB944 bold, hand2), Make Cloud is dimmed (light color, arrow)
             # - Status == "FTP" or Not Found: both are disabled ("-", dimmed, arrow)
             if "local" in status_lower:
                 loc_fg = dim_fg
                 loc_font = font_dim
                 loc_cursor = "arrow"
-                cld_fg = active_fg
+                cld_fg = cloud_active_fg
                 cld_font = font_active
                 cld_cursor = "hand2"
             elif "dropbox" in status_lower or "online" in status_lower:
-                loc_fg = active_fg
+                loc_fg = local_active_fg
                 loc_font = font_active
                 loc_cursor = "hand2"
                 cld_fg = dim_fg
                 cld_font = font_dim
                 cld_cursor = "arrow"
             elif "syncing" in status_lower or "%" in status_lower:
-                loc_fg = active_fg
+                loc_fg = local_active_fg
                 loc_font = font_active
                 loc_cursor = "arrow"
                 cld_fg = dim_fg
@@ -7143,7 +7177,7 @@ class QCBatchLoaderApp(ctk.CTk):
                 loc_fg = dim_fg
                 loc_font = font_dim
                 loc_cursor = "arrow"
-                cld_fg = active_fg
+                cld_fg = cloud_active_fg
                 cld_font = font_active
                 cld_cursor = "arrow"
             else:
@@ -7153,6 +7187,25 @@ class QCBatchLoaderApp(ctk.CTk):
                 cld_fg = dim_fg
                 cld_font = font_dim
                 cld_cursor = "arrow"
+
+            # Status Overlay Label (all text bold)
+            if box_st:
+                k_st = f"{iid}_status"
+                active_keys.add(k_st)
+                if k_st not in self._action_cell_overlays or not self._action_cell_overlays[k_st].winfo_exists():
+                    lbl_st = tk.Label(self.tree, anchor="w", bd=0, highlightthickness=0, padx=4, pady=0)
+                    lbl_st.bind("<Button-1>", lambda e, r=iid: self.tree.selection_set(r))
+                    lbl_st.bind("<MouseWheel>", lambda e: self.tree.event_generate("<MouseWheel>", delta=e.delta, x=e.x, y=e.y))
+                    self._action_cell_overlays[k_st] = lbl_st
+                lbl_st = self._action_cell_overlays[k_st]
+                lbl_st.configure(
+                    text=status,
+                    bg=row_bg,
+                    fg=st_fg,
+                    font=font_active,
+                    cursor="arrow"
+                )
+                lbl_st.place(x=box_st[0], y=box_st[1], width=box_st[2], height=cell_h)
 
             # Make Local Overlay Label
             k_loc = f"{iid}_make_local"
@@ -7170,7 +7223,7 @@ class QCBatchLoaderApp(ctk.CTk):
                 font=loc_font,
                 cursor=loc_cursor
             )
-            lbl_loc.place(x=box_loc[0], y=box_loc[1], width=box_loc[2], height=max(box_loc[3] - 1, 12))
+            lbl_loc.place(x=box_loc[0], y=box_loc[1], width=box_loc[2], height=cell_h)
 
             # Make Cloud Overlay Label
             k_cld = f"{iid}_make_online"
@@ -7188,16 +7241,23 @@ class QCBatchLoaderApp(ctk.CTk):
                 font=cld_font,
                 cursor=cld_cursor
             )
-            lbl_cld.place(x=box_cld[0], y=box_cld[1], width=box_cld[2], height=max(box_cld[3] - 1, 12))
+            lbl_cld.place(x=box_cld[0], y=box_cld[1], width=box_cld[2], height=cell_h)
 
-            # Thin 1px white horizontal separator stroke between rows
-            active_sep_keys.add(iid)
-            if iid not in self._row_separators or not self._row_separators[iid].winfo_exists():
-                sep = tk.Frame(self.tree, bg="#FFFFFF" if is_light else t.get("border", "#263056"), bd=0, highlightthickness=0)
-                self._row_separators[iid] = sep
-            sep = self._row_separators[iid]
-            sep.configure(bg="#FFFFFF" if is_light else t.get("border", "#263056"))
-            sep.place(x=0, y=box_loc[1] + box_loc[3] - 1, width=tree_w, height=1)
+            # Thin 1px white horizontal separator stroke between rows (never bleed onto bottom border)
+            sep_y = box_loc[1] + box_loc[3] - 1
+            if tree_h <= 20 or sep_y < tree_h - 2:
+                active_sep_keys.add(iid)
+                if iid not in self._row_separators or not self._row_separators[iid].winfo_exists():
+                    sep = tk.Frame(self.tree, bg="#FFFFFF" if is_light else t.get("border", "#263056"), bd=0, highlightthickness=0)
+                    self._row_separators[iid] = sep
+                sep = self._row_separators[iid]
+                sep.configure(bg="#FFFFFF" if is_light else t.get("border", "#263056"))
+                sep.place(x=0, y=sep_y, width=tree_w, height=1)
+            elif iid in self._row_separators:
+                try:
+                    self._row_separators[iid].place_forget()
+                except Exception:
+                    pass
 
         for k in list(self._action_cell_overlays.keys()):
             if k not in active_keys:
@@ -7972,6 +8032,7 @@ class QCBatchLoaderApp(ctk.CTk):
             self.tree.heading("#0", text="", image=self.chk_master_unchecked_img, anchor="center")
 
         self.status_var.set(f"🗑️ Removed {count} order(s) from dashboard.")
+        self._apply_row_color_tags()
         self._update_all_tree_overlays()
         self._update_table_header_metrics()
 

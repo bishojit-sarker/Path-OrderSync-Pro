@@ -5,7 +5,7 @@ import app
 
 class TestV196Features(unittest.TestCase):
     def test_version_bump(self):
-        self.assertIn(app.CURRENT_VERSION, ["v1.9.6", "v1.9.7", "v1.9.8", "v1.9.9", "v1.9.10"])
+        self.assertIn(app.CURRENT_VERSION, ["v1.9.6", "v1.9.7", "v1.9.8", "v1.9.9", "v1.9.10", "v1.9.11"])
 
     def test_theme_lavender_palette(self):
         light = app.BRAND_THEMES["light"]

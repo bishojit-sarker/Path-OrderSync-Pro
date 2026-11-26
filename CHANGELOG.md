@@ -2,6 +2,21 @@
 
 All notable changes, bug fixes, and feature additions to **Path OrderSync Pro** are documented here.
 
+## [v1.9.11] - 2026-11-26
+
+### 🎯 Bold Status Colors, Bottom-Edge Clipping Fix & Auto Single-Row Recoloring:
+- **Bottom Border Clipping Fix:**
+  - Clamped overlay heights and separator positions against `tree.winfo_height()` so partially scrolled rows never bleed stray pixels onto the bottom border of the table.
+- **Bold Status Column & Per-Status Color Matching:**
+  - All text in the **`Status`** column is now rendered **bold**.
+  - **`Dropbox`** status text now uses the same active blue (`#1d4ed8`) as the `Make Cloud` button.
+  - **`Local`** status text and active `Make Local` button now use **`#DDB944`**.
+  - **`FTP`** status text now uses **`#9F00C5`**.
+- **Automatic `#F5F4FD` Recoloring on Vendor Row Deletion:**
+  - Deleting extra vendor rows of an order now immediately recalculates row tags (`_apply_row_color_tags`), restoring the single remaining row to **`#F5F4FD`**.
+
+---
+
 ## [v1.9.10] - 2026-11-26
 
 ### 🎨 Updated Soft Lavender & Ivory Row Palette:
