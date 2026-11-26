@@ -133,7 +133,7 @@ APP_NAME = "Path OrderSync Pro"
 
 APP_TAGLINE = "Sync Smarter. Work Faster. Better Quality."
 
-CURRENT_VERSION = "v1.9.7"
+CURRENT_VERSION = "v1.9.8"
 
 GITHUB_REPO = "bishojit-sarker/Path-OrderSync-Pro"
 
@@ -182,18 +182,18 @@ BRAND_THEMES = {
         "btn_disabled_fg": "#94a3b8",
         "tree_bg": "#ffffff",
         "tree_heading": "#f1f6fb",
-        "tree_select": "#E1DEF9",
-        "tree_select_fg": "#9B93EE",
-        "status_local_bg": "#EBE9FB",
-        "status_local_fg": "#9B93EE",
-        "status_sync_bg": "#EBE9FB",
-        "status_sync_fg": "#9B93EE",
-        "status_cloud_bg": "#EBE9FB",
-        "status_cloud_fg": "#9B93EE",
-        "status_notfound_bg": "#EBE9FB",
-        "status_notfound_fg": "#9B93EE",
-        "status_ftp_bg": "#EBE9FB",
-        "status_ftp_fg": "#9B93EE",
+        "tree_select": "#9B93EE",
+        "tree_select_fg": "#1F1D2F",
+        "status_local_bg": "#D7D3F8",
+        "status_local_fg": "#1F1D2F",
+        "status_sync_bg": "#D7D3F8",
+        "status_sync_fg": "#1F1D2F",
+        "status_cloud_bg": "#D7D3F8",
+        "status_cloud_fg": "#1F1D2F",
+        "status_notfound_bg": "#D7D3F8",
+        "status_notfound_fg": "#1F1D2F",
+        "status_ftp_bg": "#D7D3F8",
+        "status_ftp_fg": "#1F1D2F",
         "row_sync_bg": "#e1effe",
         "row_sync_fg": "#1e429f",
         "action_btn_make_local_bg": "#292194",
@@ -4108,7 +4108,7 @@ def fetch_all_releases():
 
     # Only include VERIFIED AVAILABLE releases (active build, local binary, or valid GitHub asset)
 
-    candidate_tags = [CURRENT_VERSION, "v1.9.6", "v1.9.5", "v1.9.4", "v1.9.3", "v1.9.2", "v1.9.1", "v1.9.0", "v1.8.0", "v1.7.0", "v1.6.0", "v1.5.0", "v1.4.0", "v1.3.0", "v1.2.0"]
+    candidate_tags = [CURRENT_VERSION, "v1.9.7", "v1.9.6", "v1.9.5", "v1.9.4", "v1.9.3", "v1.9.2", "v1.9.1", "v1.9.0", "v1.8.0", "v1.7.0", "v1.6.0", "v1.5.0", "v1.4.0", "v1.3.0", "v1.2.0"]
 
     for t in github_releases:
 
@@ -5351,7 +5351,7 @@ class QCBatchLoaderApp(ctk.CTk):
 
             background=t["bg_card"],
 
-            foreground="#9B93EE" if is_light else t["text_main"],
+            foreground="#1F1D2F" if is_light else t["text_main"],
 
             fieldbackground=t["bg_card"],
 
@@ -6383,11 +6383,11 @@ class QCBatchLoaderApp(ctk.CTk):
 
         self.tree.tag_configure("row_notfound", background=t["status_notfound_bg"], foreground=t["status_notfound_fg"])
 
-        self.tree.tag_configure("row_ftp", background=t.get("status_ftp_bg", "#EBE9FB"), foreground=t.get("status_ftp_fg", "#9B93EE"))
+        self.tree.tag_configure("row_ftp", background=t.get("status_ftp_bg", "#D7D3F8"), foreground=t.get("status_ftp_fg", "#1F1D2F"))
 
-        # Multi-vendor sequential tags: first vendor #EBE9FB, subsequent vendors #F5F4FD
-        self.tree.tag_configure("row_v0", background="#EBE9FB" if is_light else t["bg_card"], foreground="#9B93EE" if is_light else t["text_main"])
-        self.tree.tag_configure("row_v1", background="#F5F4FD" if is_light else t["bg_card"], foreground="#9B93EE" if is_light else t["text_main"])
+        # Multi-vendor sequential tags: first vendor #D7D3F8, subsequent vendors #F5C0BF
+        self.tree.tag_configure("row_v0", background="#D7D3F8" if is_light else t["bg_card"], foreground="#1F1D2F" if is_light else t["text_main"])
+        self.tree.tag_configure("row_v1", background="#F5C0BF" if is_light else t["bg_card"], foreground="#1F1D2F" if is_light else t["text_main"])
 
         # Text selection overlay state for Order ID column & Action cell overlays (Point 1 & Point 7)
         self._selected_order_ids = []
@@ -7063,9 +7063,14 @@ class QCBatchLoaderApp(ctk.CTk):
         font_active = tkFont.Font(family="Segoe UI", size=9, weight="bold")
         font_dim = tkFont.Font(family="Segoe UI", size=9)
 
+        if not hasattr(self, "_row_separators"):
+            self._row_separators = {}
+
         children = self.tree.get_children()
         selected_set = set(self.tree.selection())
         active_keys = set()
+        active_sep_keys = set()
+        tree_w = max(self.tree.winfo_width(), 400)
 
         for iid in children:
             box_loc = self.tree.bbox(iid, "make_local") or self.tree.bbox(iid, "#6")
@@ -7079,6 +7084,11 @@ class QCBatchLoaderApp(ctk.CTk):
                             self._action_cell_overlays[k].place_forget()
                         except Exception:
                             pass
+                if iid in self._row_separators:
+                    try:
+                        self._row_separators[iid].place_forget()
+                    except Exception:
+                        pass
                 continue
 
             vals = self.tree.item(iid, "values")
@@ -7093,16 +7103,16 @@ class QCBatchLoaderApp(ctk.CTk):
             is_selected = iid in selected_set
             tags = self.tree.item(iid, "tags")
             if is_selected:
-                row_bg = t.get("tree_select", "#E1DEF9")
+                row_bg = t.get("tree_select", "#9B93EE")
             elif not is_light:
                 row_bg = t.get("bg_card", "#161c36")
             elif "row_v1" in tags:
-                row_bg = "#F5F4FD"
+                row_bg = "#F5C0BF"
             else:
-                row_bg = "#EBE9FB"
+                row_bg = "#D7D3F8"
 
-            active_fg = "#1d4ed8" if is_light else "#60a5fa"
-            dim_fg = "#94a3b8" if is_light else "#64748b"
+            active_fg = ("#1e1b4b" if is_selected else "#1d4ed8") if is_light else "#60a5fa"
+            dim_fg = ("#475569" if is_selected else "#64748b") if is_light else "#64748b"
 
             # Per User Requirements:
             # - Status == "Local": Make Local is dimmed (light color, arrow), Make Cloud is original active color (bold, hand2)
@@ -7160,7 +7170,7 @@ class QCBatchLoaderApp(ctk.CTk):
                 font=loc_font,
                 cursor=loc_cursor
             )
-            lbl_loc.place(x=box_loc[0], y=box_loc[1], width=box_loc[2], height=box_loc[3])
+            lbl_loc.place(x=box_loc[0], y=box_loc[1], width=box_loc[2], height=max(box_loc[3] - 2, 12))
 
             # Make Cloud Overlay Label
             k_cld = f"{iid}_make_online"
@@ -7178,7 +7188,16 @@ class QCBatchLoaderApp(ctk.CTk):
                 font=cld_font,
                 cursor=cld_cursor
             )
-            lbl_cld.place(x=box_cld[0], y=box_cld[1], width=box_cld[2], height=box_cld[3])
+            lbl_cld.place(x=box_cld[0], y=box_cld[1], width=box_cld[2], height=max(box_cld[3] - 2, 12))
+
+            # White horizontal separator stroke between rows
+            active_sep_keys.add(iid)
+            if iid not in self._row_separators or not self._row_separators[iid].winfo_exists():
+                sep = tk.Frame(self.tree, bg="#FFFFFF" if is_light else t.get("border", "#263056"), bd=0, highlightthickness=0)
+                self._row_separators[iid] = sep
+            sep = self._row_separators[iid]
+            sep.configure(bg="#FFFFFF" if is_light else t.get("border", "#263056"))
+            sep.place(x=0, y=box_loc[1] + box_loc[3] - 2, width=tree_w, height=2)
 
         for k in list(self._action_cell_overlays.keys()):
             if k not in active_keys:
@@ -7188,8 +7207,16 @@ class QCBatchLoaderApp(ctk.CTk):
                     pass
                 self._action_cell_overlays.pop(k, None)
 
+        for k in list(self._row_separators.keys()):
+            if k not in active_sep_keys:
+                try:
+                    self._row_separators[k].destroy()
+                except Exception:
+                    pass
+                self._row_separators.pop(k, None)
+
     def _clear_action_cell_overlays(self):
-        """Hides and destroys all action cell overlays."""
+        """Hides and destroys all action cell overlays and row separators."""
         if hasattr(self, "_action_cell_overlays") and self._action_cell_overlays:
             for lbl in list(self._action_cell_overlays.values()):
                 try:
@@ -7197,6 +7224,13 @@ class QCBatchLoaderApp(ctk.CTk):
                 except Exception:
                     pass
             self._action_cell_overlays.clear()
+        if hasattr(self, "_row_separators") and self._row_separators:
+            for sep in list(self._row_separators.values()):
+                try:
+                    sep.destroy()
+                except Exception:
+                    pass
+            self._row_separators.clear()
 
     def _update_all_tree_overlays(self, *args):
         self._update_order_id_overlay_positions()
@@ -7662,7 +7696,7 @@ class QCBatchLoaderApp(ctk.CTk):
             self.style.configure(
                 "Custom.Treeview",
                 background=t["bg_card"],
-                foreground="#9B93EE" if is_light else t["text_main"],
+                foreground="#1F1D2F" if is_light else t["text_main"],
                 fieldbackground=t["bg_card"],
                 font=("Segoe UI", 10)
             )
@@ -7692,9 +7726,9 @@ class QCBatchLoaderApp(ctk.CTk):
             self.tree.tag_configure("row_syncing", background=t["status_sync_bg"], foreground=t["status_sync_fg"])
             self.tree.tag_configure("row_online", background=t["status_cloud_bg"], foreground=t["status_cloud_fg"])
             self.tree.tag_configure("row_notfound", background=t["status_notfound_bg"], foreground=t["status_notfound_fg"])
-            self.tree.tag_configure("row_ftp", background=t.get("status_ftp_bg", "#EBE9FB"), foreground=t.get("status_ftp_fg", "#9B93EE"))
-            self.tree.tag_configure("row_v0", background="#EBE9FB" if is_light else t["bg_card"], foreground="#9B93EE" if is_light else t["text_main"])
-            self.tree.tag_configure("row_v1", background="#F5F4FD" if is_light else t["bg_card"], foreground="#9B93EE" if is_light else t["text_main"])
+            self.tree.tag_configure("row_ftp", background=t.get("status_ftp_bg", "#D7D3F8"), foreground=t.get("status_ftp_fg", "#1F1D2F"))
+            self.tree.tag_configure("row_v0", background="#D7D3F8" if is_light else t["bg_card"], foreground="#1F1D2F" if is_light else t["text_main"])
+            self.tree.tag_configure("row_v1", background="#F5C0BF" if is_light else t["bg_card"], foreground="#1F1D2F" if is_light else t["text_main"])
             self._update_all_tree_overlays()
 
         # 7. Update Context Menu

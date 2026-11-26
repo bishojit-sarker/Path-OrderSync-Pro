@@ -7,7 +7,7 @@ import app
 
 class TestV195Features(unittest.TestCase):
     def test_version_bump(self):
-        self.assertIn(app.CURRENT_VERSION, ["v1.9.5", "v1.9.6", "v1.9.7"])
+        self.assertIn(app.CURRENT_VERSION, ["v1.9.5", "v1.9.6", "v1.9.7", "v1.9.8"])
         print("✓ Version bump verified: v1.9.5")
 
     def test_cursor_motion_logic_active_vs_dimmed(self):
