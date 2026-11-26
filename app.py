@@ -133,7 +133,7 @@ APP_NAME = "Path OrderSync Pro"
 
 APP_TAGLINE = "Sync Smarter. Work Faster. Better Quality."
 
-CURRENT_VERSION = "v1.9.6"
+CURRENT_VERSION = "v1.9.7"
 
 GITHUB_REPO = "bishojit-sarker/Path-OrderSync-Pro"
 
@@ -182,18 +182,18 @@ BRAND_THEMES = {
         "btn_disabled_fg": "#94a3b8",
         "tree_bg": "#ffffff",
         "tree_heading": "#f1f6fb",
-        "tree_select": "#9B93EE",
-        "tree_select_fg": "#0f172a",
-        "status_local_bg": "#C3BEF4",
-        "status_local_fg": "#0f172a",
-        "status_sync_bg": "#C3BEF4",
-        "status_sync_fg": "#0f172a",
-        "status_cloud_bg": "#C3BEF4",
-        "status_cloud_fg": "#0f172a",
-        "status_notfound_bg": "#C3BEF4",
-        "status_notfound_fg": "#9b1c1c",
-        "status_ftp_bg": "#C3BEF4",
-        "status_ftp_fg": "#0f172a",
+        "tree_select": "#E1DEF9",
+        "tree_select_fg": "#9B93EE",
+        "status_local_bg": "#EBE9FB",
+        "status_local_fg": "#9B93EE",
+        "status_sync_bg": "#EBE9FB",
+        "status_sync_fg": "#9B93EE",
+        "status_cloud_bg": "#EBE9FB",
+        "status_cloud_fg": "#9B93EE",
+        "status_notfound_bg": "#EBE9FB",
+        "status_notfound_fg": "#9B93EE",
+        "status_ftp_bg": "#EBE9FB",
+        "status_ftp_fg": "#9B93EE",
         "row_sync_bg": "#e1effe",
         "row_sync_fg": "#1e429f",
         "action_btn_make_local_bg": "#292194",
@@ -4108,7 +4108,7 @@ def fetch_all_releases():
 
     # Only include VERIFIED AVAILABLE releases (active build, local binary, or valid GitHub asset)
 
-    candidate_tags = [CURRENT_VERSION, "v1.9.5", "v1.9.4", "v1.9.3", "v1.9.2", "v1.9.1", "v1.9.0", "v1.8.0", "v1.7.0", "v1.6.0", "v1.5.0", "v1.4.0", "v1.3.0", "v1.2.0"]
+    candidate_tags = [CURRENT_VERSION, "v1.9.6", "v1.9.5", "v1.9.4", "v1.9.3", "v1.9.2", "v1.9.1", "v1.9.0", "v1.8.0", "v1.7.0", "v1.6.0", "v1.5.0", "v1.4.0", "v1.3.0", "v1.2.0"]
 
     for t in github_releases:
 
@@ -5351,7 +5351,7 @@ class QCBatchLoaderApp(ctk.CTk):
 
             background=t["bg_card"],
 
-            foreground=t["text_main"],
+            foreground="#9B93EE" if is_light else t["text_main"],
 
             fieldbackground=t["bg_card"],
 
@@ -6383,11 +6383,11 @@ class QCBatchLoaderApp(ctk.CTk):
 
         self.tree.tag_configure("row_notfound", background=t["status_notfound_bg"], foreground=t["status_notfound_fg"])
 
-        self.tree.tag_configure("row_ftp", background=t.get("status_ftp_bg", "#C3BEF4"), foreground=t.get("status_ftp_fg", "#0f172a"))
+        self.tree.tag_configure("row_ftp", background=t.get("status_ftp_bg", "#EBE9FB"), foreground=t.get("status_ftp_fg", "#9B93EE"))
 
-        # Multi-vendor sequential gradient tags
-        for v_idx, v_bg in enumerate(["#CDC9F6", "#D7D3F8", "#E1DEF9", "#EBE9FB", "#F5F4FD", "#FFFFFF"]):
-            self.tree.tag_configure(f"row_v{v_idx}", background=v_bg if is_light else t["bg_card"], foreground="#0f172a" if is_light else t["text_main"])
+        # Multi-vendor sequential tags: first vendor #EBE9FB, subsequent vendors #F5F4FD
+        self.tree.tag_configure("row_v0", background="#EBE9FB" if is_light else t["bg_card"], foreground="#9B93EE" if is_light else t["text_main"])
+        self.tree.tag_configure("row_v1", background="#F5F4FD" if is_light else t["bg_card"], foreground="#9B93EE" if is_light else t["text_main"])
 
         # Text selection overlay state for Order ID column & Action cell overlays (Point 1 & Point 7)
         self._selected_order_ids = []
@@ -7066,7 +7066,6 @@ class QCBatchLoaderApp(ctk.CTk):
         children = self.tree.get_children()
         selected_set = set(self.tree.selection())
         active_keys = set()
-        v_palette = ["#CDC9F6", "#D7D3F8", "#E1DEF9", "#EBE9FB", "#F5F4FD", "#FFFFFF"]
 
         for iid in children:
             box_loc = self.tree.bbox(iid, "make_local") or self.tree.bbox(iid, "#6")
@@ -7094,18 +7093,16 @@ class QCBatchLoaderApp(ctk.CTk):
             is_selected = iid in selected_set
             tags = self.tree.item(iid, "tags")
             if is_selected:
-                row_bg = t.get("tree_select", "#9B93EE")
+                row_bg = t.get("tree_select", "#E1DEF9")
             elif not is_light:
                 row_bg = t.get("bg_card", "#161c36")
+            elif "row_v1" in tags:
+                row_bg = "#F5F4FD"
             else:
-                row_bg = t.get("status_local_bg", "#C3BEF4")
-                for v_idx, v_bg in enumerate(v_palette):
-                    if f"row_v{v_idx}" in tags:
-                        row_bg = v_bg
-                        break
+                row_bg = "#EBE9FB"
 
-            active_fg = ("#1e1b4b" if is_selected else "#1d4ed8") if is_light else "#60a5fa"
-            dim_fg = ("#475569" if is_selected else "#94a3b8") if is_light else "#64748b"
+            active_fg = "#1d4ed8" if is_light else "#60a5fa"
+            dim_fg = "#94a3b8" if is_light else "#64748b"
 
             # Per User Requirements:
             # - Status == "Local": Make Local is dimmed (light color, arrow), Make Cloud is original active color (bold, hand2)
@@ -7665,7 +7662,7 @@ class QCBatchLoaderApp(ctk.CTk):
             self.style.configure(
                 "Custom.Treeview",
                 background=t["bg_card"],
-                foreground=t["text_main"],
+                foreground="#9B93EE" if is_light else t["text_main"],
                 fieldbackground=t["bg_card"],
                 font=("Segoe UI", 10)
             )
@@ -7695,9 +7692,9 @@ class QCBatchLoaderApp(ctk.CTk):
             self.tree.tag_configure("row_syncing", background=t["status_sync_bg"], foreground=t["status_sync_fg"])
             self.tree.tag_configure("row_online", background=t["status_cloud_bg"], foreground=t["status_cloud_fg"])
             self.tree.tag_configure("row_notfound", background=t["status_notfound_bg"], foreground=t["status_notfound_fg"])
-            self.tree.tag_configure("row_ftp", background=t.get("status_ftp_bg", "#C3BEF4"), foreground=t.get("status_ftp_fg", "#0f172a"))
-            for v_idx, v_bg in enumerate(["#CDC9F6", "#D7D3F8", "#E1DEF9", "#EBE9FB", "#F5F4FD", "#FFFFFF"]):
-                self.tree.tag_configure(f"row_v{v_idx}", background=v_bg if is_light else t["bg_card"], foreground="#0f172a" if is_light else t["text_main"])
+            self.tree.tag_configure("row_ftp", background=t.get("status_ftp_bg", "#EBE9FB"), foreground=t.get("status_ftp_fg", "#9B93EE"))
+            self.tree.tag_configure("row_v0", background="#EBE9FB" if is_light else t["bg_card"], foreground="#9B93EE" if is_light else t["text_main"])
+            self.tree.tag_configure("row_v1", background="#F5F4FD" if is_light else t["bg_card"], foreground="#9B93EE" if is_light else t["text_main"])
             self._update_all_tree_overlays()
 
         # 7. Update Context Menu
@@ -7999,7 +7996,7 @@ class QCBatchLoaderApp(ctk.CTk):
         return (num_id, is_orig)
 
     def _apply_row_color_tags(self):
-        """Applies #C3BEF4 for single-vendor orders and sequential lavender gradient (CDC9F6..FFFFFF) for multi-vendor orders."""
+        """Applies #EBE9FB for all status rows / first vendor, and #F5F4FD for subsequent vendors of the same order."""
         if not hasattr(self, "tree") or not self.tree.winfo_exists():
             return
         children = list(self.tree.get_children())
@@ -8017,7 +8014,7 @@ class QCBatchLoaderApp(ctk.CTk):
                 self.tree.item(iid, tags=(base_tag,))
             else:
                 for idx, iid in enumerate(iids):
-                    self.tree.item(iid, tags=(f"row_v{idx % 6}",))
+                    self.tree.item(iid, tags=("row_v0" if idx == 0 else "row_v1",))
 
     def _reorder_table_by_order_group(self):
         """Ensures rows with the same order ID are grouped together and applies row color tags."""
@@ -8780,6 +8777,13 @@ class QCBatchLoaderApp(ctk.CTk):
         cur_row_vals = self.tree.item(item_id, "values") if self.tree.exists(item_id) else ()
         orig_disp = "📁 Open" if info.get("ftp_path") else (str(cur_row_vals[7]) if len(cur_row_vals) > 7 else "-")
 
+        self.stop_requested = False
+        self.is_paused = False
+        self.pause_event.set()
+        self.paused_order_ids.discard(order_id)
+        self.stopped_order_ids.discard(order_id)
+        self._set_controls_running(True)
+
         def _worker():
 
             try:
@@ -8923,11 +8927,14 @@ class QCBatchLoaderApp(ctk.CTk):
                                 self.status_var.set(f"⚡ Syncing #{order_id} ({f} files • {s} - {p.replace('● ', '')})")
                             ])
 
-                status_text = "Local"
+                if self.stop_requested or (order_id in getattr(self, "stopped_order_ids", set())):
+                    status_text = "⏹ Stopped"
+                else:
+                    status_text = "Local"
 
-                final_files = f"{total_files} / {total_files}"
+                final_files = f"{completed_files} / {total_files}" if status_text == "⏹ Stopped" else f"{total_files} / {total_files}"
 
-                final_size = f"{total_sz_str} / {total_sz_str}"
+                final_size = f"{format_bytes(downloaded_bytes)} / {total_sz_str}" if status_text == "⏹ Stopped" else f"{total_sz_str} / {total_sz_str}"
 
                 new_vals = (format_order_id_display(order_id), vendor, status_text, final_files, final_size, "Local", "Cloud", orig_disp, "📁 Open")
 
@@ -8936,17 +8943,19 @@ class QCBatchLoaderApp(ctk.CTk):
                     if hasattr(self, "speed_eta_lbl") and self.speed_eta_lbl:
                         self.speed_eta_lbl.configure(text="")
 
-                    self.tree.item(item_id, text="", image=chk_img, values=new_vals, tags=("row_local",))
+                    row_tag = "row_local" if status_text == "Local" else "row_online"
+                    self.tree.item(item_id, text="", image=chk_img, values=new_vals, tags=(row_tag,))
 
                     self.table_items.update({item_id: new_vals})
 
                     info["status"] = status_text
 
-                    info["size_bytes"] = total_size
+                    info["size_bytes"] = total_size if status_text == "Local" else downloaded_bytes
 
                     info["files"] = len(file_list)
 
-                    mark_order_history(order_id, vendor, folder_path, "local", len(file_list), total_size)
+                    if status_text == "Local":
+                        mark_order_history(order_id, vendor, folder_path, "local", len(file_list), total_size)
 
                     self._apply_row_color_tags()
 
@@ -8998,99 +9007,125 @@ class QCBatchLoaderApp(ctk.CTk):
 
             return
 
+        self.stop_requested = False
+        self.is_paused = False
+        self.pause_event.set()
+        self.paused_order_ids.clear()
+        self.stopped_order_ids.clear()
+        self._set_controls_running(True)
+
         def _worker():
 
             freed_count = 0
 
-            for item_id in target_iids:
+            try:
+                for item_id in target_iids:
 
-                info = self._get_order_info(item_id)
+                    if self.stop_requested:
+                        break
+                    self.pause_event.wait()
+                    if self.stop_requested:
+                        break
 
-                if not info or not info.get("path") or not os.path.isdir(info["path"]):
+                    info = self._get_order_info(item_id)
 
-                    continue
+                    if not info or not info.get("path") or not os.path.isdir(info["path"]):
 
-                if info.get("is_ftp") or info.get("vendor") == "FTP" or info.get("status") == "FTP":
-                    continue
+                        continue
 
-                folder_path = info["path"]
+                    if info.get("is_ftp") or info.get("vendor") == "FTP" or info.get("status") == "FTP":
+                        continue
 
-                order_id = normalize_order_id(str(info.get("order_id", "")))
+                    order_id = normalize_order_id(str(info.get("order_id", "")))
+                    self._wait_if_order_paused(order_id)
+                    if self.stop_requested or (order_id in getattr(self, "stopped_order_ids", set())):
+                        continue
 
-                vendor = info.get("vendor", "")
+                    folder_path = info["path"]
 
-                file_count = info.get("files", 0)
+                    vendor = info.get("vendor", "")
 
-                chk = self.order_checkboxes.get(item_id, "☐")
+                    file_count = info.get("files", 0)
 
-                chk_img = self.chk_checked_img if chk == "☑" else self.chk_unchecked_img
-                orig_disp = "📁 Open" if info.get("ftp_path") else "-"
+                    chk = self.order_checkboxes.get(item_id, "☐")
 
-                self.after(0, lambda iid=item_id, img=chk_img, oid=order_id, v=vendor, fc=file_count, od=orig_disp: self.tree.item(iid, text="", image=img, values=(format_order_id_display(oid), v, "⏳ Offloading...", f"0 / {fc}", "Freeing...", "Local", "⏳ Offloading", od, "📁 Open"), tags=("row_syncing",)))
+                    chk_img = self.chk_checked_img if chk == "☑" else self.chk_unchecked_img
+                    orig_disp = "📁 Open" if info.get("ftp_path") else "-"
 
-                try:
+                    self.after(0, lambda iid=item_id, img=chk_img, oid=order_id, v=vendor, fc=file_count, od=orig_disp: self.tree.item(iid, text="", image=img, values=(format_order_id_display(oid), v, "⏳ Offloading...", f"0 / {fc}", "Freeing...", "Local", "⏳ Offloading", od, "📁 Open"), tags=("row_syncing",)))
 
-                    free_up_space_cfapi(folder_path)
+                    try:
 
-                    status_text = "Dropbox"
+                        free_up_space_cfapi(folder_path)
 
-                    cur_vals = self.tree.item(item_id, "values")
+                        status_text = "Dropbox"
 
-                    raw_sz = cur_vals[4] if len(cur_vals) > 4 and cur_vals[4] not in ("Freeing...", "0 B") else format_bytes(info.get("size_bytes", 0))
+                        cur_vals = self.tree.item(item_id, "values")
 
-                    tot_sz_str = raw_sz.split(" / ")[-1].strip() if " / " in raw_sz else raw_sz
+                        raw_sz = cur_vals[4] if len(cur_vals) > 4 and cur_vals[4] not in ("Freeing...", "0 B") else format_bytes(info.get("size_bytes", 0))
 
-                    file_sz_str = f"0 B / {tot_sz_str}"
+                        tot_sz_str = raw_sz.split(" / ")[-1].strip() if " / " in raw_sz else raw_sz
 
-                    files_str = f"0 / {file_count}"
+                        file_sz_str = f"0 B / {tot_sz_str}"
 
-                    new_vals = (format_order_id_display(order_id), vendor, status_text, files_str, file_sz_str, "Local", "Cloud", orig_disp, "📁 Open")
+                        files_str = f"0 / {file_count}"
 
-                    self.after(0, lambda iid=item_id, img=chk_img, oid=order_id, vals=new_vals: [
+                        new_vals = (format_order_id_display(order_id), vendor, status_text, files_str, file_sz_str, "Local", "Cloud", orig_disp, "📁 Open")
 
-                        self.tree.item(iid, text="", image=img, values=vals, tags=("row_online",)),
+                        self.after(0, lambda iid=item_id, img=chk_img, oid=order_id, vals=new_vals: [
 
-                        self.table_items.update({iid: vals})
+                            self.tree.item(iid, text="", image=img, values=vals, tags=("row_online",)),
 
-                    ])
+                            self.table_items.update({iid: vals})
 
-                    info["status"] = status_text
+                        ])
 
-                    mark_order_history(order_id, vendor, folder_path, "online", file_count, 0)
+                        info["status"] = status_text
 
-                    freed_count += 1
+                        mark_order_history(order_id, vendor, folder_path, "online", file_count, 0)
 
-                except Exception:
+                        freed_count += 1
 
-                    pass
+                    except Exception:
 
-            def _on_all_freed():
+                        pass
 
-                self._update_leftover_badge()
+                def _on_all_freed():
 
-                self._update_storage_metrics()
+                    self._update_leftover_badge()
 
-                self._update_table_header_metrics()
+                    self._update_storage_metrics()
 
-                self._update_action_cell_overlays()
+                    self._update_table_header_metrics()
 
-                tot_cnt = len(self.table_items)
+                    self._apply_row_color_tags()
 
-                loc_cnt = sum(1 for v in self.table_items.values() if len(v) > 2 and "local" in str(v[2]).lower())
+                    self._update_action_cell_overlays()
 
-                if hasattr(self, "total_lbl") and self.total_lbl:
+                    tot_cnt = len(self.table_items)
 
-                    self.total_lbl.configure(text=f"Total Orders in Dashboard: {tot_cnt} ({loc_cnt} Local, {tot_cnt - loc_cnt} Cloud)")
+                    loc_cnt = sum(1 for v in self.table_items.values() if len(v) > 2 and "local" in str(v[2]).lower())
 
-                if hasattr(self, "total_progress") and self.total_progress:
+                    if hasattr(self, "total_lbl") and self.total_lbl:
 
-                    self.total_progress.set(loc_cnt / max(tot_cnt, 1) if tot_cnt > 0 else 0.0)
+                        self.total_lbl.configure(text=f"Total Orders in Dashboard: {tot_cnt} ({loc_cnt} Local, {tot_cnt - loc_cnt} Cloud)")
 
-                self.status_var.set(f"☁ Made {freed_count} order(s) Online-Only. Disk space freed!")
+                    if hasattr(self, "total_progress") and self.total_progress:
 
-            self.after(0, _on_all_freed)
+                        self.total_progress.set(loc_cnt / max(tot_cnt, 1) if tot_cnt > 0 else 0.0)
 
-            if freed_count > 0:
+                    self.status_var.set(f"☁ Made {freed_count} order(s) Online-Only. Disk space freed!")
+
+                self.after(0, _on_all_freed)
+
+            except Exception as e:
+                pass
+            finally:
+                self._set_controls_running(False)
+
+            if self.stop_requested:
+                self.after(0, lambda: self.status_var.set(f"⏹ Stopped after freeing {freed_count} order(s)."))
+            elif freed_count > 0:
 
                 self.after(0, lambda: messagebox.showinfo("Space Freed", f"Successfully made {freed_count} order(s) Online-Only!\nDisk space has been freed.", parent=self))
 
@@ -9173,86 +9208,112 @@ class QCBatchLoaderApp(ctk.CTk):
 
             return
 
+        self.stop_requested = False
+        self.is_paused = False
+        self.pause_event.set()
+        self.paused_order_ids.clear()
+        self.stopped_order_ids.clear()
+        self._set_controls_running(True)
+
         def _worker():
 
             freed = 0
 
-            for iid in all_iids:
+            try:
+                for iid in all_iids:
 
-                info = self._get_order_info(iid)
+                    if self.stop_requested:
+                        break
+                    self.pause_event.wait()
+                    if self.stop_requested:
+                        break
 
-                if not info or info.get("is_ftp") or info.get("vendor") == "FTP" or info.get("status") == "FTP":
-                    continue
+                    info = self._get_order_info(iid)
 
-                if info and info.get("path") and os.path.isdir(info["path"]):
+                    if not info or info.get("is_ftp") or info.get("vendor") == "FTP" or info.get("status") == "FTP":
+                        continue
 
-                    chk = self.order_checkboxes.get(iid, "☐")
+                    oid_clean = normalize_order_id(str(info.get("order_id", "")))
+                    self._wait_if_order_paused(oid_clean)
+                    if self.stop_requested or (oid_clean in getattr(self, "stopped_order_ids", set())):
+                        continue
 
-                    chk_img = self.chk_checked_img if chk == "☑" else self.chk_unchecked_img
-                    orig_disp = "📁 Open" if info.get("ftp_path") else "-"
+                    if info and info.get("path") and os.path.isdir(info["path"]):
 
-                    interim_vals = (format_order_id_display(info.get('order_id')), info.get("vendor"), "⏳ Offloading...", f"0 / {info.get('files', 0)}", "Freeing...", "Local", "⏳ Offloading", orig_disp, "📁 Open")
-                    self.after(0, lambda i=iid, img=chk_img, iv=interim_vals: self.tree.item(i, text="", image=img, values=iv, tags=("row_syncing",)))
+                        chk = self.order_checkboxes.get(iid, "☐")
 
-                    try:
+                        chk_img = self.chk_checked_img if chk == "☑" else self.chk_unchecked_img
+                        orig_disp = "📁 Open" if info.get("ftp_path") else "-"
 
-                        free_up_space_cfapi(info["path"])
+                        interim_vals = (format_order_id_display(info.get('order_id')), info.get("vendor"), "⏳ Offloading...", f"0 / {info.get('files', 0)}", "Freeing...", "Local", "⏳ Offloading", orig_disp, "📁 Open")
+                        self.after(0, lambda i=iid, img=chk_img, iv=interim_vals: self.tree.item(i, text="", image=img, values=iv, tags=("row_syncing",)))
 
-                        cur_vals = self.tree.item(i, "values")
+                        try:
 
-                        raw_sz = cur_vals[4] if len(cur_vals) > 4 and cur_vals[4] not in ("Freeing...", "0 B") else format_bytes(info.get("size_bytes", 0))
+                            free_up_space_cfapi(info["path"])
 
-                        tot_sz_str = raw_sz.split(" / ")[-1].strip() if " / " in raw_sz else raw_sz
+                            cur_vals = self.tree.item(i, "values")
 
-                        file_sz_str = f"0 B / {tot_sz_str}"
+                            raw_sz = cur_vals[4] if len(cur_vals) > 4 and cur_vals[4] not in ("Freeing...", "0 B") else format_bytes(info.get("size_bytes", 0))
 
-                        files_str = f"0 / {info.get('files', 0)}"
+                            tot_sz_str = raw_sz.split(" / ")[-1].strip() if " / " in raw_sz else raw_sz
 
-                        new_vals = (format_order_id_display(info.get("order_id")), info.get("vendor"), "Dropbox", files_str, file_sz_str, "Local", "Cloud", orig_disp, "📁 Open")
+                            file_sz_str = f"0 B / {tot_sz_str}"
 
-                        self.after(0, lambda i=iid, img=chk_img, vals=new_vals: [
+                            files_str = f"0 / {info.get('files', 0)}"
 
-                            self.tree.item(i, text="", image=img, values=vals, tags=("row_online",)),
+                            new_vals = (format_order_id_display(info.get("order_id")), info.get("vendor"), "Dropbox", files_str, file_sz_str, "Local", "Cloud", orig_disp, "📁 Open")
 
-                            self.table_items.update({i: vals})
+                            self.after(0, lambda i=iid, img=chk_img, vals=new_vals: [
 
-                        ])
+                                self.tree.item(i, text="", image=img, values=vals, tags=("row_online",)),
 
-                        info["status"] = "Dropbox"
+                                self.table_items.update({i: vals})
 
-                        mark_order_history(info.get("order_id"), info.get("vendor"), info["path"], "online", info.get("files", 0), 0)
+                            ])
 
-                        freed += 1
+                            info["status"] = "Dropbox"
 
-                    except Exception:
+                            mark_order_history(info.get("order_id"), info.get("vendor"), info["path"], "online", info.get("files", 0), 0)
 
-                        pass
+                            freed += 1
 
-            def _on_all_freed_batch():
+                        except Exception:
 
-                self._update_leftover_badge()
+                            pass
 
-                self._update_storage_metrics()
+                def _on_all_freed_batch():
 
-                self._update_table_header_metrics()
+                    self._update_leftover_badge()
 
-                self._update_action_cell_overlays()
+                    self._update_storage_metrics()
 
-                tot_cnt = len(self.table_items)
+                    self._update_table_header_metrics()
 
-                loc_cnt = sum(1 for v in self.table_items.values() if len(v) > 2 and "local" in str(v[2]).lower())
+                    self._apply_row_color_tags()
 
-                if hasattr(self, "total_lbl") and self.total_lbl:
+                    self._update_action_cell_overlays()
 
-                    self.total_lbl.configure(text=f"Total Orders in Dashboard: {tot_cnt} ({loc_cnt} Local, {tot_cnt - loc_cnt} Cloud)")
+                    tot_cnt = len(self.table_items)
 
-                if hasattr(self, "total_progress") and self.total_progress:
+                    loc_cnt = sum(1 for v in self.table_items.values() if len(v) > 2 and "local" in str(v[2]).lower())
 
-                    self.total_progress.set(loc_cnt / max(tot_cnt, 1) if tot_cnt > 0 else 0.0)
+                    if hasattr(self, "total_lbl") and self.total_lbl:
 
-                self.status_var.set(f"Made {freed} order(s) Online-Only.")
+                        self.total_lbl.configure(text=f"Total Orders in Dashboard: {tot_cnt} ({loc_cnt} Local, {tot_cnt - loc_cnt} Cloud)")
 
-            self.after(0, _on_all_freed_batch)
+                    if hasattr(self, "total_progress") and self.total_progress:
+
+                        self.total_progress.set(loc_cnt / max(tot_cnt, 1) if tot_cnt > 0 else 0.0)
+
+                    self.status_var.set(f"Made {freed} order(s) Online-Only.")
+
+                self.after(0, _on_all_freed_batch)
+
+            except Exception:
+                pass
+            finally:
+                self._set_controls_running(False)
 
         threading.Thread(target=_worker, daemon=True).start()
 
@@ -9615,19 +9676,22 @@ class QCBatchLoaderApp(ctk.CTk):
 
                                     self.status_var.set(f"⚡ Hydrating #{order_id} ({files_prog} files • {size_prog} - {s_pct:.1f}%) • Parallel sync active")
 
-                        status_text = "Local"
+                        if self.stop_requested or (clean_id in getattr(self, "stopped_order_ids", set())):
+                            status_text = "⏹ Stopped"
+                        else:
+                            status_text = "Local"
 
-                        success_count += 1
+                            success_count += 1
 
-                        mark_order_history(order_id, vendor, folder_path, "local", total_files, total_size)
+                            mark_order_history(order_id, vendor, folder_path, "local", total_files, total_size)
 
                     except Exception as e:
 
                         status_text = f"⚠️ Error: {str(e)[:15]}"
 
-                    final_files = f"{total_files} / {total_files}" if "Local" in status_text else f"0 / {total_files}"
+                    final_files = f"{completed_files} / {total_files}" if status_text == "⏹ Stopped" else (f"{total_files} / {total_files}" if "Local" in status_text else f"0 / {total_files}")
 
-                    final_size = f"{total_sz_str} / {total_sz_str}" if "Local" in status_text else f"0 B / {total_sz_str}"
+                    final_size = f"{format_bytes(downloaded_bytes)} / {total_sz_str}" if status_text == "⏹ Stopped" else (f"{total_sz_str} / {total_sz_str}" if "Local" in status_text else f"0 B / {total_sz_str}")
 
                     final_vals = (format_order_id_display(order_id), vendor, status_text, final_files, final_size, "Local", "Cloud", orig_disp, "📁 Open")
 
@@ -10064,6 +10128,8 @@ class QCBatchLoaderApp(ctk.CTk):
             all_paused = selected_oids.issubset(self.paused_order_ids)
             if all_paused:
                 self.paused_order_ids.difference_update(selected_oids)
+                if not self.paused_order_ids and not self.is_paused:
+                    self.btn_pause.configure(text="⏸ Pause", fg_color=self.accent_orange)
                 self.status_var.set(f"▶ Resumed {len(selected_oids)} selected order(s).")
                 for iid in target_iids:
                     vals = self.tree.item(iid, "values")
@@ -10073,23 +10139,30 @@ class QCBatchLoaderApp(ctk.CTk):
                         self.tree.item(iid, values=new_vals, tags=("row_syncing",))
             else:
                 self.paused_order_ids.update(selected_oids)
+                self.btn_pause.configure(text="▶ Resume", fg_color=self.accent_green)
                 self.status_var.set(f"⏸ Paused {len(selected_oids)} selected order(s).")
                 for iid in target_iids:
                     vals = self.tree.item(iid, "values")
-                    if vals and len(vals) > 2 and ("syncing" in str(vals[2]).lower() or "%" in str(vals[2])):
+                    if vals and len(vals) > 2 and ("syncing" in str(vals[2]).lower() or "%" in str(vals[2]) or "offloading" in str(vals[2]).lower()):
                         new_vals = list(vals)
                         new_vals[2] = "⏸ Paused"
                         self.tree.item(iid, values=new_vals, tags=("row_syncing",))
             return
 
         # Global Pause / Resume
-        if self.is_paused:
+        if self.is_paused or self.paused_order_ids:
             self.is_paused = False
             self.paused_order_ids.clear()
             self.pause_event.set()
             self.btn_pause.configure(text="⏸ Pause", fg_color=self.accent_orange)
             if hasattr(self, "speed_eta_lbl") and self.speed_eta_lbl:
                 self.speed_eta_lbl.configure(text="⚡ Resuming...")
+            for iid in self.tree.get_children():
+                vals = self.tree.item(iid, "values")
+                if vals and len(vals) > 2 and "paused" in str(vals[2]).lower():
+                    new_vals = list(vals)
+                    new_vals[2] = "Syncing..."
+                    self.tree.item(iid, values=new_vals, tags=("row_syncing",))
             self.status_var.set("Resumed process.")
         else:
             self.is_paused = True

@@ -2,6 +2,21 @@
 
 All notable changes, bug fixes, and feature additions to **Path OrderSync Pro** are documented here.
 
+## [v1.9.7] - 2026-11-26
+
+### 🎨 Updated Lavender Palette & Full Pause/Resume/Stop Validation:
+- **Refined Row & Font Color Palette:**
+  - All Status badge/row backgrounds set to **`#EBE9FB`**.
+  - Multi-vendor orders: first vendor row uses **`#EBE9FB`**, and all subsequent vendor rows use **`#F5F4FD`**.
+  - Selected row highlight color set to **`#E1DEF9`**.
+  - Table font color set to **`#9B93EE`**.
+- **Complete Pause / Resume & Stop Validation (Dropbox ⇄ Local):**
+  - Fixed single-order sync (`_make_single_order_local`) and Local → Dropbox offloading (`_make_selected_online`, `_make_all_online`) to properly activate running controls (`_set_controls_running(True)`) and honor global & selective Pause/Resume and Stop.
+  - Clicking **Pause** during processing pauses all active orders (or only the selected order when one is selected) and switches the button to **▶ Resume**; clicking **▶ Resume** resumes processing and restores **⏸ Pause**.
+  - Clicking **Stop** halts all processing (or only the selected order when one is selected) without falsely marking stopped orders as `Local`.
+
+---
+
 ## [v1.9.6] - 2026-11-26
 
 ### 🎨 Dedicated Original/Completed Columns, Lavender Palette & Selection Polish:

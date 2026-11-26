@@ -5,13 +5,14 @@ import app
 
 class TestV196Features(unittest.TestCase):
     def test_version_bump(self):
-        self.assertEqual(app.CURRENT_VERSION, "v1.9.6")
+        self.assertIn(app.CURRENT_VERSION, ["v1.9.6", "v1.9.7"])
 
     def test_theme_lavender_palette(self):
         light = app.BRAND_THEMES["light"]
-        self.assertEqual(light["tree_select"], "#9B93EE")
+        self.assertEqual(light["tree_select"], "#E1DEF9")
+        self.assertEqual(light["tree_select_fg"], "#9B93EE")
         for key in ("status_local_bg", "status_sync_bg", "status_cloud_bg", "status_notfound_bg", "status_ftp_bg"):
-            self.assertEqual(light[key], "#C3BEF4")
+            self.assertEqual(light[key], "#EBE9FB")
 
     def test_multi_vendor_row_color_tags(self):
         class MockApp:
@@ -41,7 +42,7 @@ class TestV196Features(unittest.TestCase):
         m._apply_row_color_tags()
         self.assertEqual(m.applied_tags["460040_creative_path"], ("row_v0",))
         self.assertEqual(m.applied_tags["460040_khandoker"], ("row_v1",))
-        self.assertEqual(m.applied_tags["460040_path_subs"], ("row_v2",))
+        self.assertEqual(m.applied_tags["460040_path_subs"], ("row_v1",))
         self.assertEqual(m.applied_tags["460043_creative_path"], ("row_local",))
 
     def test_cursor_motion_original_and_completed_columns(self):
