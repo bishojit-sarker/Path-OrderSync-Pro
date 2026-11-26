@@ -133,7 +133,7 @@ APP_NAME = "Path OrderSync Pro"
 
 APP_TAGLINE = "Sync Smarter. Work Faster. Better Quality."
 
-CURRENT_VERSION = "v1.9.4"
+CURRENT_VERSION = "v1.9.5"
 
 GITHUB_REPO = "bishojit-sarker/Path-OrderSync-Pro"
 
@@ -4108,7 +4108,7 @@ def fetch_all_releases():
 
     # Only include VERIFIED AVAILABLE releases (active build, local binary, or valid GitHub asset)
 
-    candidate_tags = [CURRENT_VERSION, "v1.9.3", "v1.9.2", "v1.9.1", "v1.9.0", "v1.8.0", "v1.7.0", "v1.6.0", "v1.5.0", "v1.4.0", "v1.3.0", "v1.2.0"]
+    candidate_tags = [CURRENT_VERSION, "v1.9.4", "v1.9.3", "v1.9.2", "v1.9.1", "v1.9.0", "v1.8.0", "v1.7.0", "v1.6.0", "v1.5.0", "v1.4.0", "v1.3.0", "v1.2.0"]
 
     for t in github_releases:
 
@@ -6392,6 +6392,7 @@ class QCBatchLoaderApp(ctk.CTk):
         self.tree.pack(side="left", fill="both", expand=True)
         self._tree_scroll.pack(side="right", fill="y")
         self.tree.bind("<MouseWheel>", lambda e: self.after_idle(self._update_all_tree_overlays), add="+")
+        self.tree.bind("<Configure>", lambda e: self.after_idle(self._update_all_tree_overlays), add="+")
 
         # Tree Bindings
 
@@ -7018,9 +7019,159 @@ class QCBatchLoaderApp(ctk.CTk):
         event.y += lbl.winfo_y()
         return self._on_tree_drag_release(event)
 
+    def _on_local_cell_click(self, item_id):
+        if not hasattr(self, "tree") or not self.tree.exists(item_id):
+            return
+        vals = self.tree.item(item_id, "values")
+        btn_text = str(vals[5]).strip() if vals and len(vals) > 5 else ""
+        if "local" in btn_text.lower():
+            self._make_single_order_local(item_id)
+
+    def _on_cloud_cell_click(self, item_id):
+        if not hasattr(self, "tree") or not self.tree.exists(item_id):
+            return
+        vals = self.tree.item(item_id, "values")
+        btn_text = str(vals[6]).strip() if vals and len(vals) > 6 else ""
+        if "online" in btn_text.lower() or "cloud" in btn_text.lower():
+            self._make_single_order_online(item_id)
+
     def _update_action_cell_overlays(self, *args):
-        """Action cell overlays feature disabled per user request."""
-        self._clear_action_cell_overlays()
+        """Places lightweight Label overlays over Make Local and Make Cloud cells with active vs. light/muted styling."""
+        if not hasattr(self, "tree") or not self.tree.winfo_exists():
+            return
+        if not hasattr(self, "_action_cell_overlays"):
+            self._action_cell_overlays = {}
+
+        t = getattr(self, "theme", BRAND_THEMES.get(getattr(self, "theme_name", "light"), BRAND_THEMES["light"]))
+        is_light = (getattr(self, "theme_name", "light") == "light")
+
+        active_fg = "#1d4ed8" if is_light else "#60a5fa"
+        dim_fg = "#94a3b8" if is_light else "#64748b"
+
+        font_active = tkFont.Font(family="Segoe UI", size=9, weight="bold")
+        font_dim = tkFont.Font(family="Segoe UI", size=9)
+
+        children = self.tree.get_children()
+        active_keys = set()
+
+        for iid in children:
+            box_loc = self.tree.bbox(iid, "make_local") or self.tree.bbox(iid, "#6")
+            box_cld = self.tree.bbox(iid, "make_online") or self.tree.bbox(iid, "#7")
+
+            if not box_loc or not box_cld:
+                for col_name in ("make_local", "make_online"):
+                    k = f"{iid}_{col_name}"
+                    if k in self._action_cell_overlays:
+                        try:
+                            self._action_cell_overlays[k].place_forget()
+                        except Exception:
+                            pass
+                continue
+
+            vals = self.tree.item(iid, "values")
+            if not vals or len(vals) < 7:
+                continue
+
+            status = str(vals[2]).strip()
+            status_lower = status.lower()
+            val_loc = str(vals[5]).strip()
+            val_cld = str(vals[6]).strip()
+
+            tags = self.tree.item(iid, "tags")
+            if "row_local" in tags:
+                row_bg = t.get("status_local_bg", "#def7ec")
+            elif "row_ftp" in tags:
+                row_bg = t.get("status_ftp_bg", "#f3e8ff")
+            elif "row_syncing" in tags:
+                row_bg = t.get("status_sync_bg", "#e1effe")
+            elif "row_notfound" in tags:
+                row_bg = t.get("status_notfound_bg", "#fde8e8")
+            else:
+                row_bg = t.get("status_cloud_bg", "#f3f4f6")
+
+            # Per User Requirements:
+            # - Status == "Local": Make Local is dimmed (light color, arrow), Make Cloud is original active color (bold, hand2)
+            # - Status == "Dropbox": Make Local is original active color (bold, hand2), Make Cloud is dimmed (light color, arrow)
+            # - Status == "FTP" or Not Found: both are disabled ("-", dimmed, arrow)
+            if "local" in status_lower:
+                loc_fg = dim_fg
+                loc_font = font_dim
+                loc_cursor = "arrow"
+                cld_fg = active_fg
+                cld_font = font_active
+                cld_cursor = "hand2"
+            elif "dropbox" in status_lower or "online" in status_lower:
+                loc_fg = active_fg
+                loc_font = font_active
+                loc_cursor = "hand2"
+                cld_fg = dim_fg
+                cld_font = font_dim
+                cld_cursor = "arrow"
+            elif "syncing" in status_lower or "%" in status_lower:
+                loc_fg = active_fg
+                loc_font = font_active
+                loc_cursor = "arrow"
+                cld_fg = dim_fg
+                cld_font = font_dim
+                cld_cursor = "arrow"
+            elif "offloading" in status_lower:
+                loc_fg = dim_fg
+                loc_font = font_dim
+                loc_cursor = "arrow"
+                cld_fg = active_fg
+                cld_font = font_active
+                cld_cursor = "arrow"
+            else:
+                loc_fg = dim_fg
+                loc_font = font_dim
+                loc_cursor = "arrow"
+                cld_fg = dim_fg
+                cld_font = font_dim
+                cld_cursor = "arrow"
+
+            # Make Local Overlay Label
+            k_loc = f"{iid}_make_local"
+            active_keys.add(k_loc)
+            if k_loc not in self._action_cell_overlays or not self._action_cell_overlays[k_loc].winfo_exists():
+                lbl_loc = tk.Label(self.tree, anchor="center")
+                lbl_loc.bind("<Button-1>", lambda e, r=iid: self._on_local_cell_click(r))
+                lbl_loc.bind("<MouseWheel>", lambda e: self.tree.event_generate("<MouseWheel>", delta=e.delta, x=e.x, y=e.y))
+                self._action_cell_overlays[k_loc] = lbl_loc
+            lbl_loc = self._action_cell_overlays[k_loc]
+            lbl_loc.configure(
+                text=val_loc,
+                bg=row_bg,
+                fg=loc_fg,
+                font=loc_font,
+                cursor=loc_cursor
+            )
+            lbl_loc.place(x=box_loc[0], y=box_loc[1], width=box_loc[2], height=box_loc[3])
+
+            # Make Cloud Overlay Label
+            k_cld = f"{iid}_make_online"
+            active_keys.add(k_cld)
+            if k_cld not in self._action_cell_overlays or not self._action_cell_overlays[k_cld].winfo_exists():
+                lbl_cld = tk.Label(self.tree, anchor="center")
+                lbl_cld.bind("<Button-1>", lambda e, r=iid: self._on_cloud_cell_click(r))
+                lbl_cld.bind("<MouseWheel>", lambda e: self.tree.event_generate("<MouseWheel>", delta=e.delta, x=e.x, y=e.y))
+                self._action_cell_overlays[k_cld] = lbl_cld
+            lbl_cld = self._action_cell_overlays[k_cld]
+            lbl_cld.configure(
+                text=val_cld,
+                bg=row_bg,
+                fg=cld_fg,
+                font=cld_font,
+                cursor=cld_cursor
+            )
+            lbl_cld.place(x=box_cld[0], y=box_cld[1], width=box_cld[2], height=box_cld[3])
+
+        for k in list(self._action_cell_overlays.keys()):
+            if k not in active_keys:
+                try:
+                    self._action_cell_overlays[k].destroy()
+                except Exception:
+                    pass
+                self._action_cell_overlays.pop(k, None)
 
     def _clear_action_cell_overlays(self):
         """Hides and destroys all action cell overlays."""
@@ -7034,6 +7185,7 @@ class QCBatchLoaderApp(ctk.CTk):
 
     def _update_all_tree_overlays(self, *args):
         self._update_order_id_overlay_positions()
+        self._update_action_cell_overlays()
 
     def _on_tree_yview(self, *args):
         if hasattr(self, "tree") and self.tree.winfo_exists():
@@ -7868,7 +8020,20 @@ class QCBatchLoaderApp(ctk.CTk):
             col_map = {"#6": 5, "#7": 6, "#8": 7}
             idx = col_map.get(col, -1)
             cell_val = str(vals[idx]).strip() if vals and len(vals) > idx else ""
-            if cell_val and cell_val not in ("-", "[ - ]"):
+            status_val = str(vals[2]).strip().lower() if vals and len(vals) > 2 else ""
+            if not cell_val or cell_val in ("-", "[ - ]"):
+                self.tree.configure(cursor="arrow")
+            elif col == "#6":
+                if "local" in status_val:
+                    self.tree.configure(cursor="arrow")
+                else:
+                    self.tree.configure(cursor="hand2")
+            elif col == "#7":
+                if "dropbox" in status_val or "online" in status_val:
+                    self.tree.configure(cursor="arrow")
+                else:
+                    self.tree.configure(cursor="hand2")
+            elif col == "#8":
                 self.tree.configure(cursor="hand2")
             else:
                 self.tree.configure(cursor="arrow")
@@ -8028,9 +8193,22 @@ class QCBatchLoaderApp(ctk.CTk):
                         row_tag = "row_online"
 
                     item_key = f"{clean_id}_{vendor}"
+                    # Prevent duplicate rows: remove any existing row for same clean_id and vendor
+                    for existing_iid in list(self.tree.get_children()):
+                        if existing_iid != item_key:
+                            e_info = self.resolved_orders.get(existing_iid)
+                            e_vals = self.tree.item(existing_iid, "values")
+                            e_oid = normalize_order_id(e_info.get("order_id") if e_info else (e_vals[0] if e_vals else ""))
+                            e_vendor = e_info.get("vendor") if e_info else (e_vals[1] if e_vals and len(e_vals) > 1 else "")
+                            if e_oid == clean_id and e_vendor == vendor:
+                                self.tree.delete(existing_iid)
+                                self.table_items.pop(existing_iid, None)
+                                self.resolved_orders.pop(existing_iid, None)
+                                self.order_checkboxes.pop(existing_iid, None)
+
                     chk = self.order_checkboxes.get(item_key, "☐")
                     chk_img = self.chk_checked_img if chk == "☑" else self.chk_unchecked_img
-                    row_vals = (format_order_id_display(clean_id), vendor, status_text, files_disp, disp_size, "[ 📥 Local ]", "[ ☁ Cloud ]", "[ 📁 Open ]")
+                    row_vals = (format_order_id_display(clean_id), vendor, status_text, files_disp, disp_size, "Local", "Cloud", "📁 Open")
 
                     if self.tree.exists(item_key):
                         self.tree.item(item_key, text="", image=chk_img, values=row_vals, tags=(row_tag,))
@@ -8062,9 +8240,22 @@ class QCBatchLoaderApp(ctk.CTk):
                 vendor = "Original"
                 item_key = f"{clean_id}_ftp"
 
+                # Prevent duplicate FTP rows: remove any existing row for same clean_id and FTP/Original
+                for existing_iid in list(self.tree.get_children()):
+                    if existing_iid != item_key:
+                        e_info = self.resolved_orders.get(existing_iid)
+                        e_vals = self.tree.item(existing_iid, "values")
+                        e_oid = normalize_order_id(e_info.get("order_id") if e_info else (e_vals[0] if e_vals else ""))
+                        e_vendor = e_info.get("vendor") if e_info else (e_vals[1] if e_vals and len(e_vals) > 1 else "")
+                        if e_oid == clean_id and (e_vendor in ("Original", "FTP") or str(existing_iid).endswith("_ftp")):
+                            self.tree.delete(existing_iid)
+                            self.table_items.pop(existing_iid, None)
+                            self.resolved_orders.pop(existing_iid, None)
+                            self.order_checkboxes.pop(existing_iid, None)
+
                 chk = self.order_checkboxes.get(item_key, "☐")
                 chk_img = self.chk_checked_img if chk == "☑" else self.chk_unchecked_img
-                row_vals = (format_order_id_display(clean_id), vendor, status_text, files_disp, disp_size, "[ - ]", "[ - ]", "[ 📁 Open ]")
+                row_vals = (format_order_id_display(clean_id), vendor, status_text, files_disp, disp_size, "-", "-", "📁 Open")
 
                 if self.tree.exists(item_key):
                     self.tree.item(item_key, text="", image=chk_img, values=row_vals, tags=(row_tag,))
@@ -8092,16 +8283,30 @@ class QCBatchLoaderApp(ctk.CTk):
             # 3) Neither Dropbox nor FTP
             if not matches and not ftp_folder:
                 item_key = f"{clean_id}_notfound"
+                for existing_iid in list(self.tree.get_children()):
+                    if existing_iid != item_key:
+                        e_info = self.resolved_orders.get(existing_iid)
+                        e_vals = self.tree.item(existing_iid, "values")
+                        e_oid = normalize_order_id(e_info.get("order_id") if e_info else (e_vals[0] if e_vals else ""))
+                        e_status = e_info.get("status") if e_info else (e_vals[2] if e_vals and len(e_vals) > 2 else "")
+                        if e_oid == clean_id and ("not found" in str(e_status).lower() or str(existing_iid).endswith("_notfound")):
+                            self.tree.delete(existing_iid)
+                            self.table_items.pop(existing_iid, None)
+                            self.resolved_orders.pop(existing_iid, None)
+                            self.order_checkboxes.pop(existing_iid, None)
+
                 chk = self.order_checkboxes.get(item_key, "☐")
                 chk_img = self.chk_checked_img if chk == "☑" else self.chk_unchecked_img
 
-                if not self.tree.exists(item_key):
-                    row_vals = (format_order_id_display(clean_id), "-", "⚠️ Not Found", "0 / 0", "0 B / 0 B", "[ - ]", "[ - ]", "[ - ]")
+                row_vals = (format_order_id_display(clean_id), "-", "⚠️ Not Found", "0 / 0", "0 B / 0 B", "-", "-", "-")
+                if self.tree.exists(item_key):
+                    self.tree.item(item_key, text="", image=chk_img, values=row_vals, tags=("row_notfound",))
+                else:
                     self.tree.insert("", "end", iid=item_key, text="", image=chk_img, values=row_vals, tags=("row_notfound",))
-                    self.table_items[item_key] = row_vals
-                    info = {"order_id": clean_id, "vendor": "-", "path": None, "status": "⚠️ Not Found", "files": 0, "size_bytes": 0}
-                    self.resolved_orders[item_key] = info
-                    self.resolved_orders[clean_id] = info
+                self.table_items[item_key] = row_vals
+                info = {"order_id": clean_id, "vendor": "-", "path": None, "status": "⚠️ Not Found", "files": 0, "size_bytes": 0}
+                self.resolved_orders[item_key] = info
+                self.resolved_orders[clean_id] = info
                 added_count += 1
 
         total_cnt = len(self.table_items)
@@ -8123,6 +8328,7 @@ class QCBatchLoaderApp(ctk.CTk):
 
         self._reorder_table_by_order_group()
         self._update_table_header_metrics()
+        self._update_action_cell_overlays()
 
         self.status_var.set(f"Added/updated {added_count} order item(s) in sync list.")
 
@@ -8159,8 +8365,10 @@ class QCBatchLoaderApp(ctk.CTk):
                 pass
 
             if local_count > 0:
+                clean_oid = normalize_order_id(order_name)
                 return {
-                    "order_id": order_name,
+                    "order_id": clean_oid,
+                    "raw_order_id": order_name,
                     "vendor": vendor_name,
                     "path": entry_path,
                     "local_count": local_count,
@@ -8231,9 +8439,15 @@ class QCBatchLoaderApp(ctk.CTk):
             self.order_checkboxes.clear()
 
             for item in found_items:
-                oid = item["order_id"]
+                oid = normalize_order_id(item["order_id"])
                 vendor = item["vendor"]
                 item_key = f"{oid}_{vendor}"
+                legacy_key = f"#{oid}_{vendor}"
+                if self.tree.exists(legacy_key) and legacy_key != item_key:
+                    self.tree.delete(legacy_key)
+                    self.table_items.pop(legacy_key, None)
+                    self.resolved_orders.pop(legacy_key, None)
+                    self.order_checkboxes.pop(legacy_key, None)
                 chk = self.order_checkboxes.get(item_key, "☐")
                 chk_img = self.chk_checked_img if chk == "☑" else self.chk_unchecked_img
                 tot_f = item["total_files"]
@@ -8281,6 +8495,7 @@ class QCBatchLoaderApp(ctk.CTk):
             self._update_leftover_badge()
             self._update_storage_metrics()
             self._update_table_header_metrics()
+            self._update_action_cell_overlays()
 
         finally:
             self._set_controls_running(False)
@@ -8508,7 +8723,7 @@ class QCBatchLoaderApp(ctk.CTk):
 
                 init_size = f"0 B / {total_sz_str}"
 
-                init_row = (format_order_id_display(order_id), vendor, "Syncing 0.0%", init_files, init_size, "[ ⏳ Syncing ]", "[ ☁ Cloud ]", "[ 📁 Open ]")
+                init_row = (format_order_id_display(order_id), vendor, "Syncing 0.0%", init_files, init_size, "⏳ Syncing", "Cloud", "📁 Open")
                 self.after(0, lambda: [
                     self.tree.item(
                         item_id,
@@ -8552,7 +8767,7 @@ class QCBatchLoaderApp(ctk.CTk):
                     prog_text = f"Syncing {pct:.1f}%"
                     files_prog = f"{cur_f} / {total_files}"
                     size_prog = f"{format_bytes(cur_b)} / {total_sz_str}"
-                    cur_vals = (format_order_id_display(order_id), vendor, prog_text, files_prog, size_prog, "[ ⏳ Syncing ]", "[ ☁ Cloud ]", "[ 📁 Open ]")
+                    cur_vals = (format_order_id_display(order_id), vendor, prog_text, files_prog, size_prog, "⏳ Syncing", "Cloud", "📁 Open")
 
                     # Calculate Speed and ETA (Point 4)
                     sp_str = ""
@@ -8631,7 +8846,7 @@ class QCBatchLoaderApp(ctk.CTk):
 
                 final_size = f"{total_sz_str} / {total_sz_str}"
 
-                new_vals = (format_order_id_display(order_id), vendor, status_text, final_files, final_size, "[ 📥 Local ]", "[ ☁ Cloud ]", "[ 📁 Open ]")
+                new_vals = (format_order_id_display(order_id), vendor, status_text, final_files, final_size, "Local", "Cloud", "📁 Open")
 
                 def _on_local_done():
 
@@ -8725,7 +8940,7 @@ class QCBatchLoaderApp(ctk.CTk):
 
                 chk_img = self.chk_checked_img if chk == "☑" else self.chk_unchecked_img
 
-                self.after(0, lambda iid=item_id, img=chk_img, oid=order_id, v=vendor, fc=file_count: self.tree.item(iid, text="", image=img, values=(format_order_id_display(oid), v, "⏳ Offloading...", f"0 / {fc}", "Freeing...", "[ 📥 Local ]", "[ ⏳ Offloading ]", "[ 📁 Open ]"), tags=("row_syncing",)))
+                self.after(0, lambda iid=item_id, img=chk_img, oid=order_id, v=vendor, fc=file_count: self.tree.item(iid, text="", image=img, values=(format_order_id_display(oid), v, "⏳ Offloading...", f"0 / {fc}", "Freeing...", "Local", "⏳ Offloading", "📁 Open"), tags=("row_syncing",)))
 
                 try:
 
@@ -8743,7 +8958,7 @@ class QCBatchLoaderApp(ctk.CTk):
 
                     files_str = f"0 / {file_count}"
 
-                    new_vals = (format_order_id_display(order_id), vendor, status_text, files_str, file_sz_str, "[ 📥 Local ]", "[ ☁ Cloud ]", "[ 📁 Open ]")
+                    new_vals = (format_order_id_display(order_id), vendor, status_text, files_str, file_sz_str, "Local", "Cloud", "📁 Open")
 
                     self.after(0, lambda iid=item_id, img=chk_img, oid=order_id, vals=new_vals: [
 
@@ -9076,7 +9291,7 @@ class QCBatchLoaderApp(ctk.CTk):
                 chk_ftp = self.order_checkboxes.get(item_key_ftp, "☐")
                 chk_img_ftp = self.chk_checked_img if chk_ftp == "☑" else self.chk_unchecked_img
 
-                row_vals_ftp = (format_order_id_display(order_id), vendor_ftp, status_text_ftp, files_disp_ftp, disp_size_ftp, "[ - ]", "[ - ]", "[ 📁 Open ]")
+                row_vals_ftp = (format_order_id_display(order_id), vendor_ftp, status_text_ftp, files_disp_ftp, disp_size_ftp, "-", "-", "📁 Open")
 
                 ftp_info = {"order_id": order_id, "vendor": vendor_ftp, "path": ftp_folder, "status": status_text_ftp, "files": total_files_ftp, "size_bytes": total_size_ftp, "is_ftp": True}
                 self.resolved_orders[item_key_ftp] = ftp_info
@@ -9101,7 +9316,7 @@ class QCBatchLoaderApp(ctk.CTk):
                     item_key = f"{order_id}_notfound"
                     chk = self.order_checkboxes.get(item_key, "☐")
                     chk_img = self.chk_checked_img if chk == "☑" else self.chk_unchecked_img
-                    row_vals = (format_order_id_display(order_id), "[ - ]", status_text, "0 / 0", "0 B / 0 B", "[ - ]", "[ - ]", "[ - ]")
+                    row_vals = (format_order_id_display(order_id), "-", status_text, "0 / 0", "0 B / 0 B", "-", "-", "-")
                     self.resolved_orders[item_key] = {"order_id": order_id, "vendor": "-", "path": None, "status": status_text, "files": 0, "size_bytes": 0}
                     self.resolved_orders[order_id] = self.resolved_orders[item_key]
                     self.table_items[item_key] = row_vals
@@ -9144,7 +9359,20 @@ class QCBatchLoaderApp(ctk.CTk):
 
                     total_files = len(file_list)
 
+                    order_id = normalize_order_id(str(order_id))
                     item_key = f"{order_id}_{vendor}"
+
+                    for existing_iid in list(self.tree.get_children()):
+                        if existing_iid != item_key:
+                            e_info = self.resolved_orders.get(existing_iid)
+                            e_vals = self.tree.item(existing_iid, "values")
+                            e_oid = normalize_order_id(e_info.get("order_id") if e_info else (e_vals[0] if e_vals else ""))
+                            e_vendor = e_info.get("vendor") if e_info else (e_vals[1] if e_vals and len(e_vals) > 1 else "")
+                            if e_oid == order_id and e_vendor == vendor:
+                                self.tree.delete(existing_iid)
+                                self.table_items.pop(existing_iid, None)
+                                self.resolved_orders.pop(existing_iid, None)
+                                self.order_checkboxes.pop(existing_iid, None)
 
                     chk = self.order_checkboxes.get(item_key, "☐")
 
@@ -9156,7 +9384,7 @@ class QCBatchLoaderApp(ctk.CTk):
 
                     init_size = f"0 B / {total_sz_str}"
 
-                    row_vals = (format_order_id_display(order_id), vendor, "Syncing 0.0%", init_files, init_size, "[ ⏳ Syncing ]", "[ ☁ Cloud ]", "[ 📁 Open ]")
+                    row_vals = (format_order_id_display(order_id), vendor, "Syncing 0.0%", init_files, init_size, "⏳ Syncing", "Cloud", "📁 Open")
 
                     self.table_items[item_key] = row_vals
 
@@ -9203,7 +9431,7 @@ class QCBatchLoaderApp(ctk.CTk):
                             prog_text = f"Syncing {s_pct:.1f}%"
                             files_prog = f"{cur_f} / {total_files}"
                             size_prog = f"{format_bytes(cur_b)} / {total_sz_str}"
-                            cur_vals = (format_order_id_display(order_id), vendor, prog_text, files_prog, size_prog, "[ ⏳ Syncing ]", "[ ☁ Cloud ]", "[ 📁 Open ]")
+                            cur_vals = (format_order_id_display(order_id), vendor, prog_text, files_prog, size_prog, "⏳ Syncing", "Cloud", "📁 Open")
                             overall_frac = (i + (cur_b / max(total_size, 1))) / max(total_orders, 1)
                             overall_pct = overall_frac * 100.0
 
@@ -9275,7 +9503,7 @@ class QCBatchLoaderApp(ctk.CTk):
 
                                     size_prog = f"{format_bytes(cur_b)} / {total_sz_str}"
 
-                                    cur_vals = (format_order_id_display(order_id), vendor, prog_text, files_prog, size_prog, "[ ⏳ Syncing ]", "[ ☁ Cloud ]", "[ 📁 Open ]")
+                                    cur_vals = (format_order_id_display(order_id), vendor, prog_text, files_prog, size_prog, "⏳ Syncing", "Cloud", "📁 Open")
 
                                     self.tree.item(item_key, text="", image=chk_img, values=cur_vals, tags=("row_syncing",))
                                     self.table_items.update({item_key: cur_vals})
@@ -9308,7 +9536,7 @@ class QCBatchLoaderApp(ctk.CTk):
 
                     final_size = f"{total_sz_str} / {total_sz_str}" if "Local" in status_text else f"0 B / {total_sz_str}"
 
-                    final_vals = (format_order_id_display(order_id), vendor, status_text, final_files, final_size, "[ 📥 Local ]", "[ ☁ Cloud ]", "[ 📁 Open ]")
+                    final_vals = (format_order_id_display(order_id), vendor, status_text, final_files, final_size, "Local", "Cloud", "📁 Open")
 
                     self.table_items[item_key] = final_vals
 

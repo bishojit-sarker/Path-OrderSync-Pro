@@ -2,6 +2,28 @@
 
 All notable changes, bug fixes, and feature additions to **Path OrderSync Pro** are documented here.
 
+## [v1.9.5] - 2026-11-26
+
+### 🛡️ Duplicate Order Prevention & Context-Aware Dynamic Button Styling:
+- **Bulletproof Duplicate Prevention Across All Ingestion Paths:**
+  - Resolved duplicate row creation caused by key format discrepancy (`"#<id>_<vendor>"` from Scan Local vs. `"<id>_<vendor>"` from Add to Sync List).
+  - Normalized order IDs across `scan_single_order`, `_apply_scan_local_results`, `_add_to_sync_list`, and batch processors.
+  - Implemented proactive duplicate row purging: re-adding an existing order or adding orders after scanning local drives cleanly updates the row in-place without generating duplicates.
+- **Clean Action Button Appearance (No Brackets / Emojis):**
+  - Updated action buttons across all rows to match the clean visual style: `Local`, `Cloud`, and `📁 Open` (with disabled rows showing clean `-`).
+  - Removed cumbersome bracketed emojis (`[ 📥 Local ]` and `[ ☁ Cloud ]`) per user request.
+- **Context-Aware Dynamic Button Colors & Hand Cursor Feedback:**
+  - **When Status is "Local" (Already Downloaded):**
+    - The `Make Local` button is automatically dimmed to a light, muted color (`#94A3B8`) with a standard arrow cursor.
+    - The `Make Cloud` button is rendered in its original vibrant active color (`#1D4ED8` bold) with an interactive hand cursor (`hand2`).
+  - **When Status is "Dropbox" (Cloud-Only):**
+    - The `Make Local` button is rendered in its original vibrant active color (`#1D4ED8` bold) with an interactive hand cursor (`hand2`).
+    - The `Make Cloud` button is automatically dimmed to a light, muted color (`#94A3B8`) with a standard arrow cursor.
+  - **When Status is "FTP":**
+    - Both `Make Local` and `Make Cloud` display disabled `-` in light/muted styling with a standard arrow cursor.
+
+---
+
 ## [v1.9.4] - 2026-11-25
 
 ### 🎯 Order Grouping, Selective Sync/Pause/Stop, Button Pill Styling & UX Polish:
