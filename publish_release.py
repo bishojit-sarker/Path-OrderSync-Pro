@@ -282,15 +282,20 @@ def main():
     else:
         print("  ✓ Working tree clean, no new changes to commit.")
 
-    print("  Pushing to GitHub (origin main)...")
-    push_res = run_cmd("git push origin main", check=False)
+    br_res = run_cmd("git rev-parse --abbrev-ref HEAD", check=False)
+    current_branch = br_res.stdout.strip() if br_res.returncode == 0 and br_res.stdout.strip() else "Development"
+    if current_branch == "HEAD":
+        current_branch = "Development"
+
+    print(f"  Pushing to GitHub (origin {current_branch})...")
+    push_res = run_cmd(f"git push origin {current_branch}", check=False)
     if push_res.returncode != 0:
         print("  [Notice] Standard push failed. Trying with upstream set...")
-        push_res = run_cmd("git push -u origin main", check=False)
+        push_res = run_cmd(f"git push -u origin {current_branch}", check=False)
         if push_res.returncode != 0:
             print("  [Notice] Syncing with remote before pushing...")
-            run_cmd("git pull origin main --rebase --autostash", check=False)
-            push_res = run_cmd("git push -u origin main", check=False)
+            run_cmd(f"git pull origin {current_branch} --rebase --autostash", check=False)
+            push_res = run_cmd(f"git push -u origin {current_branch}", check=False)
             if push_res.returncode != 0:
                 print(f"  [Notice] Git push message:\n{push_res.stderr}")
 
