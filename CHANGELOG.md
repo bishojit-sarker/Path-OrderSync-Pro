@@ -2,6 +2,26 @@
 
 All notable changes, bug fixes, and feature additions to **Path OrderSync Pro** are documented here.
 
+## [v1.9.6] - 2026-11-26
+
+### 🎨 Dedicated Original/Completed Columns, Lavender Palette & Selection Polish:
+- **Unified Row Architecture with Dedicated `Original` (FTP) & `Completed` (Dropbox) Columns:**
+  - Replaced separate `Original | FTP` rows when an order exists in Dropbox with a dedicated **`Original`** column right before **`Completed`** (renamed from `Open`).
+  - **`Original` Column:** Displays `📁 Open` (clickable) if the order is found on FTP / Synology NAS, or `-` if not found.
+  - **`Completed` Column:** Displays `📁 Open` (clickable) if the order exists in Dropbox, or `-` if not found (e.g., FTP-only orders).
+- **Consistent Pause & Stop Button Visibility:**
+  - Kept `⏸ Pause` and `⏹ Stop` buttons clearly visible at full brightness both before and after data input/scanning.
+- **Row Selection Highlight Synchronization:**
+  - Fixed `Make Local` and `Make Cloud` cell overlays so they dynamically adopt the selected row background (`#9B93EE`) and crisp contrast text on `<<TreeviewSelect>>`, eliminating mismatched rectangular patches while keeping the `hand2` cursor on active actions.
+- **New Lavender Status & Multi-Vendor Gradient Palette:**
+  - Base status row background color set to **`#C3BEF4`**.
+  - Orders with multiple vendors automatically receive sequential gradient shades: **`#CDC9F6`**, **`#D7D3F8`**, **`#E1DEF9`**, **`#EBE9FB`**, **`#F5F4FD`**, **`#FFFFFF`**.
+  - Selected row highlight color set to **`#9B93EE`**.
+- **Drive Metric Label Fix:**
+  - Fixed duplicate colon in the top Drive capacity badge (`Drive C: ...` instead of `Drive C:: ...`).
+
+---
+
 ## [v1.9.5] - 2026-11-26
 
 ### 🛡️ Duplicate Order Prevention & Context-Aware Dynamic Button Styling:
