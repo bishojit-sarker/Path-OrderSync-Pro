@@ -2,6 +2,18 @@
 
 All notable changes, bug fixes, and feature additions to **Path OrderSync Pro** are documented here.
 
+## [v1.9.9] - 2026-11-26
+
+### 🎨 Ultra-Thin 1px White Row Strokes & Refined Lavender/Blush Palette:
+- **Thinner 1px White Horizontal Row Strokes:**
+  - Refined the inter-row white (`#FFFFFF`) separator stroke to a crisp **1px** line across all rows.
+- **Updated Status & Multi-Vendor Row Colors:**
+  - All Status badge/row backgrounds set to **`#EBE9FB`**.
+  - Multi-vendor orders: first vendor row uses **`#EBE9FB`**, and all subsequent vendor rows use **`#FCEFEF`**.
+  - Selected row highlight remains **`#9B93EE`** and table font color remains **`#1F1D2F`**.
+
+---
+
 ## [v1.9.8] - 2026-11-26
 
 ### 🎨 Updated Color Palette, High-Contrast Font & White Row Strokes:

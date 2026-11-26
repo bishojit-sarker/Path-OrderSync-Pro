@@ -5,14 +5,14 @@ import app
 
 class TestV196Features(unittest.TestCase):
     def test_version_bump(self):
-        self.assertIn(app.CURRENT_VERSION, ["v1.9.6", "v1.9.7", "v1.9.8"])
+        self.assertIn(app.CURRENT_VERSION, ["v1.9.6", "v1.9.7", "v1.9.8", "v1.9.9"])
 
     def test_theme_lavender_palette(self):
         light = app.BRAND_THEMES["light"]
         self.assertEqual(light["tree_select"], "#9B93EE")
         self.assertEqual(light["tree_select_fg"], "#1F1D2F")
         for key in ("status_local_bg", "status_sync_bg", "status_cloud_bg", "status_notfound_bg", "status_ftp_bg"):
-            self.assertEqual(light[key], "#D7D3F8")
+            self.assertEqual(light[key], "#EBE9FB")
 
     def test_multi_vendor_row_color_tags(self):
         class MockApp:

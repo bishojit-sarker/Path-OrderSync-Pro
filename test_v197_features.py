@@ -6,14 +6,14 @@ import app
 
 class TestV197Features(unittest.TestCase):
     def test_version_bump(self):
-        self.assertEqual(app.CURRENT_VERSION, "v1.9.8")
+        self.assertEqual(app.CURRENT_VERSION, "v1.9.9")
 
     def test_palette_and_font_colors(self):
         light = app.BRAND_THEMES["light"]
         self.assertEqual(light["tree_select"], "#9B93EE")
         self.assertEqual(light["tree_select_fg"], "#1F1D2F")
         for key in ("status_local_bg", "status_sync_bg", "status_cloud_bg", "status_notfound_bg", "status_ftp_bg"):
-            self.assertEqual(light[key], "#D7D3F8")
+            self.assertEqual(light[key], "#EBE9FB")
         for key in ("status_local_fg", "status_sync_fg", "status_cloud_fg", "status_notfound_fg", "status_ftp_fg"):
             self.assertEqual(light[key], "#1F1D2F")
 
