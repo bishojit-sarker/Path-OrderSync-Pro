@@ -2,6 +2,16 @@
 
 All notable changes, bug fixes, and feature additions to **Path OrderSync Pro** are documented here.
 
+## [v1.9.10] - 2026-11-26
+
+### 🎨 Updated Soft Lavender & Ivory Row Palette:
+- **Updated Status, Multi-Vendor & Selection Colors:**
+  - All Status badge/row backgrounds set to **`#F5F4FD`**.
+  - Multi-vendor orders: first vendor row uses **`#F5F4FD`**, and all subsequent vendor rows use **`#FCFDF4`**.
+  - Selected row highlight color set to **`#AFA8F1`**.
+
+---
+
 ## [v1.9.9] - 2026-11-26
 
 ### 🎨 Ultra-Thin 1px White Row Strokes & Refined Lavender/Blush Palette:

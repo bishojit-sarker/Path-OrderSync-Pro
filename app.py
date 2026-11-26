@@ -133,7 +133,7 @@ APP_NAME = "Path OrderSync Pro"
 
 APP_TAGLINE = "Sync Smarter. Work Faster. Better Quality."
 
-CURRENT_VERSION = "v1.9.9"
+CURRENT_VERSION = "v1.9.10"
 
 GITHUB_REPO = "bishojit-sarker/Path-OrderSync-Pro"
 
@@ -182,17 +182,17 @@ BRAND_THEMES = {
         "btn_disabled_fg": "#94a3b8",
         "tree_bg": "#ffffff",
         "tree_heading": "#f1f6fb",
-        "tree_select": "#9B93EE",
+        "tree_select": "#AFA8F1",
         "tree_select_fg": "#1F1D2F",
-        "status_local_bg": "#EBE9FB",
+        "status_local_bg": "#F5F4FD",
         "status_local_fg": "#1F1D2F",
-        "status_sync_bg": "#EBE9FB",
+        "status_sync_bg": "#F5F4FD",
         "status_sync_fg": "#1F1D2F",
-        "status_cloud_bg": "#EBE9FB",
+        "status_cloud_bg": "#F5F4FD",
         "status_cloud_fg": "#1F1D2F",
-        "status_notfound_bg": "#EBE9FB",
+        "status_notfound_bg": "#F5F4FD",
         "status_notfound_fg": "#1F1D2F",
-        "status_ftp_bg": "#EBE9FB",
+        "status_ftp_bg": "#F5F4FD",
         "status_ftp_fg": "#1F1D2F",
         "row_sync_bg": "#e1effe",
         "row_sync_fg": "#1e429f",
@@ -4108,7 +4108,7 @@ def fetch_all_releases():
 
     # Only include VERIFIED AVAILABLE releases (active build, local binary, or valid GitHub asset)
 
-    candidate_tags = [CURRENT_VERSION, "v1.9.8", "v1.9.7", "v1.9.6", "v1.9.5", "v1.9.4", "v1.9.3", "v1.9.2", "v1.9.1", "v1.9.0", "v1.8.0", "v1.7.0", "v1.6.0", "v1.5.0", "v1.4.0", "v1.3.0", "v1.2.0"]
+    candidate_tags = [CURRENT_VERSION, "v1.9.9", "v1.9.8", "v1.9.7", "v1.9.6", "v1.9.5", "v1.9.4", "v1.9.3", "v1.9.2", "v1.9.1", "v1.9.0", "v1.8.0", "v1.7.0", "v1.6.0", "v1.5.0", "v1.4.0", "v1.3.0", "v1.2.0"]
 
     for t in github_releases:
 
@@ -6383,11 +6383,11 @@ class QCBatchLoaderApp(ctk.CTk):
 
         self.tree.tag_configure("row_notfound", background=t["status_notfound_bg"], foreground=t["status_notfound_fg"])
 
-        self.tree.tag_configure("row_ftp", background=t.get("status_ftp_bg", "#EBE9FB"), foreground=t.get("status_ftp_fg", "#1F1D2F"))
+        self.tree.tag_configure("row_ftp", background=t.get("status_ftp_bg", "#F5F4FD"), foreground=t.get("status_ftp_fg", "#1F1D2F"))
 
-        # Multi-vendor sequential tags: first vendor #EBE9FB, subsequent vendors #FCEFEF
-        self.tree.tag_configure("row_v0", background="#EBE9FB" if is_light else t["bg_card"], foreground="#1F1D2F" if is_light else t["text_main"])
-        self.tree.tag_configure("row_v1", background="#FCEFEF" if is_light else t["bg_card"], foreground="#1F1D2F" if is_light else t["text_main"])
+        # Multi-vendor sequential tags: first vendor #F5F4FD, subsequent vendors #FCFDF4
+        self.tree.tag_configure("row_v0", background="#F5F4FD" if is_light else t["bg_card"], foreground="#1F1D2F" if is_light else t["text_main"])
+        self.tree.tag_configure("row_v1", background="#FCFDF4" if is_light else t["bg_card"], foreground="#1F1D2F" if is_light else t["text_main"])
 
         # Text selection overlay state for Order ID column & Action cell overlays (Point 1 & Point 7)
         self._selected_order_ids = []
@@ -7103,13 +7103,13 @@ class QCBatchLoaderApp(ctk.CTk):
             is_selected = iid in selected_set
             tags = self.tree.item(iid, "tags")
             if is_selected:
-                row_bg = t.get("tree_select", "#9B93EE")
+                row_bg = t.get("tree_select", "#AFA8F1")
             elif not is_light:
                 row_bg = t.get("bg_card", "#161c36")
             elif "row_v1" in tags:
-                row_bg = "#FCEFEF"
+                row_bg = "#FCFDF4"
             else:
-                row_bg = "#EBE9FB"
+                row_bg = "#F5F4FD"
 
             active_fg = ("#1e1b4b" if is_selected else "#1d4ed8") if is_light else "#60a5fa"
             dim_fg = ("#475569" if is_selected else "#64748b") if is_light else "#64748b"
@@ -7726,9 +7726,9 @@ class QCBatchLoaderApp(ctk.CTk):
             self.tree.tag_configure("row_syncing", background=t["status_sync_bg"], foreground=t["status_sync_fg"])
             self.tree.tag_configure("row_online", background=t["status_cloud_bg"], foreground=t["status_cloud_fg"])
             self.tree.tag_configure("row_notfound", background=t["status_notfound_bg"], foreground=t["status_notfound_fg"])
-            self.tree.tag_configure("row_ftp", background=t.get("status_ftp_bg", "#EBE9FB"), foreground=t.get("status_ftp_fg", "#1F1D2F"))
-            self.tree.tag_configure("row_v0", background="#EBE9FB" if is_light else t["bg_card"], foreground="#1F1D2F" if is_light else t["text_main"])
-            self.tree.tag_configure("row_v1", background="#FCEFEF" if is_light else t["bg_card"], foreground="#1F1D2F" if is_light else t["text_main"])
+            self.tree.tag_configure("row_ftp", background=t.get("status_ftp_bg", "#F5F4FD"), foreground=t.get("status_ftp_fg", "#1F1D2F"))
+            self.tree.tag_configure("row_v0", background="#F5F4FD" if is_light else t["bg_card"], foreground="#1F1D2F" if is_light else t["text_main"])
+            self.tree.tag_configure("row_v1", background="#FCFDF4" if is_light else t["bg_card"], foreground="#1F1D2F" if is_light else t["text_main"])
             self._update_all_tree_overlays()
 
         # 7. Update Context Menu

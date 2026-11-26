@@ -8,7 +8,7 @@ import app
 
 class TestV194Features(unittest.TestCase):
     def test_version_bump(self):
-        self.assertIn(app.CURRENT_VERSION, ["v1.9.4", "v1.9.5", "v1.9.6", "v1.9.7", "v1.9.8", "v1.9.9"])
+        self.assertIn(app.CURRENT_VERSION, ["v1.9.4", "v1.9.5", "v1.9.6", "v1.9.7", "v1.9.8", "v1.9.9", "v1.9.10"])
 
     def test_order_group_sort_key(self):
         class MockApp:
